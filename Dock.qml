@@ -436,6 +436,15 @@ Item {
     }
   }
 
+  // Periodic safety check while dock is visible on desktop to catch live window drag/moves
+  Timer {
+    id: intelligentOverlapCheckTimer
+    interval: 350
+    repeat: true
+    running: root.autohide && root.intelligentAutohide && root.dockVisible && !(cardHover && cardHover.hovered) && !(revealHover && revealHover.hovered) && root.contextAppId === "" && root.dragAppId === ""
+    onTriggered: overlapProc.running = true
+  }
+
   Process {
     id: overlapProc
     command: ["hyprctl", "-j", "clients"]
@@ -449,17 +458,25 @@ Item {
           return
         }
 
-        // Logical height calculation accounting for monitor fractional scaling
+        // Logical monitor dimensions accounting for fractional scaling
         var mon = Hyprland.focusedMonitor
         var scale = (mon && mon.scale > 0)
           ? mon.scale
           : (dockScreen && dockScreen.devicePixelRatio ? dockScreen.devicePixelRatio : 1.0)
+        var screenLogicalW = (mon && mon.width > 0)
+          ? (mon.width / scale)
+          : (dockScreen ? dockScreen.width : 1920)
         var screenLogicalH = (mon && mon.height > 0)
           ? (mon.height / scale)
           : (dockScreen ? dockScreen.height : 1080)
 
-        var dockCardH = dockCard.height > 0 ? (dockCard.height + Style.gapsOut * 2) : 60
-        var threshold = screenLogicalH - dockCardH - 12
+        var cardW = dockCard.width > 0 ? (dockCard.width + Style.gapsOut * 2) : 320
+        var cardH = dockCard.height > 0 ? (dockCard.height + Style.gapsOut * 2) : 60
+        var dockLeft = (screenLogicalW - cardW) / 2
+        var dockRight = (screenLogicalW + cardW) / 2
+        var dockTop = screenLogicalH - cardH - 12
+        var dockBottom = screenLogicalH
+
         var overlap = false
         var focusedWsId = Hyprland.focusedWorkspace ? Hyprland.focusedWorkspace.id : -1
 
@@ -467,14 +484,21 @@ Item {
           var c = clients[i]
           if (!c.mapped || c.hidden) continue
           if (!c.workspace || c.workspace.id !== focusedWsId) continue
-          if (c.floating) continue
 
           var at = c.at
           var sz = c.size
           if (!at || !sz || at.length < 2 || sz.length < 2) continue
 
-          var bottom = at[1] + sz[1]
-          if (bottom >= threshold) {
+          var winLeft = at[0]
+          var winTop = at[1]
+          var winRight = at[0] + sz[0]
+          var winBottom = at[1] + sz[1]
+
+          // 2D Axis-Aligned Bounding Box (AABB) intersection check with dock area
+          var intersectsX = (winRight >= dockLeft) && (winLeft <= dockRight)
+          var intersectsY = (winBottom >= dockTop) && (winTop <= dockBottom)
+
+          if (intersectsX && intersectsY) {
             overlap = true
             break
           }
@@ -574,8 +598,9 @@ Item {
     }
     function onRawEvent(event) {
       var n = String((event && event.name) || "")
-      if (n === "workspace" || n === "openwindow" || n === "closewindow" ||
-          n === "movewindow" || n === "changefloatingmode" || n === "fullscreen") {
+      if (n === "workspace" || n === "workspacev2" || n === "openwindow" || n === "closewindow" ||
+          n === "movewindow" || n === "movewindowv2" || n === "activewindow" || n === "activewindowv2" ||
+          n === "changefloatingmode" || n === "fullscreen" || n === "pin" || n === "focusedmon") {
         debounceOverlapTimer.restart()
       }
     }
