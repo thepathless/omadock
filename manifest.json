@@ -2,9 +2,9 @@
   "schemaVersion": 1,
   "id": "omadock",
   "name": "omadock",
-  "version": "1.4.0",
-  "author": "suva",
-  "description": "Clean, minimal macOS-inspired application dock for Omarchy with reactive autohide, multi-window management, and deep customizations",
+  "version": "1.4.3",
+  "author": "thepathless",
+  "description": "Clean, modern, high-performance application dock for Omarchy with zero-CPU autohide, tiling window adaptation, and deep customization",
   "kinds": [
     "overlay"
   ],
