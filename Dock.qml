@@ -1297,7 +1297,7 @@ Item {
     exclusiveZone: (!root.autohide) ? Math.round(dockCard.height + Style.gapsOut * 2) : 0
 
     anchors { bottom: true; left: true; right: true }
-    implicitHeight: 450
+    implicitHeight: 650
 
     mask: Region {
       item: dockCard
@@ -1582,7 +1582,7 @@ Item {
           spacing: Style.space(1)
           visible: root.contextAppId === "__dock_settings__"
 
-          // 1. Main Settings Menu Page
+          // 1. Main Categories Page (Minimalist & Categorized)
           Column {
             spacing: Style.space(2)
             visible: root.settingsSubmenu === ""
@@ -1593,8 +1593,40 @@ Item {
             }
 
             ContextRow {
-              text: "Autohide: " + (root.autohide ? (root.intelligentAutohide ? "Intelligent" : "Auto Hide") : "Always Show") + " ›"
-              onTriggered: root.settingsSubmenu = "autohide"
+              text: "Appearance ›"
+              onTriggered: root.settingsSubmenu = "appearance"
+            }
+
+            ContextRow {
+              text: "Behavior & Windows ›"
+              onTriggered: root.settingsSubmenu = "behavior"
+            }
+
+            ContextRow {
+              text: "Effects & Animations ›"
+              onTriggered: root.settingsSubmenu = "effects"
+            }
+
+            ContextRow {
+              text: "Size & Spacing ›"
+              onTriggered: root.settingsSubmenu = "size_spacing"
+            }
+          }
+
+          // 2. Appearance Category Page
+          Column {
+            spacing: Style.space(1)
+            visible: root.settingsSubmenu === "appearance"
+
+            ContextRow {
+              text: "‹ Back"
+              textColor: Color.bar.active
+              onTriggered: root.settingsSubmenu = ""
+            }
+
+            ContextRow {
+              text: "Appearance"
+              isHeader: true
             }
 
             ContextRow {
@@ -1611,21 +1643,62 @@ Item {
               text: "Color: " + (root.dockBgColor === "theme" || !root.dockBgColor ? "Theme" : (root.dockBgColor === "none" ? "No Color" : "Custom")) + " ›"
               onTriggered: root.settingsSubmenu = "color"
             }
+          }
+
+          // 3. Behavior & Windows Category Page
+          Column {
+            spacing: Style.space(1)
+            visible: root.settingsSubmenu === "behavior"
 
             ContextRow {
-              text: "Icon Size: " + root.iconSize + "px ›"
-              onTriggered: root.settingsSubmenu = "size"
+              text: "‹ Back"
+              textColor: Color.bar.active
+              onTriggered: root.settingsSubmenu = ""
             }
 
             ContextRow {
-              text: "Spacing: " + (root.itemSpacing <= 2 ? "Compact" : (root.itemSpacing <= 5 ? "Normal" : "Relaxed")) + " ›"
-              onTriggered: root.settingsSubmenu = "spacing"
+              text: "Behavior & Windows"
+              isHeader: true
             }
 
-            Rectangle {
-              width: parent.width
-              height: 1
-              color: Util.alpha(Color.menu.border, 0.4)
+            ContextRow {
+              text: "Autohide: " + (root.autohide ? (root.intelligentAutohide ? "Intelligent" : "Auto Hide") : "Always Show") + " ›"
+              onTriggered: root.settingsSubmenu = "autohide"
+            }
+
+            ContextRow {
+              text: "Click Active to Minimize"
+              checked: root.clickToMinimize
+              onTriggered: {
+                root.clickToMinimize = !root.clickToMinimize
+                root.saveConfig()
+              }
+            }
+
+            ContextRow {
+              text: "Urgent Highlights"
+              checked: root.showUrgentHint
+              onTriggered: {
+                root.showUrgentHint = !root.showUrgentHint
+                root.saveConfig()
+              }
+            }
+          }
+
+          // 4. Effects & Animations Category Page
+          Column {
+            spacing: Style.space(1)
+            visible: root.settingsSubmenu === "effects"
+
+            ContextRow {
+              text: "‹ Back"
+              textColor: Color.bar.active
+              onTriggered: root.settingsSubmenu = ""
+            }
+
+            ContextRow {
+              text: "Effects & Animations"
+              isHeader: true
             }
 
             ContextRow {
@@ -1663,27 +1736,36 @@ Item {
                 root.saveConfig()
               }
             }
+          }
+
+          // 5. Size & Spacing Category Page
+          Column {
+            spacing: Style.space(1)
+            visible: root.settingsSubmenu === "size_spacing"
 
             ContextRow {
-              text: "Urgent Highlights"
-              checked: root.showUrgentHint
-              onTriggered: {
-                root.showUrgentHint = !root.showUrgentHint
-                root.saveConfig()
-              }
+              text: "‹ Back"
+              textColor: Color.bar.active
+              onTriggered: root.settingsSubmenu = ""
             }
 
             ContextRow {
-              text: "Click Active to Minimize"
-              checked: root.clickToMinimize
-              onTriggered: {
-                root.clickToMinimize = !root.clickToMinimize
-                root.saveConfig()
-              }
+              text: "Size & Spacing"
+              isHeader: true
+            }
+
+            ContextRow {
+              text: "Icon Size: " + root.iconSize + "px ›"
+              onTriggered: root.settingsSubmenu = "size"
+            }
+
+            ContextRow {
+              text: "Spacing: " + (root.itemSpacing <= 2 ? "Compact" : (root.itemSpacing <= 5 ? "Normal" : "Relaxed")) + " ›"
+              onTriggered: root.settingsSubmenu = "spacing"
             }
           }
 
-          // 2. Autohide Submenu Page
+          // 6. Autohide Submenu Page
           Column {
             spacing: Style.space(1)
             visible: root.settingsSubmenu === "autohide"
@@ -1691,7 +1773,7 @@ Item {
             ContextRow {
               text: "‹ Back"
               textColor: Color.bar.active
-              onTriggered: root.settingsSubmenu = ""
+              onTriggered: root.settingsSubmenu = "behavior"
             }
 
             ContextRow {
@@ -1718,7 +1800,7 @@ Item {
             }
           }
 
-          // 3. Shape Submenu Page
+          // 7. Shape Submenu Page
           Column {
             spacing: Style.space(1)
             visible: root.settingsSubmenu === "shape"
@@ -1726,7 +1808,7 @@ Item {
             ContextRow {
               text: "‹ Back"
               textColor: Color.bar.active
-              onTriggered: root.settingsSubmenu = ""
+              onTriggered: root.settingsSubmenu = "appearance"
             }
 
             ContextRow {
@@ -1759,7 +1841,7 @@ Item {
             }
           }
 
-          // 4. Background Color Submenu Page
+          // 8. Background Color Submenu Page
           Column {
             spacing: Style.space(1)
             visible: root.settingsSubmenu === "color"
@@ -1767,7 +1849,7 @@ Item {
             ContextRow {
               text: "‹ Back"
               textColor: Color.bar.active
-              onTriggered: root.settingsSubmenu = ""
+              onTriggered: root.settingsSubmenu = "appearance"
             }
 
             ContextRow {
@@ -1845,7 +1927,7 @@ Item {
             }
           }
 
-          // 4. Background Opacity Submenu Page
+          // 9. Background Opacity Submenu Page
           Column {
             spacing: Style.space(1)
             visible: root.settingsSubmenu === "opacity"
@@ -1853,7 +1935,7 @@ Item {
             ContextRow {
               text: "‹ Back"
               textColor: Color.bar.active
-              onTriggered: root.settingsSubmenu = ""
+              onTriggered: root.settingsSubmenu = "appearance"
             }
 
             ContextRow {
@@ -1892,7 +1974,7 @@ Item {
             }
           }
 
-          // 5. Icon Size Submenu Page
+          // 10. Icon Size Submenu Page
           Column {
             spacing: Style.space(1)
             visible: root.settingsSubmenu === "size"
@@ -1900,7 +1982,7 @@ Item {
             ContextRow {
               text: "‹ Back"
               textColor: Color.bar.active
-              onTriggered: root.settingsSubmenu = ""
+              onTriggered: root.settingsSubmenu = "size_spacing"
             }
 
             ContextRow {
@@ -1933,7 +2015,7 @@ Item {
             }
           }
 
-          // 6. Icon Spacing Submenu Page
+          // 11. Icon Spacing Submenu Page
           Column {
             spacing: Style.space(1)
             visible: root.settingsSubmenu === "spacing"
@@ -1941,7 +2023,7 @@ Item {
             ContextRow {
               text: "‹ Back"
               textColor: Color.bar.active
-              onTriggered: root.settingsSubmenu = ""
+              onTriggered: root.settingsSubmenu = "size_spacing"
             }
 
             ContextRow {
