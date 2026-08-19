@@ -660,7 +660,8 @@ Item {
   property string dockShape: "rounded"
   property string dockBgColor: "theme"
   property int itemSpacing: 4
-  property bool clickToMinimize: false
+  property string minimizeMode: "off"
+  readonly property bool clickToMinimize: root.minimizeMode !== "off"
   property bool showUrgentHint: true
   property int revealDelay: 160
   property int tooltipDelay: 450
@@ -927,7 +928,13 @@ Item {
     root.dockShape = parsed && typeof parsed.shape === "string" ? parsed.shape : "rounded"
     root.dockBgColor = parsed && typeof parsed.bgColor === "string" ? parsed.bgColor : "theme"
     root.itemSpacing = parsed && typeof parsed.itemSpacing === "number" ? parsed.itemSpacing : 4
-    root.clickToMinimize = !!(parsed && parsed.clickToMinimize === true)
+    if (parsed && typeof parsed.minimizeMode === "string") {
+      root.minimizeMode = parsed.minimizeMode
+    } else if (parsed && parsed.clickToMinimize === true) {
+      root.minimizeMode = "active"
+    } else {
+      root.minimizeMode = "off"
+    }
     root.showUrgentHint = parsed ? parsed.showUrgentHint !== false : true
     root.revealDelay = parsed && typeof parsed.revealDelay === "number"
       ? Math.max(0, Math.min(2000, Math.round(parsed.revealDelay)))
@@ -1098,6 +1105,41 @@ Item {
     return true
   }
 
+  function minimizeApp(entry) {
+    if (!entry) return false
+    var windows = entry.windowList || []
+    if (windows.length === 0) return false
+
+    if (root.minimizeMode === "all") {
+      var anyMin = false
+      for (var i = 0; i < windows.length; i++) {
+        var w = windows[i]
+        if (w && w.toplevel) {
+          var handle = root.hyprToplevelFor(w.toplevel)
+          var ws = handle ? handle.workspace : null
+          if (ws && ws.name !== root.minimizedWorkspace) {
+            root.minimizeToplevel(w.toplevel)
+            anyMin = true
+          }
+        }
+      }
+      return anyMin
+    } else {
+      var targetWin = null
+      for (var j = 0; j < windows.length; j++) {
+        if (windows[j] && windows[j].activated) {
+          targetWin = windows[j]
+          break
+        }
+      }
+      if (!targetWin && windows.length > 0) targetWin = windows[0]
+      if (targetWin && targetWin.toplevel) {
+        return root.minimizeToplevel(targetWin.toplevel)
+      }
+      return false
+    }
+  }
+
   // Drop origins for windows that are gone, so the map cannot grow forever.
   function pruneMinimized() {
     var origins = root.minimizedOrigins
@@ -1195,7 +1237,8 @@ Item {
     conf.shape = root.dockShape
     conf.bgColor = root.dockBgColor
     conf.itemSpacing = root.itemSpacing
-    conf.clickToMinimize = root.clickToMinimize
+    conf.minimizeMode = root.minimizeMode
+    conf.clickToMinimize = root.minimizeMode !== "off"
     conf.showUrgentHint = root.showUrgentHint
     conf.revealDelay = root.revealDelay
     conf.tooltipDelay = root.tooltipDelay
@@ -1211,12 +1254,30 @@ Item {
       return
     }
 
-    // Clicking the app you are already in is otherwise a dead click. With one
-    // window there is no ambiguity about what to put away; with several,
-    // cycling stays the more useful answer.
     var windows = entry.windowList || []
-    if (root.clickToMinimize && appId === root.activeId && windows.length === 1
-        && root.minimizeToplevel(windows[0].toplevel)) return
+
+    // If all windows of this app are currently minimized, clicking restores them
+    var allMinimized = windows.length > 0
+    for (var k = 0; k < windows.length; k++) {
+      var whandle = root.hyprToplevelFor(windows[k].toplevel)
+      var wws = whandle ? whandle.workspace : null
+      if (!wws || wws.name !== root.minimizedWorkspace) {
+        allMinimized = false
+        break
+      }
+    }
+    if (allMinimized) {
+      for (var r = 0; r < windows.length; r++) {
+        var rhandle = root.hyprToplevelFor(windows[r].toplevel)
+        if (rhandle) root.restoreWindow(rhandle)
+      }
+      return
+    }
+
+    // If minimizeMode is enabled and the app is currently active, minimize
+    if (root.minimizeMode !== "off" && appId === root.activeId) {
+      if (root.minimizeApp(entry)) return
+    }
 
     root.focusToplevel(DockModel.pickAppWindow(
       ToplevelManager.toplevels.values, ToplevelManager.activeToplevel, appId, 1))
@@ -1667,12 +1728,8 @@ Item {
             }
 
             ContextRow {
-              text: "Click Active to Minimize"
-              checked: root.clickToMinimize
-              onTriggered: {
-                root.clickToMinimize = !root.clickToMinimize
-                root.saveConfig()
-              }
+              text: "Minimize On Click: " + (root.minimizeMode === "all" ? "All Windows" : (root.minimizeMode === "active" ? "Active Window" : "Disabled")) + " ›"
+              onTriggered: root.settingsSubmenu = "minimize"
             }
 
             ContextRow {
@@ -1800,7 +1857,51 @@ Item {
             }
           }
 
-          // 7. Shape Submenu Page
+          // 7. Minimize Mode Submenu Page
+          Column {
+            spacing: Style.space(1)
+            visible: root.settingsSubmenu === "minimize"
+
+            ContextRow {
+              text: "‹ Back"
+              textColor: Color.bar.active
+              onTriggered: root.settingsSubmenu = "behavior"
+            }
+
+            ContextRow {
+              text: "Minimize On Click"
+              isHeader: true
+            }
+
+            ContextRow {
+              text: "Disabled"
+              checked: root.minimizeMode === "off"
+              onTriggered: {
+                root.minimizeMode = "off"
+                root.saveConfig()
+              }
+            }
+
+            ContextRow {
+              text: "Active Window (Most Recent)"
+              checked: root.minimizeMode === "active"
+              onTriggered: {
+                root.minimizeMode = "active"
+                root.saveConfig()
+              }
+            }
+
+            ContextRow {
+              text: "All Windows of App"
+              checked: root.minimizeMode === "all"
+              onTriggered: {
+                root.minimizeMode = "all"
+                root.saveConfig()
+              }
+            }
+          }
+
+          // 8. Shape Submenu Page
           Column {
             spacing: Style.space(1)
             visible: root.settingsSubmenu === "shape"
@@ -1841,7 +1942,7 @@ Item {
             }
           }
 
-          // 8. Background Color Submenu Page
+          // 9. Background Color Submenu Page
           Column {
             spacing: Style.space(1)
             visible: root.settingsSubmenu === "color"
@@ -1927,7 +2028,7 @@ Item {
             }
           }
 
-          // 9. Background Opacity Submenu Page
+          // 10. Background Opacity Submenu Page
           Column {
             spacing: Style.space(1)
             visible: root.settingsSubmenu === "opacity"
@@ -1974,7 +2075,7 @@ Item {
             }
           }
 
-          // 10. Icon Size Submenu Page
+          // 11. Icon Size Submenu Page
           Column {
             spacing: Style.space(1)
             visible: root.settingsSubmenu === "size"
@@ -2015,7 +2116,7 @@ Item {
             }
           }
 
-          // 11. Icon Spacing Submenu Page
+          // 12. Icon Spacing Submenu Page
           Column {
             spacing: Style.space(1)
             visible: root.settingsSubmenu === "spacing"
