@@ -40,43 +40,80 @@ Item {
     property bool isDragging: false
     property bool _dragJustEnded: false
     property real dragStartX: 0
+    property real bounceY: 0
+    readonly property bool isHovered: area.containsMouse && !item.isDragging
 
     opacity: item.isDragging ? 0.35 : 1.0
     Behavior on opacity {
       NumberAnimation { duration: 120 }
     }
 
-    Rectangle {
-      anchors.fill: iconBg
-      anchors.margins: Style.space(2)
-      radius: (root.dockShape === "round" || root.dockShape === "pill") ? width / 2 : (root.dockShape === "square" ? 0 : 8)
-      color: area.containsMouse
-        ? (area.pressed ? Style.pressedFill : Style.hoverFill)
-        : (item.active ? Style.selectedFill : "transparent")
-      border.color: area.containsMouse ? Style.hoverBorderColor : "transparent"
-      border.width: Style.hoverBorderWidth
+    SequentialAnimation {
+      id: bounceAnim
+      running: false
+      alwaysRunToEnd: true
+      NumberAnimation { target: item; property: "bounceY"; to: -Style.space(14); duration: 130; easing.type: Easing.OutQuad }
+      NumberAnimation { target: item; property: "bounceY"; to: 0; duration: 130; easing.type: Easing.InQuad }
+      NumberAnimation { target: item; property: "bounceY"; to: -Style.space(7); duration: 90; easing.type: Easing.OutQuad }
+      NumberAnimation { target: item; property: "bounceY"; to: 0; duration: 90; easing.type: Easing.InQuad }
+    }
 
-      Image {
-        id: iconImg
-        anchors.centerIn: parent
-        width: root.iconSize - Style.space(10)
-        height: width
-        source: item.icon !== "" ? item.icon : Quickshell.iconPath("application-x-executable", true)
-        sourceSize: Qt.size(width * Screen.devicePixelRatio, height * Screen.devicePixelRatio)
-        visible: source !== ""
-        mipmap: true
-        smooth: true
+    // 1. Icon Box: Only the icon scales on hover and bounces on click
+    Item {
+      id: iconBox
+      anchors.fill: parent
+      anchors.bottomMargin: item.running ? Style.space(5) : 0
+
+      scale: root.magnification && item.isHovered ? 1.20 : 1.0
+      property real hoverLift: root.magnification && item.isHovered ? -Style.space(6) : 0
+      y: hoverLift
+
+      Behavior on scale {
+        NumberAnimation { duration: 130; easing.type: Easing.OutQuad }
+      }
+      Behavior on hoverLift {
+        NumberAnimation { duration: 130; easing.type: Easing.OutQuad }
+      }
+
+      transform: Translate {
+        y: item.bounceY
+      }
+
+      Rectangle {
+        anchors.fill: parent
+        anchors.margins: Style.space(2)
+        radius: (root.dockShape === "round" || root.dockShape === "pill")
+          ? width / 2
+          : (root.dockShape === "square" ? 0 : ((root.dockShape === "theme" || root.dockShape === "auto") ? Math.max(4, Math.round(Style.cornerRadius * 0.6)) : 8))
+        color: area.containsMouse
+          ? (area.pressed ? Style.pressedFill : Style.hoverFill)
+          : (item.active ? Style.selectedFill : "transparent")
+        border.color: area.containsMouse ? Style.hoverBorderColor : "transparent"
+        border.width: Style.hoverBorderWidth
+
+        Image {
+          id: iconImg
+          anchors.centerIn: parent
+          width: root.iconSize - Style.space(10)
+          height: width
+          source: item.icon !== "" ? item.icon : Quickshell.iconPath("application-x-executable", true)
+          sourceSize: Qt.size(width * Screen.devicePixelRatio, height * Screen.devicePixelRatio)
+          visible: source !== ""
+          mipmap: true
+          smooth: true
+        }
       }
     }
 
-    // Running / multi-window indicator
+    // 2. Running Indicator Dots: Fixed at slot bottom, never scaled or pushed out of dock
     Row {
       id: indicatorRow
-      anchors.horizontalCenter: iconBg.horizontalCenter
-      anchors.top: iconBg.bottom
-      anchors.topMargin: Style.space(1)
+      anchors.horizontalCenter: parent.horizontalCenter
+      anchors.bottom: parent.bottom
+      anchors.bottomMargin: Style.space(1)
       spacing: Style.space(2)
       visible: item.running
+      z: 2
 
       Rectangle {
         width: item.active ? Style.space(7) : Style.space(4)
@@ -93,12 +130,6 @@ Item {
         radius: height / 2
         color: item.active ? Color.bar.active : Util.alpha(Color.bar.text, 0.45)
       }
-    }
-
-    Item {
-      id: iconBg
-      width: root.iconSlot
-      height: root.iconSlot
     }
 
     MouseArea {
@@ -163,6 +194,7 @@ Item {
           var gx = dockCard.x + (pt ? pt.x : (item.x + item.width / 2))
           item.menuRequested(item.appId, gx, 0)
         } else if (mouse.button === Qt.LeftButton) {
+          if (root.launchBounce) bounceAnim.restart()
           item.activateRequested(item.appId)
         }
       }
@@ -170,26 +202,58 @@ Item {
 
     BorderSurface {
       id: itemTooltip
-      visible: area.containsMouse && !item.isDragging && item.name !== "" && root.showTooltips
+      visible: area.containsMouse && !item.isDragging && item.name !== "" && root.showTooltips && root.contextAppId === ""
       z: 300
       color: Color.tooltip.background
       borderSpec: Border.surfaceSpec("tooltip", "border", Color.tooltip.border, 1)
-      radius: Style.cornerRadius
-      padding: Style.space(4)
+      radius: Style.cornerRadius > 0 ? Style.cornerRadius : 8
+      padding: Style.space(6)
       x: (item.width - width) / 2
-      y: -height - Style.space(8)
-      width: tooltipLabel.implicitWidth + contentLeftInset + contentRightInset
-      height: tooltipLabel.implicitHeight + contentTopInset + contentBottomInset
-      Text {
-        id: tooltipLabel
+      y: -height - Style.space(10)
+      width: tooltipContent.implicitWidth + contentLeftInset + contentRightInset
+      height: tooltipContent.implicitHeight + contentTopInset + contentBottomInset
+
+      Column {
+        id: tooltipContent
         x: parent.contentLeftInset
         y: parent.contentTopInset
-        width: parent.width - parent.contentLeftInset - parent.contentRightInset
-        text: item.name
-        color: Color.tooltip.text
-        font.family: Style.font.family
-        font.pixelSize: Style.font.caption
-        horizontalAlignment: Text.AlignHCenter
+        spacing: Style.space(3)
+
+        Text {
+          text: item.name
+          color: Color.tooltip.text
+          font.family: Style.font.family
+          font.pixelSize: Style.font.caption
+          font.bold: root.advancedTooltips && item.running
+          horizontalAlignment: Text.AlignHCenter
+          anchors.horizontalCenter: parent.horizontalCenter
+        }
+
+        Repeater {
+          model: (root.advancedTooltips && item.windowList && item.windowList.length > 0) ? Math.min(item.windowList.length, 3) : 0
+          delegate: Row {
+            spacing: Style.space(4)
+            anchors.horizontalCenter: parent.horizontalCenter
+            Rectangle {
+              width: Style.space(4)
+              height: Style.space(4)
+              radius: width / 2
+              anchors.verticalCenter: parent.verticalCenter
+              color: (item.windowList[index] && item.windowList[index].activated) ? Color.bar.active : Util.alpha(Color.tooltip.text, 0.4)
+            }
+            Text {
+              text: {
+                var t = item.windowList[index] ? String(item.windowList[index].title || "") : ""
+                return t.length > 30 ? t.slice(0, 28) + "…" : t
+              }
+              color: (item.windowList[index] && item.windowList[index].activated) ? Color.tooltip.text : Util.alpha(Color.tooltip.text, 0.75)
+              font.family: Style.font.family
+              font.pixelSize: Math.max(10, Style.font.caption - 2)
+              elide: Text.ElideRight
+              maximumLineCount: 1
+            }
+          }
+        }
       }
     }
   }
@@ -210,7 +274,9 @@ Item {
     Rectangle {
       anchors.fill: parent
       anchors.margins: Style.space(2)
-      radius: (root.dockShape === "round" || root.dockShape === "pill") ? width / 2 : (root.dockShape === "square" ? 0 : 8)
+      radius: (root.dockShape === "round" || root.dockShape === "pill")
+        ? width / 2
+        : (root.dockShape === "square" ? 0 : ((root.dockShape === "theme" || root.dockShape === "auto") ? Math.max(4, Math.round(Style.cornerRadius * 0.6)) : 8))
       color: area.containsMouse ? (area.pressed ? Style.pressedFill : Style.hoverFill) : "transparent"
       border.color: area.containsMouse ? Style.hoverBorderColor : "transparent"
       border.width: Style.hoverBorderWidth
@@ -221,6 +287,10 @@ Item {
         font.family: "omarchy"
         font.pixelSize: btn.glyphSize
         color: btn.glyphColor
+        scale: root.magnification && area.containsMouse ? 1.15 : 1.0
+        Behavior on scale {
+          NumberAnimation { duration: 120; easing.type: Easing.OutQuad }
+        }
       }
     }
 
@@ -247,7 +317,7 @@ Item {
       z: 300
       color: Color.tooltip.background
       borderSpec: Border.surfaceSpec("tooltip", "border", Color.tooltip.border, 1)
-      radius: Style.cornerRadius
+      radius: Style.cornerRadius > 0 ? Style.cornerRadius : 8
       padding: Style.space(4)
       x: (btn.width - width) / 2
       y: -height - Style.space(8)
@@ -405,6 +475,9 @@ Item {
   property bool intelligentAutohide: true
   property bool showAppsButton: true
   property bool showTooltips: true
+  property bool magnification: true
+  property bool launchBounce: true
+  property bool advancedTooltips: true
   property real dockOpacity: 1.0
   property string dockShape: "rounded"
   property string dockBgColor: "theme"
@@ -629,6 +702,9 @@ Item {
     root.intelligentAutohide = parsed && parsed.intelligentAutohide !== false
     root.showAppsButton = parsed && parsed.showAppsButton !== false
     root.showTooltips = parsed && parsed.showTooltips !== false
+    root.magnification = parsed && parsed.magnification !== false
+    root.launchBounce = parsed && parsed.launchBounce !== false
+    root.advancedTooltips = parsed && parsed.advancedTooltips !== false
     root.screenName = parsed && typeof parsed.screen === "string" ? parsed.screen : ""
     root.configuredIconSize = parsed && typeof parsed.iconSize === "number" ? parsed.iconSize : 0
     root.dockOpacity = parsed && typeof parsed.opacity === "number" ? Math.max(0.0, Math.min(1.0, parsed.opacity)) : 1.0
@@ -713,6 +789,9 @@ Item {
     conf.intelligentAutohide = root.intelligentAutohide
     conf.showAppsButton = root.showAppsButton
     conf.showTooltips = root.showTooltips
+    conf.magnification = root.magnification
+    conf.launchBounce = root.launchBounce
+    conf.advancedTooltips = root.advancedTooltips
     if (root.screenName) conf.screen = root.screenName
     if (root.configuredIconSize > 0) conf.iconSize = root.configuredIconSize
     else delete conf.iconSize
@@ -720,7 +799,6 @@ Item {
     conf.shape = root.dockShape
     conf.bgColor = root.dockBgColor
     conf.itemSpacing = root.itemSpacing
-    delete conf.magnification
     configFile.setText(JSON.stringify(conf, null, 2))
   }
 
@@ -730,7 +808,21 @@ Item {
     if (entry && entry.running) {
       DockModel.activateApp(ToplevelManager.toplevels.values, ToplevelManager.activeToplevel, appId)
     } else {
-      root.shell.appLibrary.launch(appId, entry ? entry.name : appId)
+      var deskEntry = DockModel.entryFor(root.appRows, appId)
+      var targetId = (deskEntry && deskEntry.id) ? deskEntry.id : appId
+      var targetName = (deskEntry && deskEntry.name) ? deskEntry.name : (entry ? entry.name : appId)
+      if (deskEntry && deskEntry.id) {
+        root.shell.appLibrary.launch(deskEntry.id, targetName)
+      } else {
+        var webAppMatch = String(appId).match(/^(?:chrome|chromium|brave|edge|microsoft-edge)-(.*?)__?-(?:default|profile.*)$/i)
+                       || String(appId).match(/^(?:chrome|chromium|brave|edge|microsoft-edge)-(.*?)$/i)
+        if (webAppMatch) {
+          var webDomain = webAppMatch[1].replace(/^https?___?/i, "").replace(/__.*$/, "")
+          Quickshell.execDetached(["omarchy-launch-webapp", "https://" + webDomain])
+        } else {
+          root.shell.appLibrary.launch(targetId, targetName)
+        }
+      }
     }
   }
 
@@ -757,7 +849,9 @@ Item {
     root.contextName = entry ? entry.name : appId
     root.contextWindows = entry ? entry.windows : 0
     root.contextWindowList = entry && entry.windowList ? entry.windowList : []
-    root.contextPinned = DockModel.isPinned(root.pinnedIds, appId)
+    var deskEntry = DockModel.entryFor(root.appRows, appId)
+    var canonicalId = (deskEntry && deskEntry.id) ? deskEntry.id : appId
+    root.contextPinned = DockModel.isPinned(root.pinnedIds, appId) || (canonicalId !== appId && DockModel.isPinned(root.pinnedIds, canonicalId))
     root.contextX = x
     root.contextY = y
     root.contextAppId = appId
@@ -856,7 +950,7 @@ Item {
       borderSpec: Border.flat(Util.alpha(Color.bar.text, Math.max(0.28, root.dockOpacity * 0.4)), 1)
       radius: (root.dockShape === "round" || root.dockShape === "pill")
         ? Math.round(height / 2)
-        : (root.dockShape === "square" ? 0 : Math.max(14, Style.space(14)))
+        : (root.dockShape === "square" ? 0 : ((root.dockShape === "theme" || root.dockShape === "auto") ? (Style.cornerRadius > 0 ? Style.cornerRadius : Math.max(14, Style.space(14))) : Math.max(14, Style.space(14))))
       padding: Style.space(4)
       z: 1
 
@@ -1076,7 +1170,7 @@ Item {
             }
 
             ContextRow {
-              text: "Shape: " + (root.dockShape === "round" || root.dockShape === "pill" ? "Round" : (root.dockShape === "square" ? "Square" : "Rounded")) + " ›"
+              text: "Shape: " + (root.dockShape === "theme" || root.dockShape === "auto" ? "Auto (Theme)" : (root.dockShape === "round" || root.dockShape === "pill" ? "Round" : (root.dockShape === "square" ? "Square" : "Rounded"))) + " ›"
               onTriggered: root.settingsSubmenu = "shape"
             }
 
@@ -1104,6 +1198,33 @@ Item {
               width: parent.width
               height: 1
               color: Util.alpha(Color.menu.border, 0.4)
+            }
+
+            ContextRow {
+              text: "Magnification (Zoom)"
+              checked: root.magnification
+              onTriggered: {
+                root.magnification = !root.magnification
+                root.saveConfig()
+              }
+            }
+
+            ContextRow {
+              text: "Launch Bounce"
+              checked: root.launchBounce
+              onTriggered: {
+                root.launchBounce = !root.launchBounce
+                root.saveConfig()
+              }
+            }
+
+            ContextRow {
+              text: "Window Previews"
+              checked: root.advancedTooltips
+              onTriggered: {
+                root.advancedTooltips = !root.advancedTooltips
+                root.saveConfig()
+              }
             }
 
             ContextRow {
@@ -1168,13 +1289,19 @@ Item {
             }
 
             ContextRow {
+              text: "Auto (Theme)"
+              checked: root.dockShape === "theme" || root.dockShape === "auto"
+              onTriggered: root.setDockShape("theme")
+            }
+
+            ContextRow {
               text: "Rounded"
               checked: root.dockShape === "rounded"
               onTriggered: root.setDockShape("rounded")
             }
 
             ContextRow {
-              text: "Round"
+              text: "Round (Pill)"
               checked: root.dockShape === "round" || root.dockShape === "pill"
               onTriggered: root.setDockShape("round")
             }
@@ -1431,8 +1558,7 @@ Item {
           ContextRow {
             text: root.contextWindows > 0 ? "New Window" : "Launch"
             onTriggered: {
-              if (root.shell && root.shell.appLibrary)
-                root.shell.appLibrary.launch(root.contextAppId, root.contextName)
+              root.activate(root.contextAppId)
               root.closeContext()
             }
           }
@@ -1440,7 +1566,9 @@ Item {
           ContextRow {
             text: root.contextPinned ? "Unpin from Dock" : "Pin to Dock"
             onTriggered: {
-              root.togglePin(root.contextAppId)
+              var deskEntry = DockModel.entryFor(root.appRows, root.contextAppId)
+              var canonicalId = (deskEntry && deskEntry.id) ? deskEntry.id : root.contextAppId
+              root.togglePin(canonicalId)
               root.closeContext()
             }
           }
