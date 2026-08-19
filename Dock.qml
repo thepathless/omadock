@@ -1,5 +1,5 @@
-// suva.dock — centered autohiding app dock with labels, drag reorder,
-// multi-window management, and intelligent scale-aware autohide.
+// omadock — centered autohiding app dock with drag reorder, multi-window
+// management, workspace hints, and intelligent scale-aware autohide.
 
 import QtQuick
 import Quickshell
@@ -15,6 +15,58 @@ Item {
 
   // ----------------------------------------------------- inline components
 
+  // Hover bubble with a dwell delay, so sweeping the pointer across the dock
+  // does not flash a label for every icon it passes.
+  component HoverTooltip: BorderSurface {
+    id: bubble
+
+    property string text: ""
+    property bool hovered: false
+    property bool blocked: false
+    property bool shown: false
+
+    visible: bubble.shown && bubble.text !== "" && root.showTooltips
+      && !bubble.blocked && root.contextAppId === ""
+    z: 300
+    color: Color.tooltip.background
+    borderSpec: Border.surfaceSpec("tooltip", "border", Color.tooltip.border, 1)
+    radius: Style.cornerRadius
+    padding: Style.space(4)
+    width: bubbleLabel.implicitWidth + contentLeftInset + contentRightInset
+    height: bubbleLabel.implicitHeight + contentTopInset + contentBottomInset
+
+    onHoveredChanged: {
+      if (bubble.hovered) dwell.restart()
+      else {
+        dwell.stop()
+        bubble.shown = false
+      }
+    }
+
+    onBlockedChanged: if (bubble.blocked) {
+      dwell.stop()
+      bubble.shown = false
+    }
+
+    Timer {
+      id: dwell
+      interval: root.tooltipDelay
+      onTriggered: bubble.shown = true
+    }
+
+    Text {
+      id: bubbleLabel
+      x: bubble.contentLeftInset
+      y: bubble.contentTopInset
+      width: bubble.width - bubble.contentLeftInset - bubble.contentRightInset
+      text: bubble.text
+      color: Color.tooltip.text
+      font.family: Style.font.family
+      font.pixelSize: Style.font.caption
+      horizontalAlignment: Text.AlignHCenter
+    }
+  }
+
   component DockItem: Item {
     id: item
 
@@ -28,6 +80,7 @@ Item {
     property bool pinned: false
 
     signal activateRequested(string appId)
+    signal newWindowRequested(string appId)
     signal menuRequested(string appId, real cx, real cy)
     signal dragStarted(string appId)
     signal dragMoved(string appId, real x)
@@ -42,6 +95,70 @@ Item {
     property real dragStartX: 0
     property real bounceY: 0
     readonly property bool isHovered: area.containsMouse && !item.isDragging
+
+    // Live window state, read straight off the Hyprland handles carried in the
+    // model, so urgency and workspace moves land without a model rebuild.
+
+    readonly property bool urgent: {
+      if (!root.showUrgentHint) return false
+      var list = item.windowList
+      for (var i = 0; i < list.length; i++) {
+        var handle = list[i] ? list[i].hypr : null
+        if (handle && handle.urgent) return true
+      }
+      return false
+    }
+
+    readonly property bool minimized: {
+      var list = item.windowList
+      if (list.length === 0) return false
+      for (var i = 0; i < list.length; i++) {
+        var handle = list[i] ? list[i].hypr : null
+        var ws = handle ? handle.workspace : null
+        if (!ws || ws.name !== root.minimizedWorkspace) return false
+      }
+      return true
+    }
+
+    readonly property bool onFocusedWorkspace: {
+      var list = item.windowList
+      for (var i = 0; i < list.length; i++) {
+        var handle = list[i] ? list[i].hypr : null
+        var ws = handle ? handle.workspace : null
+        if (ws && ws.id === root.focusedWorkspaceId) return true
+      }
+      return false
+    }
+
+    // Where a left click would take you, when that is somewhere else.
+    readonly property string workspaceHint: {
+      if (!item.running || item.minimized || item.onFocusedWorkspace) return ""
+      var handle = item.windowList.length > 0 ? item.windowList[0].hypr : null
+      var ws = handle ? handle.workspace : null
+      return ws ? DockModel.workspaceShort(ws.id, ws.name) : ""
+    }
+
+    readonly property bool starting: root.launchPending[item.appId] !== undefined
+
+    readonly property string tooltipText: {
+      if (item.name === "") return ""
+      if (item.starting) return item.name + " [starting…]"
+      if (item.minimized) return item.name + " [minimized]"
+      if (item.workspaceHint !== "") return item.name + " [" + item.workspaceHint + "]"
+      return item.name
+    }
+
+    // One pulse drives both attention states: urgency and a cold start.
+    property real pulse: 1.0
+    readonly property bool pulsing: item.urgent || item.starting
+    onPulsingChanged: if (!item.pulsing) item.pulse = 1.0
+
+    SequentialAnimation on pulse {
+      running: item.pulsing
+      loops: Animation.Infinite
+      NumberAnimation { from: 1.0; to: 0.35; duration: 650; easing.type: Easing.InOutQuad }
+      NumberAnimation { from: 0.35; to: 1.0; duration: 650; easing.type: Easing.InOutQuad }
+    }
 
     opacity: item.isDragging ? 0.35 : 1.0
     Behavior on opacity {
@@ -88,7 +205,9 @@ Item {
         color: area.containsMouse
           ? (area.pressed ? Style.pressedFill : Style.hoverFill)
           : (item.active ? Style.selectedFill : "transparent")
-        border.color: area.containsMouse ? Style.hoverBorderColor : "transparent"
+        border.color: area.containsMouse
+          ? Style.hoverBorderColor
+          : (item.urgent ? Util.alpha(Color.urgent, 0.3 + 0.6 * item.pulse) : "transparent")
         border.width: Style.hoverBorderWidth
 
         Image {
@@ -99,6 +218,7 @@ Item {
           source: item.icon !== "" ? item.icon : Quickshell.iconPath("application-x-executable", true)
           sourceSize: Qt.size(width * Screen.devicePixelRatio, height * Screen.devicePixelRatio)
           visible: source !== ""
+          opacity: item.starting ? item.pulse : 1.0
           mipmap: true
           smooth: true
         }
@@ -116,10 +236,13 @@ Item {
       z: 2
 
       Rectangle {
-        width: item.active ? Style.space(7) : Style.space(4)
-        height: item.active ? Style.space(3) : Style.space(2)
+        width: (item.active || item.urgent) ? Style.space(7) : Style.space(4)
+        height: (item.active || item.urgent) ? Style.space(3) : Style.space(2)
         radius: height / 2
-        color: item.active ? Color.bar.active : Util.alpha(Color.bar.text, 0.6)
+        color: item.urgent
+          ? Color.urgent
+          : (item.active ? Color.bar.active : Util.alpha(root.dockForeground, item.minimized ? 0.28 : 0.6))
+        opacity: item.urgent ? (0.4 + 0.6 * item.pulse) : 1.0
       }
 
       // Secondary dot for multiple open windows
@@ -128,7 +251,10 @@ Item {
         width: Style.space(3)
         height: Style.space(2)
         radius: height / 2
-        color: item.active ? Color.bar.active : Util.alpha(Color.bar.text, 0.45)
+        color: item.urgent
+          ? Color.urgent
+          : (item.active ? Color.bar.active : Util.alpha(root.dockForeground, item.minimized ? 0.22 : 0.45))
+        opacity: item.urgent ? (0.4 + 0.6 * item.pulse) : 1.0
       }
     }
 
@@ -137,7 +263,7 @@ Item {
       anchors.fill: parent
       hoverEnabled: true
       cursorShape: item.isDragging ? Qt.ClosedHandCursor : Qt.PointingHandCursor
-      acceptedButtons: Qt.LeftButton | Qt.RightButton
+      acceptedButtons: Qt.LeftButton | Qt.RightButton | Qt.MiddleButton
 
       onWheel: function(wheel) {
         if (wheel.angleDelta.y !== 0) {
@@ -193,6 +319,8 @@ Item {
           var pt = item.mapToItem(dockCard, item.width / 2, 0)
           var gx = dockCard.x + (pt ? pt.x : (item.x + item.width / 2))
           item.menuRequested(item.appId, gx, 0)
+        } else if (mouse.button === Qt.MiddleButton) {
+          item.newWindowRequested(item.appId)
         } else if (mouse.button === Qt.LeftButton) {
           if (root.launchBounce) bounceAnim.restart()
           item.activateRequested(item.appId)
@@ -202,7 +330,8 @@ Item {
 
     BorderSurface {
       id: itemTooltip
-      visible: area.containsMouse && !item.isDragging && item.name !== "" && root.showTooltips && root.contextAppId === ""
+      property bool shown: false
+      visible: itemTooltip.shown && item.name !== "" && root.showTooltips && !item.isDragging && root.contextAppId === ""
       z: 300
       color: Color.tooltip.background
       borderSpec: Border.surfaceSpec("tooltip", "border", Color.tooltip.border, 1)
@@ -213,6 +342,23 @@ Item {
       width: tooltipContent.implicitWidth + contentLeftInset + contentRightInset
       height: tooltipContent.implicitHeight + contentTopInset + contentBottomInset
 
+      Connections {
+        target: area
+        function onContainsMouseChanged() {
+          if (area.containsMouse && !item.isDragging) tooltipDwell.restart()
+          else {
+            tooltipDwell.stop()
+            itemTooltip.shown = false
+          }
+        }
+      }
+
+      Timer {
+        id: tooltipDwell
+        interval: root.tooltipDelay
+        onTriggered: itemTooltip.shown = true
+      }
+
       Column {
         id: tooltipContent
         x: parent.contentLeftInset
@@ -220,7 +366,7 @@ Item {
         spacing: Style.space(3)
 
         Text {
-          text: item.name
+          text: item.tooltipText !== "" ? item.tooltipText : item.name
           color: Color.tooltip.text
           font.family: Style.font.family
           font.pixelSize: Style.font.caption
@@ -243,7 +389,8 @@ Item {
             }
             Text {
               text: {
-                var t = item.windowList[index] ? String(item.windowList[index].title || "") : ""
+                var w = item.windowList[index]
+                var t = w ? root.windowRowLabel(w) : ""
                 return t.length > 30 ? t.slice(0, 28) + "…" : t
               }
               color: (item.windowList[index] && item.windowList[index].activated) ? Color.tooltip.text : Util.alpha(Color.tooltip.text, 0.75)
@@ -263,7 +410,7 @@ Item {
 
     property string glyph: ""
     property string tooltip: ""
-    property color glyphColor: Color.bar.text
+    property color glyphColor: root.dockForeground
     property real glyphSize: root.iconSize * 0.42
     signal pressed()
     signal menuRequested(real x, real y)
@@ -311,29 +458,11 @@ Item {
       }
     }
 
-    BorderSurface {
-      id: btnTooltip
-      visible: area.containsMouse && btn.tooltip !== "" && root.showTooltips && root.contextAppId === ""
-      z: 300
-      color: Color.tooltip.background
-      borderSpec: Border.surfaceSpec("tooltip", "border", Color.tooltip.border, 1)
-      radius: Style.cornerRadius > 0 ? Style.cornerRadius : 8
-      padding: Style.space(4)
+    HoverTooltip {
+      text: btn.tooltip
+      hovered: area.containsMouse
       x: (btn.width - width) / 2
       y: -height - Style.space(8)
-      width: btnTooltipLabel.implicitWidth + contentLeftInset + contentRightInset
-      height: btnTooltipLabel.implicitHeight + contentTopInset + contentBottomInset
-      Text {
-        id: btnTooltipLabel
-        x: parent.contentLeftInset
-        y: parent.contentTopInset
-        width: parent.width - parent.contentLeftInset - parent.contentRightInset
-        text: btn.tooltip
-        color: Color.tooltip.text
-        font.family: Style.font.family
-        font.pixelSize: Style.font.caption
-        horizontalAlignment: Text.AlignHCenter
-      }
     }
   }
 
@@ -348,7 +477,15 @@ Item {
     property bool isHeader: false
     signal triggered()
 
-    width: Math.max(180, label.implicitWidth + (crow.glyph !== "" || crow.checked ? Style.space(26) : 0) + Style.space(20))
+    // Rows ask for what they need, then all get drawn at the menu's width, so
+    // hover and checked fills line up down the menu instead of stepping in and
+    // out with the length of each label.
+    readonly property bool isMenuContent: true
+    readonly property real markWidth: Style.space(14)
+
+    implicitWidth: Math.max(180, Style.space(8) + crow.markWidth + Style.space(6)
+      + label.implicitWidth + Style.space(8))
+    width: contextMenu.rowWidth > 0 ? contextMenu.rowWidth : crow.implicitWidth
     height: crow.isHeader ? Math.max(22, Style.space(22)) : Math.max(28, Style.space(28))
 
     Rectangle {
@@ -361,6 +498,7 @@ Item {
     }
 
     Row {
+      id: content
       anchors.left: parent.left
       anchors.leftMargin: Style.space(8)
       anchors.right: parent.right
@@ -368,11 +506,15 @@ Item {
       anchors.verticalCenter: parent.verticalCenter
       spacing: Style.space(6)
 
-      // Omarchy checkmark glyph / dot
+      // The mark column is always reserved, so labels stay on one left edge and
+      // a row keeps its width when it gets checked.
       Text {
-        visible: crow.glyph !== "" || crow.checked
+        id: mark
+        width: crow.markWidth
         anchors.verticalCenter: parent.verticalCenter
-        text: crow.glyph !== "" ? crow.glyph : (crow.checked ? "\ue92b" : "")
+        horizontalAlignment: Text.AlignHCenter
+        opacity: (crow.glyph !== "" || crow.checked) ? 1 : 0
+        text: crow.glyph !== "" ? crow.glyph : "\ue92b"
         font.family: "omarchy"
         font.pixelSize: Style.font.caption
         color: crow.checked ? Color.bar.active : (crow.isHeader ? Util.alpha(Color.menu.text, 0.5) : crow.textColor)
@@ -381,7 +523,7 @@ Item {
       Text {
         id: label
         anchors.verticalCenter: parent.verticalCenter
-        width: parent.width - (crow.glyph !== "" || crow.checked ? Style.space(18) : 0)
+        width: content.width - mark.width - content.spacing
         text: crow.text
         color: crow.isHeader
           ? Util.alpha(Color.menu.text, 0.5)
@@ -427,6 +569,24 @@ Item {
 
   readonly property var appLibrary: shell ? shell.appLibrary : null
 
+  // ------------------------------------------------- contrast
+
+  // The bar foreground is tuned for the bar's own background. A custom dock
+  // colour can land on the same side of the scale — a light theme's dark text
+  // on a dark card, or the reverse — so flip only when the two collide.
+  function isLight(value) {
+    return (0.2126 * value.r + 0.7152 * value.g + 0.0722 * value.b) > 0.5
+  }
+
+  readonly property color dockForeground: {
+    var custom = String(root.dockBgColor || "")
+    if (custom.charAt(0) !== "#") return Color.bar.text
+
+    var cardIsLight = root.isLight(Qt.color(custom))
+    if (cardIsLight !== root.isLight(Color.bar.text)) return Color.bar.text
+    return cardIsLight ? "#12100f" : "#f2efec"
+  }
+
   // ------------------------------------------------- sizing
 
   property int configuredIconSize: 0
@@ -445,13 +605,31 @@ Item {
 
   function refreshDock() {
     root.dockModel = root.shell && root.shell.appLibrary
-      ? DockModel.buildEntries(root.pinnedIds, ToplevelManager.toplevels.values, root.appRows, root.shell.appLibrary)
+      ? DockModel.buildEntries(root.pinnedIds, ToplevelManager.toplevels.values, root.appRows,
+                               root.shell.appLibrary, root.hyprToplevelFor)
       : { pinned: [], running: [] }
+    root.pruneLaunching()
+    root.pruneMinimized()
   }
 
   readonly property string activeId: ToplevelManager.activeToplevel
     ? DockModel.normalizeId(ToplevelManager.activeToplevel.appId)
     : ""
+
+  readonly property int focusedWorkspaceId: Hyprland.focusedWorkspace
+    ? Hyprland.focusedWorkspace.id
+    : -99999
+
+  // Hyprland has no minimize, so a window is parked on its own hidden special
+  // workspace. The workspace name is the state, which means it survives a shell
+  // restart; only the origin workspace is remembered here, and losing it just
+  // means the window comes back to wherever you are.
+  readonly property string minimizedWorkspace: "special:minimized"
+  property var minimizedOrigins: ({})
+
+  // Apps whose launch has been asked for but whose window has not shown up yet.
+  property var launchPending: ({})
+  readonly property int launchTimeout: 12000
 
   // ------------------------------------------------- drag reorder state
 
@@ -482,6 +660,10 @@ Item {
   property string dockShape: "rounded"
   property string dockBgColor: "theme"
   property int itemSpacing: 4
+  property bool clickToMinimize: false
+  property bool showUrgentHint: true
+  property int revealDelay: 160
+  property int tooltipDelay: 450
   property string settingsSubmenu: ""
 
   // ------------------------------------------------- autohide state
@@ -495,6 +677,28 @@ Item {
     id: hideTimer
     interval: 350
     onTriggered: root.dockVisible = false
+  }
+
+  // Dwell on the screen edge before revealing, so a pointer travelling to the
+  // bottom of a window does not summon the dock on its way past.
+  Timer {
+    id: revealTimer
+    interval: root.revealDelay
+    onTriggered: root.dockVisible = true
+  }
+
+  // Coalesces model rebuilds: several signals can describe one window change.
+  Timer {
+    id: modelTimer
+    interval: 40
+    onTriggered: root.refreshDock()
+  }
+
+  Timer {
+    id: launchPruneTimer
+    interval: 500
+    repeat: true
+    onTriggered: root.pruneLaunching()
   }
 
   // Reactive, debounced overlap check — zero CPU polling loops
@@ -586,6 +790,7 @@ Item {
     // Mode 1: Always Show
     if (!root.autohide) {
       hideTimer.stop()
+      revealTimer.stop()
       root.dockVisible = true
       return
     }
@@ -595,9 +800,12 @@ Item {
     // Hovered, Context Menu Open, or Dragging: keep visible
     if (isHovered) {
       hideTimer.stop()
-      root.dockVisible = true
+      if (root.dockVisible) revealTimer.stop()
+      else if (!revealTimer.running) revealTimer.restart()
       return
     }
+
+    revealTimer.stop()
 
     // Mode 3: Intelligent Autohide without window overlap -> stay visible on empty desktop
     if (root.intelligentAutohide && !root.windowsOverlapDock) {
@@ -652,9 +860,16 @@ Item {
   Connections {
     target: ToplevelManager.toplevels
     function onValuesChanged() {
-      root.refreshDock()
+      modelTimer.restart()
       debounceOverlapTimer.restart()
     }
+  }
+
+  // Hyprland resolves its own handle for a window slightly apart from the
+  // Wayland announcement; rebuilding on both is what keeps the handles attached.
+  Connections {
+    target: Hyprland.toplevels
+    function onValuesChanged() { modelTimer.restart() }
   }
 
   Connections {
@@ -676,6 +891,7 @@ Item {
           n === "changefloatingmode" || n === "fullscreen" || n === "pin" || n === "focusedmon") {
         debounceOverlapTimer.restart()
       }
+      if (n === "openwindow" || n === "closewindow") modelTimer.restart()
     }
   }
 
@@ -711,6 +927,14 @@ Item {
     root.dockShape = parsed && typeof parsed.shape === "string" ? parsed.shape : "rounded"
     root.dockBgColor = parsed && typeof parsed.bgColor === "string" ? parsed.bgColor : "theme"
     root.itemSpacing = parsed && typeof parsed.itemSpacing === "number" ? parsed.itemSpacing : 4
+    root.clickToMinimize = !!(parsed && parsed.clickToMinimize === true)
+    root.showUrgentHint = parsed ? parsed.showUrgentHint !== false : true
+    root.revealDelay = parsed && typeof parsed.revealDelay === "number"
+      ? Math.max(0, Math.min(2000, Math.round(parsed.revealDelay)))
+      : 160
+    root.tooltipDelay = parsed && typeof parsed.tooltipDelay === "number"
+      ? Math.max(0, Math.min(5000, Math.round(parsed.tooltipDelay)))
+      : 450
   }
 
   function rescanApps() {
@@ -774,7 +998,179 @@ Item {
   }
 
   function cycleApp(appId, direction) {
-    DockModel.cycleAppWindow(ToplevelManager.toplevels.values, ToplevelManager.activeToplevel, appId, direction)
+    root.focusToplevel(DockModel.pickAppWindow(
+      ToplevelManager.toplevels.values, ToplevelManager.activeToplevel, appId, direction))
+  }
+
+  // ------------------------------------------------- window plumbing
+
+  function hyprToplevelFor(toplevel) {
+    if (!toplevel || !Hyprland.toplevels) return null
+    var list = Hyprland.toplevels.values
+    for (var i = 0; i < list.length; i++)
+      if (list[i] && list[i].wayland === toplevel) return list[i]
+    return null
+  }
+
+  function windowAddress(handle) {
+    var value = String((handle && handle.address) || "").trim()
+    if (!value) return ""
+    if (value.slice(0, 2) === "0x" || value.slice(0, 2) === "0X") value = value.slice(2)
+    return "0x" + value
+  }
+
+  function luaString(value) {
+    return String(value == null ? "" : value).replace(/\\/g, "\\\\").replace(/"/g, '\\"')
+  }
+
+  // Hyprland 0.56 moved dispatchers to Lua; Quickshell reports which syntax
+  // the running compositor speaks.
+  function hyprDispatch(lua, legacy) {
+    Hyprland.dispatch(Hyprland.usingLua ? lua : legacy)
+  }
+
+  function workspaceTarget(workspace) {
+    if (!workspace) return ""
+    var name = String(workspace.name || "")
+    return name !== "" ? name : String(workspace.id)
+  }
+
+  // Brings a window forward for real. The Wayland activate request only hands
+  // over keyboard focus, which leaves scrolling layouts parked where they were,
+  // so the compositor's own focus dispatcher does the work whenever we know the
+  // window's address.
+  function focusToplevel(toplevel) {
+    if (!toplevel) return
+    var handle = root.hyprToplevelFor(toplevel)
+    var workspace = handle ? handle.workspace : null
+
+    if (workspace && workspace.name === root.minimizedWorkspace) {
+      root.restoreWindow(handle)
+      return
+    }
+
+    var address = root.windowAddress(handle)
+    if (!address) {
+      DockModel.focusWindow(toplevel)
+      return
+    }
+
+    root.hyprDispatch('hl.dsp.focus({ window = "address:' + address + '" })',
+                      "focuswindow address:" + address)
+  }
+
+  function minimizeToplevel(toplevel) {
+    var handle = root.hyprToplevelFor(toplevel)
+    var address = root.windowAddress(handle)
+    if (!address) return false
+
+    var origin = root.workspaceTarget(handle.workspace)
+    if (origin === root.minimizedWorkspace) return false
+
+    var origins = DockModel.copyMap(root.minimizedOrigins)
+    origins[address] = origin
+    root.minimizedOrigins = origins
+
+    root.hyprDispatch(
+      'hl.dsp.window.move({ window = "address:' + address + '", workspace = "'
+        + root.luaString(root.minimizedWorkspace) + '", follow = false })',
+      "movetoworkspacesilent " + root.minimizedWorkspace + ",address:" + address)
+    return true
+  }
+
+  function restoreWindow(handle) {
+    var address = root.windowAddress(handle)
+    if (!address) return false
+
+    var target = root.minimizedOrigins[address] || root.workspaceTarget(Hyprland.focusedWorkspace)
+    if (!target) return false
+
+    var origins = DockModel.copyMap(root.minimizedOrigins)
+    delete origins[address]
+    root.minimizedOrigins = origins
+
+    root.hyprDispatch(
+      'hl.dsp.window.move({ window = "address:' + address + '", workspace = "'
+        + root.luaString(target) + '", follow = true })',
+      "movetoworkspace " + target + ",address:" + address)
+    root.hyprDispatch('hl.dsp.focus({ window = "address:' + address + '" })',
+                      "focuswindow address:" + address)
+    return true
+  }
+
+  // Drop origins for windows that are gone, so the map cannot grow forever.
+  function pruneMinimized() {
+    var origins = root.minimizedOrigins
+    var addresses = Object.keys(origins)
+    if (addresses.length === 0) return
+
+    var live = {}
+    var list = Hyprland.toplevels ? Hyprland.toplevels.values : []
+    for (var i = 0; i < list.length; i++) {
+      var address = root.windowAddress(list[i])
+      if (address) live[address] = true
+    }
+
+    var next = {}
+    var dropped = false
+    for (var j = 0; j < addresses.length; j++) {
+      if (live[addresses[j]]) next[addresses[j]] = origins[addresses[j]]
+      else dropped = true
+    }
+    if (dropped) root.minimizedOrigins = next
+  }
+
+  // ------------------------------------------------- launch feedback
+
+  function launchApp(appId, entry) {
+    if (!root.shell || !root.shell.appLibrary) return
+    var target = entry || root.entryForId(appId)
+    var deskEntry = DockModel.entryFor(root.appRows, appId)
+    var targetId = (deskEntry && deskEntry.id) ? deskEntry.id : appId
+    var targetName = (deskEntry && deskEntry.name) ? deskEntry.name : (target && target.name ? target.name : appId)
+    if (deskEntry && deskEntry.id) {
+      root.shell.appLibrary.launch(deskEntry.id, targetName)
+    } else {
+      var webAppMatch = String(appId).match(/^(?:chrome|chromium|brave|edge|microsoft-edge)-(.*?)__?-(?:default|profile.*)$/i)
+                     || String(appId).match(/^(?:chrome|chromium|brave|edge|microsoft-edge)-(.*?)$/i)
+      if (webAppMatch) {
+        var webDomain = webAppMatch[1].replace(/^https?___?/i, "").replace(/__.*$/, "")
+        Quickshell.execDetached(["omarchy-launch-webapp", "https://" + webDomain])
+      } else {
+        root.shell.appLibrary.launch(targetId, targetName)
+      }
+    }
+    root.markLaunching(appId, target ? target.windows : 0)
+  }
+
+  function markLaunching(appId, windowsBefore) {
+    var pending = DockModel.copyMap(root.launchPending)
+    pending[appId] = { deadline: Date.now() + root.launchTimeout, windows: windowsBefore || 0 }
+    root.launchPending = pending
+    launchPruneTimer.start()
+  }
+
+  // A pending launch ends when the app gained a window, or when waiting stops
+  // being informative.
+  function pruneLaunching() {
+    var now = Date.now()
+    var next = {}
+    var remaining = 0
+    var changed = false
+
+    for (var appId in root.launchPending) {
+      var pending = root.launchPending[appId]
+      var entry = root.entryForId(appId)
+      if ((entry && entry.windows > pending.windows) || now >= pending.deadline) {
+        changed = true
+        continue
+      }
+      next[appId] = pending
+      remaining++
+    }
+
+    if (changed) root.launchPending = next
+    if (remaining === 0) launchPruneTimer.stop()
   }
 
   function saveConfig() {
@@ -799,31 +1195,40 @@ Item {
     conf.shape = root.dockShape
     conf.bgColor = root.dockBgColor
     conf.itemSpacing = root.itemSpacing
+    conf.clickToMinimize = root.clickToMinimize
+    conf.showUrgentHint = root.showUrgentHint
+    conf.revealDelay = root.revealDelay
+    conf.tooltipDelay = root.tooltipDelay
     configFile.setText(JSON.stringify(conf, null, 2))
   }
 
   function activate(appId) {
     if (!root.shell || !root.shell.appLibrary) return
+
     var entry = root.entryForId(appId)
-    if (entry && entry.running) {
-      DockModel.activateApp(ToplevelManager.toplevels.values, ToplevelManager.activeToplevel, appId)
-    } else {
-      var deskEntry = DockModel.entryFor(root.appRows, appId)
-      var targetId = (deskEntry && deskEntry.id) ? deskEntry.id : appId
-      var targetName = (deskEntry && deskEntry.name) ? deskEntry.name : (entry ? entry.name : appId)
-      if (deskEntry && deskEntry.id) {
-        root.shell.appLibrary.launch(deskEntry.id, targetName)
-      } else {
-        var webAppMatch = String(appId).match(/^(?:chrome|chromium|brave|edge|microsoft-edge)-(.*?)__?-(?:default|profile.*)$/i)
-                       || String(appId).match(/^(?:chrome|chromium|brave|edge|microsoft-edge)-(.*?)$/i)
-        if (webAppMatch) {
-          var webDomain = webAppMatch[1].replace(/^https?___?/i, "").replace(/__.*$/, "")
-          Quickshell.execDetached(["omarchy-launch-webapp", "https://" + webDomain])
-        } else {
-          root.shell.appLibrary.launch(targetId, targetName)
-        }
-      }
+    if (!entry || !entry.running) {
+      root.launchApp(appId, entry)
+      return
     }
+
+    // Clicking the app you are already in is otherwise a dead click. With one
+    // window there is no ambiguity about what to put away; with several,
+    // cycling stays the more useful answer.
+    var windows = entry.windowList || []
+    if (root.clickToMinimize && appId === root.activeId && windows.length === 1
+        && root.minimizeToplevel(windows[0].toplevel)) return
+
+    root.focusToplevel(DockModel.pickAppWindow(
+      ToplevelManager.toplevels.values, ToplevelManager.activeToplevel, appId, 1))
+  }
+
+  // Menu rows name the workspace a window sits on, including the parked ones.
+  function windowRowLabel(window) {
+    var title = String((window && window.title) || "Window")
+    var handle = window ? window.hypr : null
+    var workspace = handle ? handle.workspace : null
+    var label = workspace ? DockModel.workspaceLabel(workspace.name, workspace.id) : ""
+    return label !== "" ? "[" + label + "] " + title : title
   }
 
   function entryForId(appId) {
@@ -859,6 +1264,23 @@ Item {
 
   function closeContext() {
     root.contextAppId = ""
+  }
+
+  // Widest piece of content in the open menu. Only implicit widths are read, so
+  // feeding the result back into every row cannot loop.
+  function menuContentWidth(item) {
+    var widest = 0
+    if (!item) return widest
+
+    var kids = item.children
+    for (var i = 0; i < kids.length; i++) {
+      var kid = kids[i]
+      if (!kid || !kid.visible) continue
+      if (kid.isMenuContent === true && kid.implicitWidth > widest) widest = kid.implicitWidth
+      var nested = root.menuContentWidth(kid)
+      if (nested > widest) widest = nested
+    }
+    return widest
   }
 
   // ------------------------------------------------- panel window
@@ -947,7 +1369,7 @@ Item {
       }
 
       color: Util.alpha(effectiveBgColor, root.dockOpacity)
-      borderSpec: Border.flat(Util.alpha(Color.bar.text, Math.max(0.28, root.dockOpacity * 0.4)), 1)
+      borderSpec: Border.flat(Util.alpha(root.dockForeground, Math.max(0.28, root.dockOpacity * 0.4)), 1)
       radius: (root.dockShape === "round" || root.dockShape === "pill")
         ? Math.round(height / 2)
         : (root.dockShape === "square" ? 0 : ((root.dockShape === "theme" || root.dockShape === "auto") ? (Style.cornerRadius > 0 ? Style.cornerRadius : Math.max(14, Style.space(14))) : Math.max(14, Style.space(14))))
@@ -1028,6 +1450,7 @@ Item {
             pinned: true
             active: modelData.appId === root.activeId
             onActivateRequested: function(aid) { root.activate(aid) }
+            onNewWindowRequested: function(aid) { root.launchApp(aid, null) }
             onMenuRequested: function(aid, cx, cy) { root.openContext(aid, cx, cy) }
             onWheelScrolled: function(aid, dir) { root.cycleApp(aid, dir) }
             onDragStarted: function(aid) {
@@ -1080,7 +1503,7 @@ Item {
           anchors.verticalCenter: parent.verticalCenter
           width: Style.space(1)
           height: root.iconSize * 0.7
-          color: Util.alpha(Color.bar.text, 0.25)
+          color: Util.alpha(root.dockForeground, 0.25)
         }
 
         Repeater {
@@ -1095,6 +1518,7 @@ Item {
             pinned: false
             active: modelData.appId === root.activeId
             onActivateRequested: function(aid) { root.activate(aid) }
+            onNewWindowRequested: function(aid) { root.launchApp(aid, null) }
             onMenuRequested: function(aid, cx, cy) { root.openContext(aid, cx, cy) }
             onWheelScrolled: function(aid, dir) { root.cycleApp(aid, dir) }
           }
@@ -1125,8 +1549,12 @@ Item {
       radius: Style.cornerRadius
       padding: Style.space(4)
 
+      readonly property real rowWidth: root.contextAppId !== ""
+        ? root.menuContentWidth(menuColumn)
+        : 0
+
       width: root.contextAppId !== ""
-        ? menuColumn.implicitWidth + contentLeftInset + contentRightInset
+        ? rowWidth + contentLeftInset + contentRightInset
         : 0
       height: root.contextAppId !== ""
         ? menuColumn.implicitHeight + contentTopInset + contentBottomInset
@@ -1232,6 +1660,24 @@ Item {
               checked: root.showTooltips
               onTriggered: {
                 root.showTooltips = !root.showTooltips
+                root.saveConfig()
+              }
+            }
+
+            ContextRow {
+              text: "Urgent Highlights"
+              checked: root.showUrgentHint
+              onTriggered: {
+                root.showUrgentHint = !root.showUrgentHint
+                root.saveConfig()
+              }
+            }
+
+            ContextRow {
+              text: "Click Active to Minimize"
+              checked: root.clickToMinimize
+              onTriggered: {
+                root.clickToMinimize = !root.clickToMinimize
                 root.saveConfig()
               }
             }
@@ -1353,6 +1799,7 @@ Item {
             }
 
             Grid {
+              readonly property bool isMenuContent: true
               columns: 5
               spacing: Style.space(3)
               anchors.horizontalCenter: parent.horizontalCenter
@@ -1540,9 +1987,9 @@ Item {
             Repeater {
               model: root.contextWindowList
               delegate: ContextRow {
-                text: modelData.title || "Window"
+                text: root.windowRowLabel(modelData)
                 onTriggered: {
-                  DockModel.focusWindow(modelData.toplevel)
+                  root.focusToplevel(modelData.toplevel)
                   root.closeContext()
                 }
               }
@@ -1558,7 +2005,7 @@ Item {
           ContextRow {
             text: root.contextWindows > 0 ? "New Window" : "Launch"
             onTriggered: {
-              root.activate(root.contextAppId)
+              root.launchApp(root.contextAppId, null)
               root.closeContext()
             }
           }
