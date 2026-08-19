@@ -1061,9 +1061,8 @@ Item {
     return name !== "" ? name : String(workspace.id)
   }
 
-  // Brings a window forward. When noWarp is true (e.g. during mouse wheel cycling),
-  // Wayland activation gives window focus without pulling the mouse cursor away from the dock.
-  function focusToplevel(toplevel, noWarp) {
+  // Brings a window forward and focuses it.
+  function focusToplevel(toplevel) {
     if (!toplevel) return
     var handle = root.hyprToplevelFor(toplevel)
     var workspace = handle ? handle.workspace : null
@@ -1075,27 +1074,19 @@ Item {
 
     DockModel.focusWindow(toplevel)
 
-    if (noWarp) {
-      var addr = root.windowAddress(handle)
-      if (addr) {
-        root.hyprDispatch('hl.dsp.window.alterzorder({ window = "address:' + addr + '", zorder = "top" })',
-                          "alterzorder top,address:" + addr)
-      }
-      if (workspace && Hyprland.focusedWorkspace && workspace.id !== Hyprland.focusedWorkspace.id) {
-        var targetWs = root.workspaceTarget(workspace)
-        if (targetWs) {
-          root.hyprDispatch('hl.dsp.workspace({ name = "' + root.luaString(targetWs) + '" })',
-                            "workspace " + targetWs)
-        }
-      }
-      return
+    var address = root.windowAddress(handle)
+    if (address) {
+      root.hyprDispatch('hl.dsp.focus({ window = "address:' + address + '" })',
+                        "focuswindow address:" + address)
     }
 
-    var address = root.windowAddress(handle)
-    if (!address) return
-
-    root.hyprDispatch('hl.dsp.focus({ window = "address:' + address + '" })',
-                      "focuswindow address:" + address)
+    if (workspace && Hyprland.focusedWorkspace && workspace.id !== Hyprland.focusedWorkspace.id) {
+      var targetWs = root.workspaceTarget(workspace)
+      if (targetWs) {
+        root.hyprDispatch('hl.dsp.workspace({ name = "' + root.luaString(targetWs) + '" })',
+                          "workspace " + targetWs)
+      }
+    }
   }
 
   function minimizeToplevel(toplevel) {
