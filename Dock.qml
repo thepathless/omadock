@@ -626,6 +626,9 @@ Item {
   // means the window comes back to wherever you are.
   readonly property string minimizedWorkspace: "special:minimized"
   property var minimizedOrigins: ({})
+  property var appLastActiveWindow: ({})
+  property string lastPreDockActiveApp: ""
+  property var lastPreDockActiveToplevel: null
 
   // Apps whose launch has been asked for but whose window has not shown up yet.
   property var launchPending: ({})
@@ -876,6 +879,19 @@ Item {
   Connections {
     target: ToplevelManager
     function onActiveToplevelChanged() {
+      var top = ToplevelManager.activeToplevel
+      if (top) {
+        var aid = DockModel.normalizeId(top.appId)
+        if (aid) {
+          var map = root.appLastActiveWindow
+          map[aid] = top
+          root.appLastActiveWindow = map
+        }
+        if (!(cardHover && cardHover.hovered) && !(revealHover && revealHover.hovered) && root.contextAppId === "") {
+          root.lastPreDockActiveApp = aid
+          root.lastPreDockActiveToplevel = top
+        }
+      }
       debounceOverlapTimer.restart()
     }
   }
@@ -1126,13 +1142,42 @@ Item {
       return anyMin
     } else {
       var targetWin = null
-      for (var j = 0; j < windows.length; j++) {
-        if (windows[j] && windows[j].activated) {
-          targetWin = windows[j]
-          break
+
+      // Check remembered last active window for this app
+      var remembered = root.appLastActiveWindow[entry.appId]
+      if (remembered) {
+        for (var k = 0; k < windows.length; k++) {
+          if (windows[k] && windows[k].toplevel === remembered) {
+            var rhandle = root.hyprToplevelFor(remembered)
+            var rws = rhandle ? rhandle.workspace : null
+            if (rws && rws.name !== root.minimizedWorkspace) {
+              targetWin = windows[k]
+              break
+            }
+          }
         }
       }
-      if (!targetWin && windows.length > 0) targetWin = windows[0]
+
+      if (!targetWin) {
+        for (var j = 0; j < windows.length; j++) {
+          if (windows[j] && windows[j].activated) {
+            targetWin = windows[j]
+            break
+          }
+        }
+      }
+
+      if (!targetWin) {
+        for (var m = 0; m < windows.length; m++) {
+          var mhandle = root.hyprToplevelFor(windows[m].toplevel)
+          var mws = mhandle ? mhandle.workspace : null
+          if (mws && mws.name !== root.minimizedWorkspace) {
+            targetWin = windows[m]
+            break
+          }
+        }
+      }
+
       if (targetWin && targetWin.toplevel) {
         return root.minimizeToplevel(targetWin.toplevel)
       }
@@ -1255,9 +1300,13 @@ Item {
     }
 
     var windows = entry.windowList || []
+    if (windows.length === 0) {
+      root.launchApp(appId, entry)
+      return
+    }
 
     // If all windows of this app are currently minimized, clicking restores them
-    var allMinimized = windows.length > 0
+    var allMinimized = true
     for (var k = 0; k < windows.length; k++) {
       var whandle = root.hyprToplevelFor(windows[k].toplevel)
       var wws = whandle ? whandle.workspace : null
@@ -1274,13 +1323,46 @@ Item {
       return
     }
 
-    // If minimizeMode is enabled and the app is currently active, minimize
-    if (root.minimizeMode !== "off" && appId === root.activeId) {
-      if (root.minimizeApp(entry)) return
+    // Check if this app is currently active OR was active before cursor entered dock
+    var isAppActive = (appId === root.activeId) ||
+                      (root.lastPreDockActiveApp !== "" && DockModel.isAppMatch(appId, root.lastPreDockActiveApp))
+
+    for (var w = 0; w < windows.length; w++) {
+      if (windows[w] && (windows[w].activated || (ToplevelManager.activeToplevel && windows[w].toplevel === ToplevelManager.activeToplevel))) {
+        isAppActive = true
+        break
+      }
     }
 
-    root.focusToplevel(DockModel.pickAppWindow(
-      ToplevelManager.toplevels.values, ToplevelManager.activeToplevel, appId, 1))
+    // If minimizeMode is enabled and the app is active, minimize!
+    if (root.minimizeMode !== "off" && isAppActive) {
+      if (root.minimizeApp(entry)) {
+        root.lastPreDockActiveApp = ""
+        root.lastPreDockActiveToplevel = null
+        return
+      }
+    }
+
+    // Otherwise: bring forward / focus the app (most recent window)
+    var targetToplevel = null
+    var remembered = root.appLastActiveWindow[appId]
+    if (remembered) {
+      for (var j = 0; j < windows.length; j++) {
+        if (windows[j].toplevel === remembered) {
+          targetToplevel = remembered
+          break
+        }
+      }
+    }
+
+    if (!targetToplevel) {
+      targetToplevel = DockModel.pickAppWindow(
+        ToplevelManager.toplevels.values, ToplevelManager.activeToplevel, appId, 1)
+    }
+
+    root.focusToplevel(targetToplevel)
+    root.lastPreDockActiveApp = appId
+    root.lastPreDockActiveToplevel = targetToplevel
   }
 
   // Menu rows name the workspace a window sits on, including the parked ones.
@@ -1379,7 +1461,13 @@ Item {
 
       HoverHandler {
         id: revealHover
-        onHoveredChanged: root.syncVisibility()
+        onHoveredChanged: {
+          if (revealHover.hovered && ToplevelManager.activeToplevel) {
+            root.lastPreDockActiveApp = DockModel.normalizeId(ToplevelManager.activeToplevel.appId)
+            root.lastPreDockActiveToplevel = ToplevelManager.activeToplevel
+          }
+          root.syncVisibility()
+        }
       }
 
       Rectangle {
@@ -1439,7 +1527,13 @@ Item {
 
       HoverHandler {
         id: cardHover
-        onHoveredChanged: root.syncVisibility()
+        onHoveredChanged: {
+          if (cardHover.hovered && ToplevelManager.activeToplevel) {
+            root.lastPreDockActiveApp = DockModel.normalizeId(ToplevelManager.activeToplevel.appId)
+            root.lastPreDockActiveToplevel = ToplevelManager.activeToplevel
+          }
+          root.syncVisibility()
+        }
       }
 
       anchors.horizontalCenter: parent.horizontalCenter
