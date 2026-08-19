@@ -28,18 +28,27 @@
 
 ---
 
-## ⚡ Quick Install (Single Command)
+## ⚡ Installation & Management
 
+### Install (Single Command)
 Install and enable **Omadock** in Omarchy with a single command:
 
 ```bash
 omarchy plugin add https://github.com/thepathless/omadock.git --enable --yes
 ```
 
-To update to the latest release at any time:
+### Update
+Update to the latest release at any time:
 
 ```bash
 omarchy plugin update omadock --yes
+```
+
+### Removal / Uninstall
+To disable and completely remove Omadock from Omarchy:
+
+```bash
+omarchy plugin remove omadock --yes
 ```
 
 ---
