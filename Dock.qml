@@ -626,6 +626,7 @@ Item {
   // means the window comes back to wherever you are.
   readonly property string minimizedWorkspace: "special:minimized"
   property var minimizedOrigins: ({})
+  property var appLastMinimizedWindow: ({})
   property var appLastActiveWindow: ({})
   property string lastPreDockActiveApp: ""
   property var lastPreDockActiveToplevel: null
@@ -1094,6 +1095,13 @@ Item {
     origins[address] = origin
     root.minimizedOrigins = origins
 
+    var aid = DockModel.normalizeId(toplevel.appId)
+    if (aid) {
+      var minMap = root.appLastMinimizedWindow
+      minMap[aid] = address
+      root.appLastMinimizedWindow = minMap
+    }
+
     root.hyprDispatch(
       'hl.dsp.window.move({ window = "address:' + address + '", workspace = "'
         + root.luaString(root.minimizedWorkspace) + '", follow = false })',
@@ -1111,6 +1119,15 @@ Item {
     var origins = DockModel.copyMap(root.minimizedOrigins)
     delete origins[address]
     root.minimizedOrigins = origins
+
+    if (handle && handle.wayland) {
+      var aid = DockModel.normalizeId(handle.wayland.appId)
+      if (aid && root.appLastMinimizedWindow[aid] === address) {
+        var minMap = root.appLastMinimizedWindow
+        delete minMap[aid]
+        root.appLastMinimizedWindow = minMap
+      }
+    }
 
     root.hyprDispatch(
       'hl.dsp.window.move({ window = "address:' + address + '", workspace = "'
@@ -1343,14 +1360,35 @@ Item {
       }
     }
 
+    // If app is NOT active: First check if there is a recently minimized window of this app to restore (LIFO Undo)
+    var lastMinAddress = root.appLastMinimizedWindow[appId]
+    if (lastMinAddress) {
+      for (var m = 0; m < windows.length; m++) {
+        var mHandle = root.hyprToplevelFor(windows[m].toplevel)
+        if (mHandle && root.windowAddress(mHandle) === lastMinAddress) {
+          var mWs = mHandle.workspace
+          if (mWs && mWs.name === root.minimizedWorkspace) {
+            root.restoreWindow(mHandle)
+            root.lastPreDockActiveApp = appId
+            root.lastPreDockActiveToplevel = windows[m].toplevel
+            return
+          }
+        }
+      }
+    }
+
     // Otherwise: bring forward / focus the app (most recent window)
     var targetToplevel = null
     var remembered = root.appLastActiveWindow[appId]
     if (remembered) {
       for (var j = 0; j < windows.length; j++) {
         if (windows[j].toplevel === remembered) {
-          targetToplevel = remembered
-          break
+          var remHandle = root.hyprToplevelFor(remembered)
+          var remWs = remHandle ? remHandle.workspace : null
+          if (remWs && remWs.name !== root.minimizedWorkspace) {
+            targetToplevel = remembered
+            break
+          }
         }
       }
     }
