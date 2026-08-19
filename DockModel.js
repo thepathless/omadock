@@ -21,6 +21,29 @@ function normalizeId(id) {
   return stripDesktop(id)
 }
 
+function copyMap(src) {
+  var out = {}
+  for (var key in src) out[key] = src[key]
+  return out
+}
+
+// Compact workspace label for a tooltip: numbered workspaces only. Special
+// workspaces have no number worth showing, so they get nothing.
+function workspaceShort(wsId, wsName) {
+  if (wsId === null || wsId === undefined || wsId < 0) return ""
+  var name = String(wsName == null ? "" : wsName)
+  if (name && name.length <= 2) return name
+  return String(wsId)
+}
+
+// Spelled-out label for menu rows: "3", "scratchpad", "minimized".
+function workspaceLabel(wsName, wsId) {
+  var name = String(wsName == null ? "" : wsName).trim()
+  if (name.indexOf("special:") === 0) return name.slice(8)
+  if (name) return name
+  return (wsId === null || wsId === undefined) ? "" : String(wsId)
+}
+
 function parsePinned(raw) {
   var text = String(raw == null ? "" : raw).trim()
   if (!text) return []
@@ -140,7 +163,7 @@ function entryFor(appRows, appId) {
   return null
 }
 
-function buildEntries(pinnedIds, toplevels, appRows, appLibrary) {
+function buildEntries(pinnedIds, toplevels, appRows, appLibrary, hyprFor) {
   var pinned = Array.isArray(pinnedIds) ? pinnedIds : []
   var list = toArray(toplevels)
 
@@ -158,7 +181,10 @@ function buildEntries(pinnedIds, toplevels, appRows, appLibrary) {
     winMap[appId].push({
       title: String(toplevel.title || "Window"),
       toplevel: toplevel,
-      activated: !!toplevel.activated
+      activated: !!toplevel.activated,
+      // Live Hyprland handle. Urgency and workspace are read off this object
+      // directly so the dock follows them without rebuilding the model.
+      hypr: hyprFor ? hyprFor(toplevel) : null
     })
   }
 
@@ -222,9 +248,11 @@ function activeAppId(toplevels, activeToplevel) {
   return ""
 }
 
-function cycleAppWindow(toplevels, activeToplevel, appId, direction) {
+// Which window a click or a wheel step should land on. Pure: the caller
+// decides how to bring it forward.
+function pickAppWindow(toplevels, activeToplevel, appId, direction) {
   var want = stripDesktop(appId)
-  if (!want) return
+  if (!want) return null
   var list = toArray(toplevels)
   var matching = []
 
@@ -233,32 +261,21 @@ function cycleAppWindow(toplevels, activeToplevel, appId, direction) {
     if (t && stripDesktop(t.appId) === want) matching.push(t)
   }
 
-  if (matching.length === 0) return
-  if (matching.length === 1) {
-    if (matching[0].activate) matching[0].activate()
-    return
-  }
+  if (matching.length === 0) return null
+  if (matching.length === 1) return matching[0]
 
-  // Multi-window: cycle in requested direction (default forward +1, backward -1)
-  var dir = (typeof direction === "number" && direction !== 0) ? (direction > 0 ? 1 : -1) : 1
+  var dir = (typeof direction === "number" && direction < 0) ? -1 : 1
   var activeIdx = -1
-  if (activeToplevel) {
-    for (var i = 0; i < matching.length; i++) {
-      if (matching[i] === activeToplevel || matching[i].activated) {
-        activeIdx = i
-        break
-      }
+  for (var j = 0; j < matching.length; j++) {
+    if (matching[j] === activeToplevel || matching[j].activated) {
+      activeIdx = j
+      break
     }
   }
 
-  var nextIdx = (activeIdx + dir + matching.length) % matching.length
-  if (matching[nextIdx] && matching[nextIdx].activate) {
-    matching[nextIdx].activate()
-  }
-}
-
-function activateApp(toplevels, activeToplevel, appId) {
-  cycleAppWindow(toplevels, activeToplevel, appId, 1)
+  // Nothing of this app is focused: enter the list from the end we came from.
+  if (activeIdx < 0) return matching[dir > 0 ? 0 : matching.length - 1]
+  return matching[(activeIdx + dir + matching.length) % matching.length]
 }
 
 function focusWindow(toplevel) {

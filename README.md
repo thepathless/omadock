@@ -9,7 +9,7 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/thepathless/omadock/releases"><img src="https://img.shields.io/badge/release-v1.4.4-blue?style=flat-square" alt="Release" /></a>
+  <a href="https://github.com/thepathless/omadock/releases"><img src="https://img.shields.io/badge/release-v1.5.0-blue?style=flat-square" alt="Release" /></a>
   <a href="https://omarchy.org"><img src="https://img.shields.io/badge/omarchy-shell_plugin-blueviolet?style=flat-square" alt="Omarchy" /></a>
   <a href="https://hyprland.org"><img src="https://img.shields.io/badge/Wayland-Hyprland-00a4dc?style=flat-square" alt="Hyprland" /></a>
   <a href="https://quickshell.org"><img src="https://img.shields.io/badge/Quickshell-Qt6_QML-41cd52?style=flat-square" alt="Quickshell" /></a>
@@ -20,7 +20,7 @@
 
 ## Overview
 
-**Omadock** is a lightweight, zero-CPU application dock crafted natively for Omarchy. It brings smooth autohide behaviors, intelligent window overlap detection, multi-window cycling via mouse wheel, live drag-and-drop icon reordering, and a deep hierarchical customization suite directly accessible from the dock.
+**Omadock** is a lightweight, zero-CPU application dock crafted natively for Omarchy. It brings smooth autohide behaviors, intelligent window overlap detection, layout-aware window focus, workspace hints, urgent highlights, multi-window cycling via mouse wheel, live drag-and-drop icon reordering, and a deep hierarchical customization suite directly accessible from the dock.
 
 <p align="center">
   <img src="assets/preview-desktop.png" alt="Omadock Desktop Preview" width="900" />
@@ -81,11 +81,21 @@ Right-click the leftmost Omarchy icon to open the native settings menu:
   - `Theme (Default)` — Automatically tracks active Omarchy desktop theme colors (`Color.bar.background`).
   - `No Color` — Clean transparent base fill.
   - `Preset Palette Swatches` — 10 curated colors (Pure Black, Mocha, Deep Slate, Midnight Blue, Dark Navy, Emerald Forest, Espresso, Velvet Ruby, Midnight Purple, Slate Grey).
+  - **Automatic Foreground Contrast**: A custom dock color is measured against the theme's bar foreground, and the launcher glyph, indicators, separator, and card outline flip to the readable side when the two collide — a dark card under a light theme no longer draws dark-on-dark, and the reverse holds too.
 - **Icon Sizing & Spacing**:
   - Sizes: `Small (28px)`, `Medium (36px)`, `Large (44px)`, `Extra Large (52px)`.
   - Spacing: `Compact (2px)`, `Normal (4px)`, `Relaxed (8px)`.
 - **Toggles**:
   - `Show Tooltips` — Toggle hover name tooltips.
+  - `Urgent Highlights` — Toggle the pulsing attention indicator.
+  - `Click Active to Minimize` — Toggle minimize-on-click for the focused app.
+
+### 🎯 Layout-Aware Window Focus
+- **Compositor-Native Focus**: Clicks and wheel cycling go through Hyprland's own focus dispatcher instead of the plain Wayland activate request, so **scrolling layouts scroll the target column into view** rather than switching workspace and leaving the window off-screen. Falls back to Wayland activation when no Hyprland address is available, and speaks either the Lua (Hyprland 0.56+) or legacy dispatcher syntax.
+- **Workspace Hints**: When an app's windows all live on another workspace, its tooltip names that workspace (`Slack [3]`), and the right-click window list prefixes every window with the workspace it sits on (`[3] Slack — DM`). Parked and starting windows read the same way: `Files [minimized]`, `Slack [starting…]`.
+- **Urgent Highlights**: A window demanding attention pulses its indicator dot and icon ring in the theme's urgent color until you focus it.
+- **Launch Feedback**: Clicking a cold app pulses its icon until the window shows up (or the wait stops being informative), so one click does not become three.
+- **Click Active to Minimize** *(optional)*: Clicking the app you are already in parks its window on a hidden `special:minimized` workspace; clicking the icon again brings it back to where it came from. Multi-window apps keep cycling instead — that stays the more useful answer. Off by default.
 
 ### 🪟 Multi-Window Management & Mouse-Wheel Cycling
 - **Mouse-Wheel Window Cycling**: Hover over an application with multiple open windows and scroll up or down to cycle focus between instances in real time.
@@ -114,7 +124,11 @@ All settings can be toggled interactively via the right-click menu or configured
   "bgColor": "theme",
   "itemSpacing": 4,
   "screen": "",
-  "iconSize": 36
+  "iconSize": 36,
+  "clickToMinimize": false,
+  "showUrgentHint": true,
+  "revealDelay": 160,
+  "tooltipDelay": 450
 }
 ```
 
@@ -124,12 +138,16 @@ All settings can be toggled interactively via the right-click menu or configured
 | `intelligentAutohide` | `boolean` | `true` | Hide dock only when windows on the current workspace overlap its area. |
 | `opacity` | `number` | `1.0` | Background transparency (`1.0`, `0.80`, `0.65`, `0.35`, `0.0`). |
 | `shape` | `string` | `"rounded"` | Corner shape style (`"rounded"`, `"round"`, or `"square"`). |
-| `bgColor` | `string` | `"theme"` | Base color (`"theme"`, `"none"`, or custom hex string e.g. `"#1e1e2e"`). |
+| `bgColor` | `string` | `"theme"` | Base color (`"theme"`, `"none"`, or custom hex string e.g. `"#1e1e2e"`). A custom hex value also switches dock glyphs and indicators to whichever side reads against it. |
 | `itemSpacing` | `number` | `4` | Spacing in pixels between icons (`2`, `4`, `8`). |
 | `iconSize` | `number` | `0` | Icon size in pixels (`28`, `36`, `44`, `52` or `0` for auto). |
 | `showAppsButton` | `boolean` | `true` | Show or hide the Omarchy apps launcher button on the left edge. |
 | `showTooltips` | `boolean` | `true` | Show app name tooltips on mouse hover. |
-| `screen` | `string` | `""` | Optional monitor name to pin the dock to (defaults to focused monitor). |
+| `screen` | `string` | `""` | Optional monitor name to pin the dock to (defaults to the first monitor). |
+| `clickToMinimize` | `boolean` | `false` | Clicking the focused single-window app parks it on a hidden `special:minimized` workspace; clicking again restores it. |
+| `showUrgentHint` | `boolean` | `true` | Pulse the indicator and icon ring when a window demands attention. |
+| `revealDelay` | `number` | `160` | Milliseconds the pointer must dwell on the screen edge before an autohidden dock reveals. `0` reveals immediately. |
+| `tooltipDelay` | `number` | `450` | Milliseconds of hover before a tooltip appears. `0` shows it immediately. |
 
 ### Pinned Applications (`~/.config/omarchy/dock.json`)
 
@@ -152,11 +170,12 @@ All settings can be toggled interactively via the right-click menu or configured
 | :--- | :--- | :--- |
 | **Left Click** | Omarchy Icon | Opens Omarchy Application Search Menu |
 | **Right Click** | Omarchy Icon | Opens **Omadock Settings** menu |
-| **Left Click** | App Icon | Launches app or switches / cycles windows |
+| **Left Click** | App Icon | Launches app, or focuses / cycles / minimizes its windows |
+| **Middle Click** | App Icon | Opens a new window of the app |
 | **Mouse Wheel** | App Icon | Cycles forward/backward between open windows |
 | **Right Click** | App Icon | Shows open window list, Pin/Unpin, and Close actions |
 | **Drag & Drop** | App Icon | Reorders pinned application icons |
-| **Bottom Edge Hover** | Screen Bottom | Reveals autohidden dock |
+| **Bottom Edge Hover** | Screen Bottom | Reveals autohidden dock after `revealDelay` |
 
 ---
 
