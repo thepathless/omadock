@@ -1022,8 +1022,10 @@ Item {
   }
 
   function cycleApp(appId, direction) {
-    root.focusToplevel(DockModel.pickAppWindow(
-      ToplevelManager.toplevels.values, ToplevelManager.activeToplevel, appId, direction))
+    var nextTop = DockModel.pickAppWindow(
+      ToplevelManager.toplevels.values, ToplevelManager.activeToplevel, appId, direction)
+    if (!nextTop) return
+    root.focusToplevel(nextTop, true /* noWarp */)
   }
 
   // ------------------------------------------------- window plumbing
@@ -1059,11 +1061,9 @@ Item {
     return name !== "" ? name : String(workspace.id)
   }
 
-  // Brings a window forward for real. The Wayland activate request only hands
-  // over keyboard focus, which leaves scrolling layouts parked where they were,
-  // so the compositor's own focus dispatcher does the work whenever we know the
-  // window's address.
-  function focusToplevel(toplevel) {
+  // Brings a window forward. When noWarp is true (e.g. during mouse wheel cycling),
+  // Wayland activation gives window focus without pulling the mouse cursor away from the dock.
+  function focusToplevel(toplevel, noWarp) {
     if (!toplevel) return
     var handle = root.hyprToplevelFor(toplevel)
     var workspace = handle ? handle.workspace : null
@@ -1073,11 +1073,26 @@ Item {
       return
     }
 
-    var address = root.windowAddress(handle)
-    if (!address) {
-      DockModel.focusWindow(toplevel)
+    DockModel.focusWindow(toplevel)
+
+    if (noWarp) {
+      var addr = root.windowAddress(handle)
+      if (addr) {
+        root.hyprDispatch('hl.dsp.window.alterzorder({ window = "address:' + addr + '", zorder = "top" })',
+                          "alterzorder top,address:" + addr)
+      }
+      if (workspace && Hyprland.focusedWorkspace && workspace.id !== Hyprland.focusedWorkspace.id) {
+        var targetWs = root.workspaceTarget(workspace)
+        if (targetWs) {
+          root.hyprDispatch('hl.dsp.workspace({ name = "' + root.luaString(targetWs) + '" })',
+                            "workspace " + targetWs)
+        }
+      }
       return
     }
+
+    var address = root.windowAddress(handle)
+    if (!address) return
 
     root.hyprDispatch('hl.dsp.focus({ window = "address:' + address + '" })',
                       "focuswindow address:" + address)
