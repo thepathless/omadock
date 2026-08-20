@@ -148,9 +148,10 @@ Item {
       return item.name
     }
 
-    // One pulse drives both attention states: urgency and a cold start.
+    // The pulse carries urgency. A cold start bounces instead, and only falls
+    // back to fading when the bounce is off.
     property real pulse: 1.0
-    readonly property bool pulsing: item.urgent || item.starting
+    readonly property bool pulsing: item.urgent || (item.starting && !root.launchBounce)
     onPulsingChanged: if (!item.pulsing) item.pulse = 1.0
 
     SequentialAnimation on pulse {
@@ -165,62 +166,55 @@ Item {
       NumberAnimation { duration: 120 }
     }
 
-    SequentialAnimation {
-      id: bounceAnim
-      running: false
-      alwaysRunToEnd: true
-      NumberAnimation { target: item; property: "bounceY"; to: -Style.space(14); duration: 130; easing.type: Easing.OutQuad }
-      NumberAnimation { target: item; property: "bounceY"; to: 0; duration: 130; easing.type: Easing.InQuad }
-      NumberAnimation { target: item; property: "bounceY"; to: -Style.space(7); duration: 90; easing.type: Easing.OutQuad }
-      NumberAnimation { target: item; property: "bounceY"; to: 0; duration: 90; easing.type: Easing.InQuad }
+    SequentialAnimation on bounceY {
+      running: item.starting && root.launchBounce
+      loops: Animation.Infinite
+      NumberAnimation { from: 0; to: -Style.space(13); duration: 260; easing.type: Easing.OutQuad }
+      NumberAnimation { from: -Style.space(13); to: 0; duration: 260; easing.type: Easing.OutBounce }
+      PauseAnimation { duration: 220 }
     }
+    onStartingChanged: if (!item.starting) item.bounceY = 0
 
-    // 1. Icon Box: Only the icon scales on hover and bounces on click
+    // The icon carries every state on its own: it grows on hover, dips on
+    // press, bounces while starting. No plate, no frame — the only chrome in
+    // the slot is the running indicator underneath.
     Item {
       id: iconBox
       anchors.fill: parent
       anchors.bottomMargin: item.running ? Style.space(5) : 0
 
-      scale: root.magnification && item.isHovered ? 1.20 : 1.0
-      property real hoverLift: root.magnification && item.isHovered ? -Style.space(6) : 0
-      y: hoverLift
+      scale: (root.magnification && item.isHovered ? 1.22 : 1.0) * (area.pressed ? 0.92 : 1.0)
+      y: root.magnification && item.isHovered ? -Style.space(6) : 0
 
-      Behavior on scale {
-        NumberAnimation { duration: 130; easing.type: Easing.OutQuad }
-      }
-      Behavior on hoverLift {
-        NumberAnimation { duration: 130; easing.type: Easing.OutQuad }
-      }
+      Behavior on scale { NumberAnimation { duration: 130; easing.type: Easing.OutQuad } }
+      Behavior on y { NumberAnimation { duration: 130; easing.type: Easing.OutQuad } }
 
       transform: Translate {
         y: item.bounceY
       }
 
-      Rectangle {
-        anchors.fill: parent
-        anchors.margins: Style.space(2)
-        radius: (root.dockShape === "round" || root.dockShape === "pill")
-          ? width / 2
-          : (root.dockShape === "square" ? 0 : ((root.dockShape === "theme" || root.dockShape === "auto") ? Math.max(4, Math.round(Style.cornerRadius * 0.6)) : 8))
-        color: area.containsMouse
-          ? (area.pressed ? Style.pressedFill : Style.hoverFill)
-          : (item.active ? Style.selectedFill : "transparent")
-        border.color: area.containsMouse
-          ? Style.hoverBorderColor
-          : (item.urgent ? Util.alpha(Color.urgent, 0.3 + 0.6 * item.pulse) : "transparent")
-        border.width: Style.hoverBorderWidth
+      Image {
+        id: iconImg
+        anchors.centerIn: parent
+        width: root.iconSize - Style.space(10)
+        height: width
+        source: item.icon !== "" ? item.icon : Quickshell.iconPath("application-x-executable", true)
+        sourceSize: Qt.size(width * Screen.devicePixelRatio, height * Screen.devicePixelRatio)
+        visible: source !== ""
+        opacity: item.pulsing && item.starting ? item.pulse : 1.0
+        mipmap: true
+        smooth: true
 
-        Image {
-          id: iconImg
+        // Urgency has to reach past the icon art itself, so it rings the slot.
+        Rectangle {
           anchors.centerIn: parent
-          width: root.iconSize - Style.space(10)
+          width: parent.width + Style.space(8)
           height: width
-          source: item.icon !== "" ? item.icon : Quickshell.iconPath("application-x-executable", true)
-          sourceSize: Qt.size(width * Screen.devicePixelRatio, height * Screen.devicePixelRatio)
-          visible: source !== ""
-          opacity: item.starting ? item.pulse : 1.0
-          mipmap: true
-          smooth: true
+          radius: width / 2
+          visible: item.urgent
+          color: "transparent"
+          border.width: Math.max(1, Style.space(2))
+          border.color: Util.alpha(Color.urgent, 0.25 + 0.65 * item.pulse)
         }
       }
     }
@@ -322,7 +316,6 @@ Item {
         } else if (mouse.button === Qt.MiddleButton) {
           item.newWindowRequested(item.appId)
         } else if (mouse.button === Qt.LeftButton) {
-          if (root.launchBounce) bounceAnim.restart()
           item.activateRequested(item.appId)
         }
       }
@@ -331,7 +324,9 @@ Item {
     BorderSurface {
       id: itemTooltip
       property bool shown: false
-      visible: itemTooltip.shown && item.name !== "" && root.showTooltips && !item.isDragging && root.contextAppId === ""
+      readonly property bool wanted: area.containsMouse && !item.isDragging
+        && item.name !== "" && root.showTooltips && root.contextAppId === ""
+      visible: itemTooltip.shown && itemTooltip.wanted
       z: 300
       color: Color.tooltip.background
       borderSpec: Border.surfaceSpec("tooltip", "border", Color.tooltip.border, 1)
@@ -342,14 +337,11 @@ Item {
       width: tooltipContent.implicitWidth + contentLeftInset + contentRightInset
       height: tooltipContent.implicitHeight + contentTopInset + contentBottomInset
 
-      Connections {
-        target: area
-        function onContainsMouseChanged() {
-          if (area.containsMouse && !item.isDragging) tooltipDwell.restart()
-          else {
-            tooltipDwell.stop()
-            itemTooltip.shown = false
-          }
+      onWantedChanged: {
+        if (itemTooltip.wanted) tooltipDwell.restart()
+        else {
+          tooltipDwell.stop()
+          itemTooltip.shown = false
         }
       }
 
@@ -418,27 +410,16 @@ Item {
     width: root.iconSlot
     height: root.iconSlot
 
-    Rectangle {
-      anchors.fill: parent
-      anchors.margins: Style.space(2)
-      radius: (root.dockShape === "round" || root.dockShape === "pill")
-        ? width / 2
-        : (root.dockShape === "square" ? 0 : ((root.dockShape === "theme" || root.dockShape === "auto") ? Math.max(4, Math.round(Style.cornerRadius * 0.6)) : 8))
-      color: area.containsMouse ? (area.pressed ? Style.pressedFill : Style.hoverFill) : "transparent"
-      border.color: area.containsMouse ? Style.hoverBorderColor : "transparent"
-      border.width: Style.hoverBorderWidth
-
-      Text {
-        anchors.centerIn: parent
-        text: btn.glyph
-        font.family: "omarchy"
-        font.pixelSize: btn.glyphSize
-        color: btn.glyphColor
-        scale: root.magnification && area.containsMouse ? 1.15 : 1.0
-        Behavior on scale {
-          NumberAnimation { duration: 120; easing.type: Easing.OutQuad }
-        }
-      }
+    Text {
+      anchors.centerIn: parent
+      text: btn.glyph
+      font.family: "omarchy"
+      font.pixelSize: btn.glyphSize
+      color: btn.glyphColor
+      scale: (root.magnification && area.containsMouse ? 1.22 : 1.0) * (area.pressed ? 0.92 : 1.0)
+      y: root.magnification && area.containsMouse ? -Style.space(6) : 0
+      Behavior on scale { NumberAnimation { duration: 130; easing.type: Easing.OutQuad } }
+      Behavior on y { NumberAnimation { duration: 130; easing.type: Easing.OutQuad } }
     }
 
     MouseArea {
@@ -609,7 +590,7 @@ Item {
                                root.shell.appLibrary, root.hyprToplevelFor)
       : { pinned: [], running: [] }
     root.pruneLaunching()
-    root.pruneMinimized()
+    root.pruneWindowState()
   }
 
   readonly property string activeId: ToplevelManager.activeToplevel
@@ -626,10 +607,16 @@ Item {
   // means the window comes back to wherever you are.
   readonly property string minimizedWorkspace: "special:minimized"
   property var minimizedOrigins: ({})
-  property var appLastMinimizedWindow: ({})
-  property var appLastActiveWindow: ({})
+
+  // Per app: the window it parked last, and the window it was in last. Both
+  // hold addresses rather than live handles — a closed window then leaves a
+  // stale string that the next prune drops, instead of a dangling object.
+  // Hyprland's own focusHistoryID would save the bookkeeping, but Quickshell
+  // only refreshes lastIpcObject on window open/close, so it goes stale the
+  // moment focus moves.
+  property var appParkedWindow: ({})
+  property var appRecentWindow: ({})
   property string lastPreDockActiveApp: ""
-  property var lastPreDockActiveToplevel: null
 
   // Apps whose launch has been asked for but whose window has not shown up yet.
   property var launchPending: ({})
@@ -883,14 +870,14 @@ Item {
       var top = ToplevelManager.activeToplevel
       if (top) {
         var aid = DockModel.normalizeId(top.appId)
-        if (aid) {
-          var map = root.appLastActiveWindow
-          map[aid] = top
-          root.appLastActiveWindow = map
+        var address = root.windowAddress(root.hyprToplevelFor(top))
+        if (aid && address) {
+          var recent = DockModel.copyMap(root.appRecentWindow)
+          recent[aid] = address
+          root.appRecentWindow = recent
         }
         if (!(cardHover && cardHover.hovered) && !(revealHover && revealHover.hovered) && root.contextAppId === "") {
           root.lastPreDockActiveApp = aid
-          root.lastPreDockActiveToplevel = top
         }
       }
       debounceOverlapTimer.restart()
@@ -1022,10 +1009,8 @@ Item {
   }
 
   function cycleApp(appId, direction) {
-    var nextTop = DockModel.pickAppWindow(
-      ToplevelManager.toplevels.values, ToplevelManager.activeToplevel, appId, direction)
-    if (!nextTop) return
-    root.focusToplevel(nextTop, true /* noWarp */)
+    root.focusToplevel(DockModel.pickAppWindow(
+      ToplevelManager.toplevels.values, ToplevelManager.activeToplevel, appId, direction))
   }
 
   // ------------------------------------------------- window plumbing
@@ -1061,7 +1046,11 @@ Item {
     return name !== "" ? name : String(workspace.id)
   }
 
-  // Brings a window forward and focuses it.
+  // Brings a window forward for real. The Wayland activate request only hands
+  // over keyboard focus, which leaves scrolling layouts parked where they were,
+  // so the compositor's own focus dispatcher does the work whenever we know the
+  // window's address. It switches the workspace on its way, so nothing else has
+  // to ask for that.
   function focusToplevel(toplevel) {
     if (!toplevel) return
     var handle = root.hyprToplevelFor(toplevel)
@@ -1072,21 +1061,14 @@ Item {
       return
     }
 
-    DockModel.focusWindow(toplevel)
-
     var address = root.windowAddress(handle)
-    if (address) {
-      root.hyprDispatch('hl.dsp.focus({ window = "address:' + address + '" })',
-                        "focuswindow address:" + address)
+    if (!address) {
+      DockModel.focusWindow(toplevel)
+      return
     }
 
-    if (workspace && Hyprland.focusedWorkspace && workspace.id !== Hyprland.focusedWorkspace.id) {
-      var targetWs = root.workspaceTarget(workspace)
-      if (targetWs) {
-        root.hyprDispatch('hl.dsp.workspace({ name = "' + root.luaString(targetWs) + '" })',
-                          "workspace " + targetWs)
-      }
-    }
+    root.hyprDispatch('hl.dsp.focus({ window = "address:' + address + '" })',
+                      "focuswindow address:" + address)
   }
 
   function minimizeToplevel(toplevel) {
@@ -1103,9 +1085,9 @@ Item {
 
     var aid = DockModel.normalizeId(toplevel.appId)
     if (aid) {
-      var minMap = root.appLastMinimizedWindow
-      minMap[aid] = address
-      root.appLastMinimizedWindow = minMap
+      var parked = DockModel.copyMap(root.appParkedWindow)
+      parked[aid] = address
+      root.appParkedWindow = parked
     }
 
     root.hyprDispatch(
@@ -1128,10 +1110,10 @@ Item {
 
     if (handle && handle.wayland) {
       var aid = DockModel.normalizeId(handle.wayland.appId)
-      if (aid && root.appLastMinimizedWindow[aid] === address) {
-        var minMap = root.appLastMinimizedWindow
-        delete minMap[aid]
-        root.appLastMinimizedWindow = minMap
+      if (aid && root.appParkedWindow[aid] === address) {
+        var parked = DockModel.copyMap(root.appParkedWindow)
+        delete parked[aid]
+        root.appParkedWindow = parked
       }
     }
 
@@ -1142,6 +1124,25 @@ Item {
     root.hyprDispatch('hl.dsp.focus({ window = "address:' + address + '" })',
                       "focuswindow address:" + address)
     return true
+  }
+
+  // The window an app should act on: the one it was last focused in, as long as
+  // it is still around and not parked.
+  function windowByAddress(windows, address) {
+    if (!address) return null
+    for (var i = 0; i < windows.length; i++) {
+      var win = windows[i]
+      if (!win || !win.toplevel) continue
+      var handle = root.hyprToplevelFor(win.toplevel)
+      if (root.windowAddress(handle) !== address) continue
+      var ws = handle ? handle.workspace : null
+      return (ws && ws.name === root.minimizedWorkspace) ? null : win
+    }
+    return null
+  }
+
+  function recentWindow(appId, windows) {
+    return root.windowByAddress(windows, root.appRecentWindow[appId])
   }
 
   function minimizeApp(entry) {
@@ -1164,22 +1165,7 @@ Item {
       }
       return anyMin
     } else {
-      var targetWin = null
-
-      // Check remembered last active window for this app
-      var remembered = root.appLastActiveWindow[entry.appId]
-      if (remembered) {
-        for (var k = 0; k < windows.length; k++) {
-          if (windows[k] && windows[k].toplevel === remembered) {
-            var rhandle = root.hyprToplevelFor(remembered)
-            var rws = rhandle ? rhandle.workspace : null
-            if (rws && rws.name !== root.minimizedWorkspace) {
-              targetWin = windows[k]
-              break
-            }
-          }
-        }
-      }
+      var targetWin = root.recentWindow(entry.appId, windows)
 
       if (!targetWin) {
         for (var j = 0; j < windows.length; j++) {
@@ -1208,12 +1194,9 @@ Item {
     }
   }
 
-  // Drop origins for windows that are gone, so the map cannot grow forever.
-  function pruneMinimized() {
-    var origins = root.minimizedOrigins
-    var addresses = Object.keys(origins)
-    if (addresses.length === 0) return
-
+  // Everything the dock remembers about a window is keyed by address, so one
+  // pass over the live windows is enough to drop what closed.
+  function pruneWindowState() {
     var live = {}
     var list = Hyprland.toplevels ? Hyprland.toplevels.values : []
     for (var i = 0; i < list.length; i++) {
@@ -1221,13 +1204,24 @@ Item {
       if (address) live[address] = true
     }
 
+    root.minimizedOrigins = root.keepLive(root.minimizedOrigins, live, false)
+    root.appParkedWindow = root.keepLive(root.appParkedWindow, live, true)
+    root.appRecentWindow = root.keepLive(root.appRecentWindow, live, true)
+  }
+
+  // byValue: the map holds addresses as values (app -> window) rather than keys.
+  function keepLive(map, live, byValue) {
+    var keys = Object.keys(map)
+    if (keys.length === 0) return map
+
     var next = {}
     var dropped = false
-    for (var j = 0; j < addresses.length; j++) {
-      if (live[addresses[j]]) next[addresses[j]] = origins[addresses[j]]
+    for (var i = 0; i < keys.length; i++) {
+      var key = keys[i]
+      if (live[byValue ? map[key] : key]) next[key] = map[key]
       else dropped = true
     }
-    if (dropped) root.minimizedOrigins = next
+    return dropped ? next : map
   }
 
   // ------------------------------------------------- launch feedback
@@ -1357,56 +1351,34 @@ Item {
       }
     }
 
-    // If minimizeMode is enabled and the app is active, minimize!
-    if (root.minimizeMode !== "off" && isAppActive) {
-      if (root.minimizeApp(entry)) {
-        root.lastPreDockActiveApp = ""
-        root.lastPreDockActiveToplevel = null
-        return
-      }
+    // Clicking the app you are already in puts it away.
+    if (root.minimizeMode !== "off" && isAppActive && root.minimizeApp(entry)) {
+      root.lastPreDockActiveApp = ""
+      return
     }
 
-    // If app is NOT active: First check if there is a recently minimized window of this app to restore (LIFO Undo)
-    var lastMinAddress = root.appLastMinimizedWindow[appId]
-    if (lastMinAddress) {
+    // Otherwise the click brings something back: the window this app parked
+    // last, so a second click undoes a minimize.
+    var parkedAddress = root.appParkedWindow[appId]
+    if (parkedAddress) {
       for (var m = 0; m < windows.length; m++) {
-        var mHandle = root.hyprToplevelFor(windows[m].toplevel)
-        if (mHandle && root.windowAddress(mHandle) === lastMinAddress) {
-          var mWs = mHandle.workspace
-          if (mWs && mWs.name === root.minimizedWorkspace) {
-            root.restoreWindow(mHandle)
-            root.lastPreDockActiveApp = appId
-            root.lastPreDockActiveToplevel = windows[m].toplevel
-            return
-          }
+        var parkedHandle = root.hyprToplevelFor(windows[m].toplevel)
+        var parkedWs = parkedHandle ? parkedHandle.workspace : null
+        if (root.windowAddress(parkedHandle) === parkedAddress
+            && parkedWs && parkedWs.name === root.minimizedWorkspace) {
+          root.restoreWindow(parkedHandle)
+          root.lastPreDockActiveApp = appId
+          return
         }
       }
     }
 
-    // Otherwise: bring forward / focus the app (most recent window)
-    var targetToplevel = null
-    var remembered = root.appLastActiveWindow[appId]
-    if (remembered) {
-      for (var j = 0; j < windows.length; j++) {
-        if (windows[j].toplevel === remembered) {
-          var remHandle = root.hyprToplevelFor(remembered)
-          var remWs = remHandle ? remHandle.workspace : null
-          if (remWs && remWs.name !== root.minimizedWorkspace) {
-            targetToplevel = remembered
-            break
-          }
-        }
-      }
-    }
-
-    if (!targetToplevel) {
-      targetToplevel = DockModel.pickAppWindow(
-        ToplevelManager.toplevels.values, ToplevelManager.activeToplevel, appId, 1)
-    }
-
-    root.focusToplevel(targetToplevel)
+    // Failing that, the window it was last focused in, else wherever the cycle
+    // order lands.
+    var target = root.recentWindow(appId, windows)
+    root.focusToplevel(target ? target.toplevel : DockModel.pickAppWindow(
+      ToplevelManager.toplevels.values, ToplevelManager.activeToplevel, appId, 1))
     root.lastPreDockActiveApp = appId
-    root.lastPreDockActiveToplevel = targetToplevel
   }
 
   // Menu rows name the workspace a window sits on, including the parked ones.
@@ -1506,10 +1478,8 @@ Item {
       HoverHandler {
         id: revealHover
         onHoveredChanged: {
-          if (revealHover.hovered && ToplevelManager.activeToplevel) {
+          if (revealHover.hovered && ToplevelManager.activeToplevel)
             root.lastPreDockActiveApp = DockModel.normalizeId(ToplevelManager.activeToplevel.appId)
-            root.lastPreDockActiveToplevel = ToplevelManager.activeToplevel
-          }
           root.syncVisibility()
         }
       }
@@ -1572,10 +1542,8 @@ Item {
       HoverHandler {
         id: cardHover
         onHoveredChanged: {
-          if (cardHover.hovered && ToplevelManager.activeToplevel) {
+          if (cardHover.hovered && ToplevelManager.activeToplevel)
             root.lastPreDockActiveApp = DockModel.normalizeId(ToplevelManager.activeToplevel.appId)
-            root.lastPreDockActiveToplevel = ToplevelManager.activeToplevel
-          }
           root.syncVisibility()
         }
       }
