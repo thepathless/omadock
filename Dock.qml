@@ -160,10 +160,10 @@ Item {
       return item.name
     }
 
-    // The pulse carries urgency. A cold start bounces instead, and only falls
-    // back to fading when the bounce is off.
+    // The pulse carries both attention states: urgency, and a launch in
+    // progress, where it breathes under the bounce.
     property real pulse: 1.0
-    readonly property bool pulsing: item.urgent || (item.starting && !root.launchBounce)
+    readonly property bool pulsing: item.urgent || item.starting
     onPulsingChanged: if (!item.pulsing) item.pulse = 1.0
 
     SequentialAnimation on pulse {
@@ -215,7 +215,7 @@ Item {
         source: item.icon !== "" ? item.icon : Quickshell.iconPath("application-x-executable", true)
         sourceSize: Qt.size(width * Screen.devicePixelRatio, height * Screen.devicePixelRatio)
         visible: source !== ""
-        opacity: item.pulsing && item.starting ? item.pulse : 1.0
+        opacity: item.starting ? (0.4 + 0.6 * item.pulse) : 1.0
         mipmap: true
         smooth: true
 
