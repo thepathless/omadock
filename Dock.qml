@@ -2,6 +2,7 @@
 // management, workspace hints, and intelligent scale-aware autohide.
 
 import QtQuick
+import QtQuick.Effects
 import Quickshell
 import Quickshell.Io
 import Quickshell.Wayland
@@ -196,7 +197,7 @@ Item {
       Image {
         id: iconImg
         anchors.centerIn: parent
-        width: root.iconSize - Style.space(10)
+        width: root.iconSize - Style.space(4)
         height: width
         source: item.icon !== "" ? item.icon : Quickshell.iconPath("application-x-executable", true)
         sourceSize: Qt.size(width * Screen.devicePixelRatio, height * Screen.devicePixelRatio)
@@ -230,24 +231,12 @@ Item {
       z: 2
 
       Rectangle {
-        width: (item.active || item.urgent) ? Style.space(7) : Style.space(4)
-        height: (item.active || item.urgent) ? Style.space(3) : Style.space(2)
-        radius: height / 2
+        width: Style.space(4)
+        height: width
+        radius: width / 2
         color: item.urgent
           ? Color.urgent
-          : (item.active ? Color.bar.active : Util.alpha(root.dockForeground, item.minimized ? 0.28 : 0.6))
-        opacity: item.urgent ? (0.4 + 0.6 * item.pulse) : 1.0
-      }
-
-      // Secondary dot for multiple open windows
-      Rectangle {
-        visible: item.windows > 1
-        width: Style.space(3)
-        height: Style.space(2)
-        radius: height / 2
-        color: item.urgent
-          ? Color.urgent
-          : (item.active ? Color.bar.active : Util.alpha(root.dockForeground, item.minimized ? 0.22 : 0.45))
+          : (item.active ? Color.bar.active : Util.alpha(root.dockForeground, item.minimized ? 0.3 : 0.65))
         opacity: item.urgent ? (0.4 + 0.6 * item.pulse) : 1.0
       }
     }
@@ -557,6 +546,16 @@ Item {
   // on a dark card, or the reverse — so flip only when the two collide.
   function isLight(value) {
     return (0.2126 * value.r + 0.7152 * value.g + 0.0722 * value.b) > 0.5
+  }
+
+  // Corner radius for the dock card. "rounded" tracks the card's own height, so
+  // the panel keeps the same visual softness at any icon size.
+  function cardRadius(height) {
+    if (root.dockShape === "round" || root.dockShape === "pill") return Math.round(height / 2)
+    if (root.dockShape === "square") return 0
+    if (root.dockShape === "theme" || root.dockShape === "auto")
+      return Style.cornerRadius > 0 ? Style.cornerRadius : Math.max(14, Style.space(14))
+    return Math.max(Style.space(14), Math.min(Style.space(28), Math.round(height * 0.26)))
   }
 
   readonly property color dockForeground: {
@@ -1522,6 +1521,30 @@ Item {
 
     // ------------------------------------------------------------ dock card
 
+    Item {
+      id: cardShadow
+      visible: root.dockBgColor !== "none" && root.dockOpacity > 0.05
+      // Follows the card out of view; a blur left behind would hang on screen
+      // after the dock has gone.
+      opacity: dockCard.opacity
+      anchors.fill: dockCard
+      anchors.margins: -Style.space(18)
+      z: 0
+      layer.enabled: true
+      layer.effect: MultiEffect {
+        blurEnabled: true
+        blur: 1.0
+        blurMax: 40
+      }
+
+      Rectangle {
+        anchors.fill: parent
+        anchors.margins: Style.space(18)
+        radius: dockCard.radius
+        color: Qt.rgba(0, 0, 0, 0.4)
+      }
+    }
+
     BorderSurface {
       id: dockCard
 
@@ -1532,11 +1555,9 @@ Item {
       }
 
       color: Util.alpha(effectiveBgColor, root.dockOpacity)
-      borderSpec: Border.flat(Util.alpha(root.dockForeground, Math.max(0.28, root.dockOpacity * 0.4)), 1)
-      radius: (root.dockShape === "round" || root.dockShape === "pill")
-        ? Math.round(height / 2)
-        : (root.dockShape === "square" ? 0 : ((root.dockShape === "theme" || root.dockShape === "auto") ? (Style.cornerRadius > 0 ? Style.cornerRadius : Math.max(14, Style.space(14))) : Math.max(14, Style.space(14))))
-      padding: Style.space(4)
+      borderSpec: Border.flat(Util.alpha(root.dockForeground, Math.max(0.22, root.dockOpacity * 0.32)), 1)
+      radius: root.cardRadius(height)
+      padding: Style.space(5)
       z: 1
 
       HoverHandler {
