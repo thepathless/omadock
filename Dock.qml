@@ -240,7 +240,19 @@ Item {
       }
     }
 
-    // 2. Running Indicator Dots: Fixed at slot bottom, never scaled or pushed out of dock
+    // How the running indicator reads: one dot per window, and the third widens
+    // into a pill once there are more than three, because past three nobody
+    // counts dots at this size — the tooltip lists them by name instead. Colour
+    // carries state, size carries focus, the way this dock always did it.
+    readonly property color indicatorColor: item.urgent
+      ? Color.urgent
+      : (item.active
+          ? Color.bar.active
+          : Util.alpha(root.dockForeground, item.minimized ? 0.3 : 0.65))
+    readonly property real indicatorOpacity: item.urgent ? (0.4 + 0.6 * item.pulse) : 1.0
+    readonly property real dotSize: item.active ? Style.space(5) : Style.space(4)
+
+    // Fixed at the slot bottom, never scaled or pushed out of the dock.
     Row {
       id: indicatorRow
       anchors.horizontalCenter: parent.horizontalCenter
@@ -251,13 +263,33 @@ Item {
       z: 2
 
       Rectangle {
-        width: Style.space(4)
-        height: width
-        radius: width / 2
-        color: item.urgent
-          ? Color.urgent
-          : (item.active ? Color.bar.active : Util.alpha(root.dockForeground, item.minimized ? 0.3 : 0.65))
-        opacity: item.urgent ? (0.4 + 0.6 * item.pulse) : 1.0
+        width: item.dotSize
+        height: item.dotSize
+        radius: height / 2
+        color: item.indicatorColor
+        opacity: item.indicatorOpacity
+        Behavior on width { NumberAnimation { duration: 120 } }
+      }
+
+      Rectangle {
+        visible: item.windows > 1
+        width: item.dotSize
+        height: item.dotSize
+        radius: height / 2
+        color: item.indicatorColor
+        opacity: item.indicatorOpacity
+        Behavior on width { NumberAnimation { duration: 120 } }
+      }
+
+      // The third dot doubles as "three or more".
+      Rectangle {
+        visible: item.windows > 2
+        width: item.windows > 3 ? item.dotSize * 2 : item.dotSize
+        height: item.dotSize
+        radius: height / 2
+        color: item.indicatorColor
+        opacity: item.indicatorOpacity
+        Behavior on width { NumberAnimation { duration: 120 } }
       }
     }
 
@@ -377,7 +409,8 @@ Item {
         }
 
         Repeater {
-          model: (root.advancedTooltips && item.windowList && item.windowList.length > 0) ? Math.min(item.windowList.length, 3) : 0
+          model: (root.advancedTooltips && item.windowList && item.windowList.length > 0)
+            ? Math.min(item.windowList.length, 4) : 0
           delegate: Row {
             spacing: Style.space(4)
             anchors.horizontalCenter: parent.horizontalCenter
@@ -403,6 +436,14 @@ Item {
           }
         }
 
+        Text {
+          visible: root.advancedTooltips && item.windowList.length > 4
+          anchors.horizontalCenter: parent.horizontalCenter
+          text: "+" + (item.windowList.length - 4) + " more"
+          color: Util.alpha(Color.tooltip.text, 0.6)
+          font.family: Style.font.family
+          font.pixelSize: Math.max(10, Style.font.caption - 2)
+        }
       }
     }
   }
