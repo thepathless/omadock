@@ -95,10 +95,7 @@ Item {
     property bool _dragJustEnded: false
     property real dragStartX: 0
     property real bounceY: 0
-    readonly property real slotCenter: row.x + item.x + item.width / 2
-    readonly property real magnify: root.magnifyAt(item.slotCenter)
-    readonly property real magnifyShift: root.magnifyShiftAt(item.slotCenter, item.magnify)
-    readonly property real magnifyLift: (root.magnifyPeak - 1) * item.magnify * item.height
+    readonly property bool isHovered: area.containsMouse && !item.isDragging
 
     // Live window state, read straight off the Hyprland handles carried in the
     // model, so urgency and workspace moves land without a model rebuild.
@@ -187,19 +184,14 @@ Item {
       anchors.fill: parent
       anchors.bottomMargin: item.running ? Style.space(5) : 0
 
-      // Anchored at the bottom, so an icon grows up out of the dock instead of
-      // spilling over the running dot underneath it.
-      transformOrigin: Item.Bottom
-      scale: (1 + (root.magnifyPeak - 1) * item.magnify) * (area.pressed ? 0.92 : 1.0)
+      scale: (root.magnification && item.isHovered ? 1.22 : 1.0) * (area.pressed ? 0.92 : 1.0)
+      y: root.magnification && item.isHovered ? -Style.space(6) : 0
 
-      // Short enough to track the pointer, long enough to smooth the steps
-      // between motion events and to ramp in and out at the dock's edges.
-      Behavior on scale { NumberAnimation { duration: 70; easing.type: Easing.OutQuad } }
+      Behavior on scale { NumberAnimation { duration: 130; easing.type: Easing.OutQuad } }
+      Behavior on y { NumberAnimation { duration: 130; easing.type: Easing.OutQuad } }
 
       transform: Translate {
-        x: item.magnifyShift
         y: item.bounceY
-        Behavior on x { NumberAnimation { duration: 70; easing.type: Easing.OutQuad } }
       }
 
       Image {
@@ -237,11 +229,6 @@ Item {
       spacing: Style.space(2)
       visible: item.running
       z: 2
-
-      transform: Translate {
-        x: item.magnifyShift
-        Behavior on x { NumberAnimation { duration: 70; easing.type: Easing.OutQuad } }
-      }
 
       Rectangle {
         width: Style.space(4)
@@ -335,7 +322,7 @@ Item {
       radius: Style.cornerRadius > 0 ? Style.cornerRadius : 8
       padding: Style.space(6)
       x: (item.width - width) / 2
-      y: -height - Style.space(10) - item.magnifyLift
+      y: -height - Style.space(10)
       width: tooltipContent.implicitWidth + contentLeftInset + contentRightInset
       height: tooltipContent.implicitHeight + contentTopInset + contentBottomInset
 
@@ -412,24 +399,16 @@ Item {
     width: root.iconSlot
     height: root.iconSlot
 
-    readonly property real slotCenter: row.x + btn.x + btn.width / 2
-    readonly property real magnify: root.magnifyAt(btn.slotCenter)
-    readonly property real magnifyShift: root.magnifyShiftAt(btn.slotCenter, btn.magnify)
-
     Text {
       anchors.centerIn: parent
       text: btn.glyph
       font.family: "omarchy"
       font.pixelSize: btn.glyphSize
       color: btn.glyphColor
-      transformOrigin: Item.Bottom
-      scale: (1 + (root.magnifyPeak - 1) * btn.magnify) * (area.pressed ? 0.92 : 1.0)
-      Behavior on scale { NumberAnimation { duration: 70; easing.type: Easing.OutQuad } }
-
-      transform: Translate {
-        x: btn.magnifyShift
-        Behavior on x { NumberAnimation { duration: 70; easing.type: Easing.OutQuad } }
-      }
+      scale: (root.magnification && area.containsMouse ? 1.22 : 1.0) * (area.pressed ? 0.92 : 1.0)
+      y: root.magnification && area.containsMouse ? -Style.space(6) : 0
+      Behavior on scale { NumberAnimation { duration: 130; easing.type: Easing.OutQuad } }
+      Behavior on y { NumberAnimation { duration: 130; easing.type: Easing.OutQuad } }
     }
 
     MouseArea {
@@ -559,40 +538,6 @@ Item {
   }
 
   readonly property var appLibrary: shell ? shell.appLibrary : null
-
-  // ------------------------------------------------- magnification
-
-  // Raised cosine falloff, the curve Juan Pablo Zamora worked out for this
-  // effect: size = min + ((1 - cos t) / 2) * (max - min), where t walks an
-  // effectWidth-wide window centred on the cursor. Smooth at the peak and at
-  // both edges, so icons neither snap at the apex nor pop where the effect
-  // starts — the two artefacts a linear ramp is known for.
-  //
-  // The distances are measured against each slot's *unmagnified* centre. That
-  // is the whole trick: the layout never moves, so growing an icon cannot
-  // change its own distance to the cursor and set off a feedback wobble. The
-  // dock keeps its width and icons are nudged apart to make room instead.
-  readonly property real pointerX: cardHover.hovered ? cardHover.point.position.x : -1e6
-  readonly property real magnifyPeak: 1.45
-  readonly property real magnifyRange: root.iconSlot * 2.2
-  // Enough spread that the art of neighbouring icons keeps breathing room from
-  // the magnified one. Icon boxes still overlap slightly at this value, but the
-  // art sits ~7px inside its box, so what you see stays apart. Raise it to
-  // ~1.4 slots for boxes that never touch, at the cost of a wider wave.
-  readonly property real magnifyNudge: root.iconSlot
-
-  function magnifyAt(slotCenter) {
-    if (!root.magnification) return 0
-    var distance = root.pointerX - slotCenter
-    if (Math.abs(distance) >= root.magnifyRange) return 0
-    return 0.5 * (1 + Math.cos(Math.PI * distance / root.magnifyRange))
-  }
-
-  // Icons lean away from the cursor so the magnified one has room to grow into.
-  function magnifyShiftAt(slotCenter, falloff) {
-    if (falloff <= 0) return 0
-    return -((root.pointerX - slotCenter) / root.magnifyRange) * root.magnifyNudge * falloff
-  }
 
   // ------------------------------------------------- contrast
 
