@@ -125,6 +125,7 @@ All settings can be toggled interactively via the right-click menu or configured
   "itemSpacing": 4,
   "screen": "",
   "iconSize": 36,
+  "hoverEffect": "zoom",
   "clickToMinimize": false,
   "showUrgentHint": true,
   "revealDelay": 160,
@@ -144,6 +145,7 @@ All settings can be toggled interactively via the right-click menu or configured
 | `showAppsButton` | `boolean` | `true` | Show or hide the Omarchy apps launcher button on the left edge. |
 | `showTooltips` | `boolean` | `true` | Show app name tooltips on mouse hover. |
 | `screen` | `string` | `""` | Optional monitor name to pin the dock to (defaults to the first monitor). |
+| `hoverEffect` | `string` | `"zoom"` | Hover growth: `"zoom"` grows only the icon under the pointer and leaves the layout still, `"wave"` runs a raised-cosine falloff across neighbours and lets the row carry the extra width, `"off"` disables it. |
 | `clickToMinimize` | `boolean` | `false` | Clicking the focused single-window app parks it on a hidden `special:minimized` workspace; clicking again restores it. |
 | `showUrgentHint` | `boolean` | `true` | Pulse the indicator and icon ring when a window demands attention. |
 | `revealDelay` | `number` | `160` | Milliseconds the pointer must dwell on the screen edge before an autohidden dock reveals. `0` reveals immediately. |

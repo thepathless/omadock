@@ -88,14 +88,25 @@ Item {
     signal dragDropped(string appId)
     signal wheelScrolled(string appId, int direction)
 
-    width: root.iconSlot
+    // Only the wave lets a slot grow; zoom keeps the layout still and simply
+    // draws its icon larger.
+    width: root.iconSlot * (root.waveHover ? item.magnifyScale : 1)
     height: root.iconSlot
 
     property bool isDragging: false
     property bool _dragJustEnded: false
     property real dragStartX: 0
     property real bounceY: 0
-    readonly property bool isHovered: area.containsMouse && !item.isDragging
+    property real homeCenter: 0
+    property real magnifyScale: {
+      if (root.waveHover) return root.magnifyScaleAt(item.homeCenter)
+      if (root.hoverEffect === "off") return 1
+      return (area.containsMouse && !item.isDragging) ? root.zoomPeak : 1
+    }
+
+    Behavior on magnifyScale {
+      NumberAnimation { duration: 110; easing.type: Easing.OutQuad }
+    }
 
     // Live window state, read straight off the Hyprland handles carried in the
     // model, so urgency and workspace moves land without a model rebuild.
@@ -184,20 +195,22 @@ Item {
       anchors.fill: parent
       anchors.bottomMargin: item.running ? Style.space(5) : 0
 
-      scale: (root.magnification && item.isHovered ? 1.22 : 1.0) * (area.pressed ? 0.92 : 1.0)
-      y: root.magnification && item.isHovered ? -Style.space(6) : 0
-
-      Behavior on scale { NumberAnimation { duration: 130; easing.type: Easing.OutQuad } }
-      Behavior on y { NumberAnimation { duration: 130; easing.type: Easing.OutQuad } }
+      scale: area.pressed ? 0.92 : 1.0
+      transformOrigin: Item.Bottom
+      Behavior on scale { NumberAnimation { duration: 90; easing.type: Easing.OutQuad } }
 
       transform: Translate {
         y: item.bounceY
       }
 
+      // Sits on the dock floor and grows upward, so a magnified icon never
+      // reaches down over the running dot beneath it.
       Image {
         id: iconImg
-        anchors.centerIn: parent
-        width: root.iconSize - Style.space(4)
+        anchors.horizontalCenter: parent.horizontalCenter
+        anchors.bottom: parent.bottom
+        anchors.bottomMargin: Math.round((iconBox.height - root.baseIconArt) / 2)
+        width: root.baseIconArt * item.magnifyScale
         height: width
         source: item.icon !== "" ? item.icon : Quickshell.iconPath("application-x-executable", true)
         sourceSize: Qt.size(width * Screen.devicePixelRatio, height * Screen.devicePixelRatio)
@@ -396,19 +409,29 @@ Item {
     signal pressed()
     signal menuRequested(real x, real y)
 
-    width: root.iconSlot
+    property real homeCenter: 0
+    property real magnifyScale: {
+      if (root.waveHover) return root.magnifyScaleAt(btn.homeCenter)
+      if (root.hoverEffect === "off") return 1
+      return area.containsMouse ? root.zoomPeak : 1
+    }
+
+    Behavior on magnifyScale {
+      NumberAnimation { duration: 110; easing.type: Easing.OutQuad }
+    }
+
+    width: root.iconSlot * (root.waveHover ? btn.magnifyScale : 1)
     height: root.iconSlot
 
     Text {
-      anchors.centerIn: parent
+      anchors.horizontalCenter: parent.horizontalCenter
+      anchors.verticalCenter: parent.verticalCenter
       text: btn.glyph
       font.family: "omarchy"
       font.pixelSize: btn.glyphSize
       color: btn.glyphColor
-      scale: (root.magnification && area.containsMouse ? 1.22 : 1.0) * (area.pressed ? 0.92 : 1.0)
-      y: root.magnification && area.containsMouse ? -Style.space(6) : 0
-      Behavior on scale { NumberAnimation { duration: 130; easing.type: Easing.OutQuad } }
-      Behavior on y { NumberAnimation { duration: 130; easing.type: Easing.OutQuad } }
+      transformOrigin: Item.Bottom
+      scale: btn.magnifyScale * (area.pressed ? 0.92 : 1.0)
     }
 
     MouseArea {
@@ -539,6 +562,73 @@ Item {
 
   readonly property var appLibrary: shell ? shell.appLibrary : null
 
+  // ------------------------------------------------- magnification
+
+  // Raised cosine falloff, the curve Juan Pablo Zamora derived for this effect:
+  //   size = min + ((1 - cos t) / 2) * (max - min)
+  // over an effectWidth-wide window centred on the cursor, which is
+  // 0.5 * (1 + cos(pi * d / R)) for a distance d and half-range R. Flat at the
+  // peak and flat where the effect ends, so icons neither snap at the apex nor
+  // pop into motion at the edge of the range.
+  //
+  // Slots grow, and the row grows with them. That is not a stylistic choice:
+  // the displacement an icon needs is the accumulated growth between it and the
+  // cursor, which integrates to (peak - 1) * R / 2 at the range edge — around
+  // 30px per side here. A fixed-width card has nowhere to put that, so nudging
+  // icons by a hand-picked amount instead leaves holes next to the pointer and
+  // crowding further out. Letting the row carry the extra width is what keeps
+  // every gap even.
+  //
+  // Distances are measured from each slot's *unmagnified* home centre, in
+  // window coordinates. Nothing that magnification changes feeds back into
+  // those numbers, so the wave cannot chase itself.
+  readonly property real magnifyPeak: 1.4
+  readonly property real zoomPeak: 1.22
+  readonly property real magnifyRange: root.iconSlot * 2.2
+  readonly property real baseIconArt: root.iconSize - Style.space(4)
+
+  // The card's own handler, lifted into window coordinates. Both terms move
+  // together as the card grows, so their sum stays the physical pointer.
+  readonly property real pointerX: cardHover.hovered
+    ? dockCard.x + cardHover.point.position.x
+    : -1e6
+
+  readonly property int appsSlots: root.showAppsButton ? 1 : 0
+  readonly property bool hasSeparator: root.pinnedSection.length > 0 && root.runningSection.length > 0
+  readonly property real gapWidth: Style.space(root.itemSpacing)
+  readonly property real separatorWidth: Style.space(1)
+  readonly property int slotTotal: root.appsSlots + root.pinnedSection.length + root.runningSection.length
+  readonly property int elementTotal: root.slotTotal + (root.hasSeparator ? 1 : 0)
+
+  readonly property real baseRowWidth: root.slotTotal * root.iconSlot
+    + (root.hasSeparator ? root.separatorWidth : 0)
+    + Math.max(0, root.elementTotal - 1) * root.gapWidth
+
+  // Where the row would start if nothing were magnified. The card is centred,
+  // so this only moves when the dock's contents change.
+  readonly property real baseRowLeft: (dockWindow.width
+    - (root.baseRowWidth + dockCard.contentLeftInset + dockCard.contentRightInset)) / 2
+    + dockCard.contentLeftInset
+
+  function slotHomeCenter(elementIndex, slotsBefore, sepBefore) {
+    return root.baseRowLeft
+      + elementIndex * root.gapWidth
+      + slotsBefore * root.iconSlot
+      + (sepBefore ? root.separatorWidth : 0)
+      + root.iconSlot / 2
+  }
+
+  function magnifyAt(homeCenter) {
+    if (!root.waveHover) return 0
+    var distance = root.pointerX - homeCenter
+    if (Math.abs(distance) >= root.magnifyRange) return 0
+    return 0.5 * (1 + Math.cos(Math.PI * distance / root.magnifyRange))
+  }
+
+  function magnifyScaleAt(homeCenter) {
+    return 1 + (root.magnifyPeak - 1) * root.magnifyAt(homeCenter)
+  }
+
   // ------------------------------------------------- contrast
 
   // The bar foreground is tuned for the bar's own background. A custom dock
@@ -643,7 +733,12 @@ Item {
   property bool intelligentAutohide: true
   property bool showAppsButton: true
   property bool showTooltips: true
-  property bool magnification: true
+  // "zoom" grows only the icon under the pointer and leaves the layout alone —
+  // the behaviour this dock shipped with, and the default. "wave" is the
+  // falloff: neighbours respond and the row carries the extra width. "off" is
+  // no hover growth at all.
+  property string hoverEffect: "zoom"
+  readonly property bool waveHover: root.hoverEffect === "wave"
   property bool launchBounce: true
   property bool advancedTooltips: true
   property real dockOpacity: 1.0
@@ -922,7 +1017,10 @@ Item {
     root.intelligentAutohide = parsed && parsed.intelligentAutohide !== false
     root.showAppsButton = parsed && parsed.showAppsButton !== false
     root.showTooltips = parsed && parsed.showTooltips !== false
-    root.magnification = parsed && parsed.magnification !== false
+    // Migrates the old boolean: an explicit magnification:false meant no growth.
+    root.hoverEffect = parsed && typeof parsed.hoverEffect === "string"
+      ? parsed.hoverEffect
+      : ((parsed && parsed.magnification === false) ? "off" : "zoom")
     root.launchBounce = parsed && parsed.launchBounce !== false
     root.advancedTooltips = parsed && parsed.advancedTooltips !== false
     root.screenName = parsed && typeof parsed.screen === "string" ? parsed.screen : ""
@@ -984,6 +1082,11 @@ Item {
 
   function setDockOpacity(val) {
     root.dockOpacity = val
+    root.saveConfig()
+  }
+
+  function setHoverEffect(mode) {
+    root.hoverEffect = mode
     root.saveConfig()
   }
 
@@ -1288,7 +1391,8 @@ Item {
     conf.intelligentAutohide = root.intelligentAutohide
     conf.showAppsButton = root.showAppsButton
     conf.showTooltips = root.showTooltips
-    conf.magnification = root.magnification
+    conf.hoverEffect = root.hoverEffect
+    delete conf.magnification
     conf.launchBounce = root.launchBounce
     conf.advancedTooltips = root.advancedTooltips
     if (root.screenName) conf.screen = root.screenName
@@ -1617,6 +1721,7 @@ Item {
 
         DockIconButton {
           visible: root.showAppsButton
+          homeCenter: root.slotHomeCenter(0, 0, false)
           glyph: "\ue900"
           tooltip: "Apps"
           onPressed: root.toggleAppsMenu()
@@ -1635,6 +1740,7 @@ Item {
             running: modelData.running
             windows: modelData.windows
             windowList: modelData.windowList
+            homeCenter: root.slotHomeCenter(root.appsSlots + index, root.appsSlots + index, false)
             pinned: true
             active: modelData.appId === root.activeId
             onActivateRequested: function(aid) { root.activate(aid) }
@@ -1703,6 +1809,10 @@ Item {
             running: modelData.running
             windows: modelData.windows
             windowList: modelData.windowList
+            homeCenter: root.slotHomeCenter(
+              root.appsSlots + root.pinnedSection.length + (root.hasSeparator ? 1 : 0) + index,
+              root.appsSlots + root.pinnedSection.length + index,
+              root.hasSeparator)
             pinned: false
             active: modelData.appId === root.activeId
             onActivateRequested: function(aid) { root.activate(aid) }
@@ -1886,12 +1996,8 @@ Item {
             }
 
             ContextRow {
-              text: "Magnification (Zoom)"
-              checked: root.magnification
-              onTriggered: {
-                root.magnification = !root.magnification
-                root.saveConfig()
-              }
+              text: "Hover: " + (root.hoverEffect === "wave" ? "Wave" : (root.hoverEffect === "off" ? "None" : "Zoom")) + " ›"
+              onTriggered: root.settingsSubmenu = "hover"
             }
 
             ContextRow {
@@ -1919,6 +2025,41 @@ Item {
                 root.showTooltips = !root.showTooltips
                 root.saveConfig()
               }
+            }
+          }
+
+          // Hover Effect Page
+          Column {
+            spacing: Style.space(1)
+            visible: root.settingsSubmenu === "hover"
+
+            ContextRow {
+              text: "‹ Back"
+              textColor: Color.bar.active
+              onTriggered: root.settingsSubmenu = "effects"
+            }
+
+            ContextRow {
+              text: "Hover Effect"
+              isHeader: true
+            }
+
+            ContextRow {
+              text: "Zoom"
+              checked: root.hoverEffect !== "wave" && root.hoverEffect !== "off"
+              onTriggered: root.setHoverEffect("zoom")
+            }
+
+            ContextRow {
+              text: "Wave"
+              checked: root.hoverEffect === "wave"
+              onTriggered: root.setHoverEffect("wave")
+            }
+
+            ContextRow {
+              text: "None"
+              checked: root.hoverEffect === "off"
+              onTriggered: root.setHoverEffect("off")
             }
           }
 
