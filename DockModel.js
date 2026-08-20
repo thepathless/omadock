@@ -252,7 +252,6 @@ function buildEntries(pinnedIds, toplevels, appRows, appLibrary, hyprFor) {
     winMap[appId].push({
       title: String(toplevel.title || "Window"),
       toplevel: toplevel,
-      activated: !!toplevel.activated,
       // Live Hyprland handle. Urgency and workspace are read off this object
       // directly so the dock follows them without rebuilding the model.
       hypr: hyprFor ? hyprFor(toplevel) : null

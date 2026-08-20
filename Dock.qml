@@ -152,6 +152,13 @@ Item {
 
     readonly property bool starting: root.launchPending[item.appId] !== undefined
 
+    // Live, unlike a flag copied into the model: only one window is focused, and
+    // the manager always knows which.
+    function windowFocused(window) {
+      return !!window && !!ToplevelManager.activeToplevel
+        && window.toplevel === ToplevelManager.activeToplevel
+    }
+
     readonly property string tooltipText: {
       if (item.name === "") return ""
       if (item.starting) return item.name + " [starting…]"
@@ -379,7 +386,7 @@ Item {
               height: Style.space(4)
               radius: width / 2
               anchors.verticalCenter: parent.verticalCenter
-              color: (item.windowList[index] && item.windowList[index].activated) ? Color.bar.active : Util.alpha(Color.tooltip.text, 0.4)
+              color: item.windowFocused(item.windowList[index]) ? Color.bar.active : Util.alpha(Color.tooltip.text, 0.4)
             }
             Text {
               text: {
@@ -387,7 +394,7 @@ Item {
                 var t = w ? root.windowRowLabel(w) : ""
                 return t.length > 30 ? t.slice(0, 28) + "…" : t
               }
-              color: (item.windowList[index] && item.windowList[index].activated) ? Color.tooltip.text : Util.alpha(Color.tooltip.text, 0.75)
+              color: item.windowFocused(item.windowList[index]) ? Color.tooltip.text : Util.alpha(Color.tooltip.text, 0.75)
               font.family: Style.font.family
               font.pixelSize: Math.max(10, Style.font.caption - 2)
               elide: Text.ElideRight
@@ -395,6 +402,7 @@ Item {
             }
           }
         }
+
       }
     }
   }
@@ -1271,7 +1279,7 @@ Item {
 
       if (!targetWin) {
         for (var j = 0; j < windows.length; j++) {
-          if (windows[j] && windows[j].activated) {
+          if (windows[j] && windows[j].toplevel === ToplevelManager.activeToplevel) {
             targetWin = windows[j]
             break
           }
@@ -1448,7 +1456,7 @@ Item {
                       (root.lastPreDockActiveApp !== "" && DockModel.isAppMatch(appId, root.lastPreDockActiveApp))
 
     for (var w = 0; w < windows.length; w++) {
-      if (windows[w] && (windows[w].activated || (ToplevelManager.activeToplevel && windows[w].toplevel === ToplevelManager.activeToplevel))) {
+      if (windows[w] && windows[w].toplevel === ToplevelManager.activeToplevel) {
         isAppActive = true
         break
       }
