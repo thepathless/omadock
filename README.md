@@ -95,7 +95,7 @@ Right-click the leftmost Omarchy icon to open the native settings menu:
 - **Workspace Hints**: When an app's windows all live on another workspace, its tooltip names that workspace (`Slack [3]`), and the right-click window list prefixes every window with the workspace it sits on (`[3] Slack — DM`). Parked and starting windows read the same way: `Files [minimized]`, `Slack [starting…]`.
 - **Urgent Highlights**: A window demanding attention pulses its indicator dot and icon ring in the theme's urgent color until you focus it.
 - **Launch Feedback**: Clicking a cold app pulses its icon until the window shows up (or the wait stops being informative), so one click does not become three.
-- **Click Active to Minimize** *(optional)*: Clicking the app you are already in parks its window on a hidden `special:minimized` workspace; clicking the icon again brings it back to where it came from. Multi-window apps keep cycling instead — that stays the more useful answer. Off by default.
+- **Minimize on Click** *(optional)*: Clicking the app you are already in parks its window on a hidden `special:minimized` workspace; clicking the icon once the app no longer holds focus brings it back to where it came from. A click only parks when it cannot be misread — one window, or `minimizeMode: "all"`, which takes the whole app and restores it in one click. With several windows and no rule for which one, a click cycles instead and the right-click menu parks a specific window. Off by default.
 
 ### 🪟 Multi-Window Management & Mouse-Wheel Cycling
 - **Mouse-Wheel Window Cycling**: Hover over an application with multiple open windows and scroll up or down to cycle focus between instances in real time.

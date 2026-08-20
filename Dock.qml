@@ -752,9 +752,7 @@ Item {
   // Hyprland's own focusHistoryID would save the bookkeeping, but Quickshell
   // only refreshes lastIpcObject on window open/close, so it goes stale the
   // moment focus moves.
-  property var appParkedWindow: ({})
   property var appRecentWindow: ({})
-  property string lastPreDockActiveApp: ""
 
   // Apps whose launch has been asked for but whose window has not shown up yet.
   property var launchPending: ({})
@@ -1019,9 +1017,6 @@ Item {
           recent[aid] = address
           root.appRecentWindow = recent
         }
-        if (!(cardHover && cardHover.hovered) && !(revealHover && revealHover.hovered) && root.contextAppId === "") {
-          root.lastPreDockActiveApp = aid
-        }
       }
       debounceOverlapTimer.restart()
     }
@@ -1160,6 +1155,13 @@ Item {
   }
 
   function cycleApp(appId, direction) {
+    var entry = root.entryForId(appId)
+    var next = root.stepWindow(root.visibleWindows(entry ? (entry.windowList || []) : []), direction)
+    if (next) {
+      root.focusToplevel(next.toplevel)
+      return
+    }
+    // No handles to tell parked from visible: fall back to the pure order.
     root.focusToplevel(DockModel.pickAppWindow(
       ToplevelManager.toplevels.values, ToplevelManager.activeToplevel, appId, direction))
   }
@@ -1234,13 +1236,6 @@ Item {
     origins[address] = origin
     root.minimizedOrigins = origins
 
-    var aid = DockModel.normalizeId(toplevel.appId)
-    if (aid) {
-      var parked = DockModel.copyMap(root.appParkedWindow)
-      parked[aid] = address
-      root.appParkedWindow = parked
-    }
-
     root.hyprDispatch(
       'hl.dsp.window.move({ window = "address:' + address + '", workspace = "'
         + root.luaString(root.minimizedWorkspace) + '", follow = false })',
@@ -1258,15 +1253,6 @@ Item {
     var origins = DockModel.copyMap(root.minimizedOrigins)
     delete origins[address]
     root.minimizedOrigins = origins
-
-    if (handle && handle.wayland) {
-      var aid = DockModel.normalizeId(handle.wayland.appId)
-      if (aid && root.appParkedWindow[aid] === address) {
-        var parked = DockModel.copyMap(root.appParkedWindow)
-        delete parked[aid]
-        root.appParkedWindow = parked
-      }
-    }
 
     root.hyprDispatch(
       'hl.dsp.window.move({ window = "address:' + address + '", workspace = "'
@@ -1292,57 +1278,112 @@ Item {
     return null
   }
 
+  // The app's windows that are still on screen, in window order.
+  function visibleWindows(windows) {
+    var out = []
+    for (var i = 0; i < windows.length; i++) {
+      var win = windows[i]
+      if (!win || !win.toplevel) continue
+      var handle = root.hyprToplevelFor(win.toplevel)
+      var ws = handle ? handle.workspace : null
+      if (!ws || ws.name !== root.minimizedWorkspace) out.push(win)
+    }
+    return out
+  }
+
+  // Which of these windows holds the focus, if any.
+  function focusedIndex(windows) {
+    if (!ToplevelManager.activeToplevel) return -1
+    for (var i = 0; i < windows.length; i++)
+      if (windows[i] && windows[i].toplevel === ToplevelManager.activeToplevel) return i
+    return -1
+  }
+
+  // A window of this app on the workspace you are looking at.
+  function windowHere(windows) {
+    for (var i = 0; i < windows.length; i++) {
+      var handle = root.hyprToplevelFor(windows[i].toplevel)
+      var ws = handle ? handle.workspace : null
+      if (ws && ws.id === root.focusedWorkspaceId) return windows[i]
+    }
+    return null
+  }
+
+  // One step around the app's windows from wherever the focus is.
+  function stepWindow(windows, direction) {
+    if (windows.length === 0) return null
+    if (windows.length === 1) return windows[0]
+
+    var step = direction < 0 ? -1 : 1
+    var at = root.focusedIndex(windows)
+    if (at < 0) return windows[step > 0 ? 0 : windows.length - 1]
+    return windows[(at + step + windows.length) % windows.length]
+  }
+
+  // Handles of this app's parked windows, in window order. Nothing is
+  // remembered for this: the workspace a window sits on is the answer, so a
+  // shell restart cannot lose track of one.
+  function parkedWindows(windows) {
+    var out = []
+    for (var i = 0; i < windows.length; i++) {
+      var win = windows[i]
+      if (!win || !win.toplevel) continue
+      var handle = root.hyprToplevelFor(win.toplevel)
+      var ws = handle ? handle.workspace : null
+      if (ws && ws.name === root.minimizedWorkspace) out.push(handle)
+    }
+    return out
+  }
+
   function recentWindow(appId, windows) {
     return root.windowByAddress(windows, root.appRecentWindow[appId])
   }
 
-  function minimizeApp(entry) {
-    if (!entry) return false
-    var windows = entry.windowList || []
-    if (windows.length === 0) return false
-
-    if (root.minimizeMode === "all") {
-      var anyMin = false
-      for (var i = 0; i < windows.length; i++) {
-        var w = windows[i]
-        if (w && w.toplevel) {
-          var handle = root.hyprToplevelFor(w.toplevel)
-          var ws = handle ? handle.workspace : null
-          if (ws && ws.name !== root.minimizedWorkspace) {
-            root.minimizeToplevel(w.toplevel)
-            anyMin = true
-          }
-        }
-      }
-      return anyMin
-    } else {
-      var targetWin = root.recentWindow(entry.appId, windows)
-
-      if (!targetWin) {
-        for (var j = 0; j < windows.length; j++) {
-          if (windows[j] && windows[j].toplevel === ToplevelManager.activeToplevel) {
-            targetWin = windows[j]
-            break
-          }
-        }
-      }
-
-      if (!targetWin) {
-        for (var m = 0; m < windows.length; m++) {
-          var mhandle = root.hyprToplevelFor(windows[m].toplevel)
-          var mws = mhandle ? mhandle.workspace : null
-          if (mws && mws.name !== root.minimizedWorkspace) {
-            targetWin = windows[m]
-            break
-          }
-        }
-      }
-
-      if (targetWin && targetWin.toplevel) {
-        return root.minimizeToplevel(targetWin.toplevel)
-      }
-      return false
+  function minimizeAllWindows(entry) {
+    var windows = entry ? (entry.windowList || []) : []
+    var parked = false
+    for (var i = 0; i < windows.length; i++) {
+      var win = windows[i]
+      if (!win || !win.toplevel) continue
+      var handle = root.hyprToplevelFor(win.toplevel)
+      var ws = handle ? handle.workspace : null
+      if (ws && ws.name !== root.minimizedWorkspace && root.minimizeToplevel(win.toplevel))
+        parked = true
     }
+    return parked
+  }
+
+  // The one window this app should put away: the focused one, else the one it
+  // was last focused in, else the first that is still on screen.
+  function minimizeOneWindow(entry) {
+    var windows = entry ? (entry.windowList || []) : []
+    var target = null
+
+    for (var i = 0; i < windows.length; i++) {
+      if (windows[i] && windows[i].toplevel === ToplevelManager.activeToplevel) {
+        target = windows[i]
+        break
+      }
+    }
+    if (!target) target = root.recentWindow(entry ? entry.appId : "", windows)
+    if (!target) {
+      for (var j = 0; j < windows.length; j++) {
+        var handle = root.hyprToplevelFor(windows[j].toplevel)
+        var ws = handle ? handle.workspace : null
+        if (ws && ws.name !== root.minimizedWorkspace) {
+          target = windows[j]
+          break
+        }
+      }
+    }
+
+    return (target && target.toplevel) ? root.minimizeToplevel(target.toplevel) : false
+  }
+
+  function minimizeApp(entry) {
+    return root.minimizeMode === "all"
+      ? root.minimizeAllWindows(entry)
+      : root.minimizeOneWindow(entry)
   }
 
   // Everything the dock remembers about a window is keyed by address, so one
@@ -1356,7 +1397,6 @@ Item {
     }
 
     root.minimizedOrigins = root.keepLive(root.minimizedOrigins, live, false)
-    root.appParkedWindow = root.keepLive(root.appParkedWindow, live, true)
     root.appRecentWindow = root.keepLive(root.appRecentWindow, live, true)
   }
 
@@ -1459,78 +1499,70 @@ Item {
     configFile.setText(JSON.stringify(conf, null, 2))
   }
 
+  // ------------------------------------------------- what a click means
+  //
+  // A left click says "give me this app". Everything below is decided from live
+  // state only — which windows exist, which are parked, whether the focus is
+  // already inside the app — so there is nothing to remember and nothing to go
+  // stale:
+  //
+  //   no windows                      launch it
+  //   focus elsewhere, something parked   bring the parked one back
+  //   focus elsewhere                  focus it, preferring this workspace
+  //   focus inside, mode "all"         park the whole app
+  //   focus inside, several open       step to the app's next window
+  //   focus inside, one open           park it, when parking is on
+  //
+  // Two of those rules carry the weight. Preferring a window on the current
+  // workspace keeps a click from teleporting you while the app is already in
+  // front of you. Stepping through windows is what makes every click on a
+  // multi-window app do something visible: parking one of several hands focus
+  // straight to a sibling, so the app never stops being active, and both a
+  // park-first and a restore-first rule end up stuck — one parks forever, the
+  // other toggles one window forever. Stepping has no such corner, and a
+  // specific window can still be parked from the context menu.
   function activate(appId) {
     if (!root.shell || !root.shell.appLibrary) return
 
     var entry = root.entryForId(appId)
-    if (!entry || !entry.running) {
+    var windows = entry ? (entry.windowList || []) : []
+    if (!entry || !entry.running || windows.length === 0) {
       root.launchApp(appId, entry)
       return
     }
 
-    var windows = entry.windowList || []
-    if (windows.length === 0) {
-      root.launchApp(appId, entry)
-      return
-    }
+    var visible = root.visibleWindows(windows)
+    var parked = root.parkedWindows(windows)
 
-    // If all windows of this app are currently minimized, clicking restores them
-    var allMinimized = true
-    for (var k = 0; k < windows.length; k++) {
-      var whandle = root.hyprToplevelFor(windows[k].toplevel)
-      var wws = whandle ? whandle.workspace : null
-      if (!wws || wws.name !== root.minimizedWorkspace) {
-        allMinimized = false
-        break
-      }
-    }
-    if (allMinimized) {
-      for (var r = 0; r < windows.length; r++) {
-        var rhandle = root.hyprToplevelFor(windows[r].toplevel)
-        if (rhandle) root.restoreWindow(rhandle)
-      }
-      return
-    }
-
-    // Check if this app is currently active OR was active before cursor entered dock
-    var isAppActive = (appId === root.activeId) ||
-                      (root.lastPreDockActiveApp !== "" && DockModel.isAppMatch(appId, root.lastPreDockActiveApp))
-
-    for (var w = 0; w < windows.length; w++) {
-      if (windows[w] && windows[w].toplevel === ToplevelManager.activeToplevel) {
-        isAppActive = true
-        break
-      }
-    }
-
-    // Clicking the app you are already in puts it away.
-    if (root.minimizeMode !== "off" && isAppActive && root.minimizeApp(entry)) {
-      root.lastPreDockActiveApp = ""
-      return
-    }
-
-    // Otherwise the click brings something back: the window this app parked
-    // last, so a second click undoes a minimize.
-    var parkedAddress = root.appParkedWindow[appId]
-    if (parkedAddress) {
-      for (var m = 0; m < windows.length; m++) {
-        var parkedHandle = root.hyprToplevelFor(windows[m].toplevel)
-        var parkedWs = parkedHandle ? parkedHandle.workspace : null
-        if (root.windowAddress(parkedHandle) === parkedAddress
-            && parkedWs && parkedWs.name === root.minimizedWorkspace) {
-          root.restoreWindow(parkedHandle)
-          root.lastPreDockActiveApp = appId
-          return
+    if (root.focusedIndex(windows) < 0) {
+      if (parked.length > 0) {
+        // Symmetric with how they left: "all" parks in one click and restores in
+        // one, "active" restores newest first.
+        if (root.minimizeMode === "all") {
+          for (var i = 0; i < parked.length; i++) root.restoreWindow(parked[i])
+        } else {
+          root.restoreWindow(parked[parked.length - 1])
         }
+        return
       }
+
+      var target = root.windowHere(visible) || root.recentWindow(appId, visible) || visible[0]
+      if (target) root.focusToplevel(target.toplevel)
+      return
     }
 
-    // Failing that, the window it was last focused in, else wherever the cycle
-    // order lands.
-    var target = root.recentWindow(appId, windows)
-    root.focusToplevel(target ? target.toplevel : DockModel.pickAppWindow(
-      ToplevelManager.toplevels.values, ToplevelManager.activeToplevel, appId, 1))
-    root.lastPreDockActiveApp = appId
+    if (root.minimizeMode === "all") {
+      root.minimizeAllWindows(entry)
+      return
+    }
+
+    if (visible.length > 1) {
+      var next = root.stepWindow(visible, 1)
+      if (next) root.focusToplevel(next.toplevel)
+      return
+    }
+
+    if (root.minimizeMode === "active") root.minimizeOneWindow(entry)
   }
 
   // Menu rows name the workspace a window sits on, including the parked ones.
@@ -1629,11 +1661,7 @@ Item {
 
       HoverHandler {
         id: revealHover
-        onHoveredChanged: {
-          if (revealHover.hovered && ToplevelManager.activeToplevel)
-            root.lastPreDockActiveApp = DockModel.normalizeId(ToplevelManager.activeToplevel.appId)
-          root.syncVisibility()
-        }
+        onHoveredChanged: root.syncVisibility()
       }
 
       Rectangle {
@@ -1715,11 +1743,7 @@ Item {
 
       HoverHandler {
         id: cardHover
-        onHoveredChanged: {
-          if (cardHover.hovered && ToplevelManager.activeToplevel)
-            root.lastPreDockActiveApp = DockModel.normalizeId(ToplevelManager.activeToplevel.appId)
-          root.syncVisibility()
-        }
+        onHoveredChanged: root.syncVisibility()
       }
 
       anchors.horizontalCenter: parent.horizontalCenter
@@ -2506,6 +2530,15 @@ Item {
             text: root.contextWindows > 0 ? "New Window" : "Launch"
             onTriggered: {
               root.launchApp(root.contextAppId, null)
+              root.closeContext()
+            }
+          }
+
+          ContextRow {
+            text: "Minimize Window"
+            visible: root.minimizeMode !== "off" && root.contextWindows > 1
+            onTriggered: {
+              root.minimizeOneWindow(root.entryForId(root.contextAppId))
               root.closeContext()
             }
           }
