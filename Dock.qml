@@ -186,6 +186,7 @@ Item {
         y: parent.contentTopInset
         width: parent.width - parent.contentLeftInset - parent.contentRightInset
         text: item.name
+        textFormat: Text.PlainText
         color: Color.tooltip.text
         font.family: Style.font.family
         font.pixelSize: Style.font.caption
@@ -218,6 +219,7 @@ Item {
       Text {
         anchors.centerIn: parent
         text: btn.glyph
+        textFormat: Text.PlainText
         font.family: "omarchy"
         font.pixelSize: btn.glyphSize
         color: btn.glyphColor
@@ -259,6 +261,7 @@ Item {
         y: parent.contentTopInset
         width: parent.width - parent.contentLeftInset - parent.contentRightInset
         text: btn.tooltip
+        textFormat: Text.PlainText
         color: Color.tooltip.text
         font.family: Style.font.family
         font.pixelSize: Style.font.caption
@@ -303,6 +306,7 @@ Item {
         visible: crow.glyph !== "" || crow.checked
         anchors.verticalCenter: parent.verticalCenter
         text: crow.glyph !== "" ? crow.glyph : (crow.checked ? "\ue92b" : "")
+        textFormat: Text.PlainText
         font.family: "omarchy"
         font.pixelSize: Style.font.caption
         color: crow.checked ? Color.bar.active : (crow.isHeader ? Util.alpha(Color.menu.text, 0.5) : crow.textColor)
@@ -313,6 +317,7 @@ Item {
         anchors.verticalCenter: parent.verticalCenter
         width: parent.width - (crow.glyph !== "" || crow.checked ? Style.space(18) : 0)
         text: crow.text
+        textFormat: Text.PlainText
         color: crow.isHeader
           ? Util.alpha(Color.menu.text, 0.5)
           : (crow.checked ? Color.bar.active : (area.containsMouse && crow.danger ? Color.urgent : crow.textColor))
