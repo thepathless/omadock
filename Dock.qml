@@ -260,27 +260,31 @@ Item {
       return w.toplevel === ToplevelManager.activeToplevel
     }
 
+    readonly property int totalWindowCount: (item.windowList && item.windowList.length > 0) ? item.windowList.length : (item.running ? 1 : 0)
+    readonly property int maxVisibleDots: totalWindowCount > 5 ? 4 : Math.min(totalWindowCount, 5)
+    readonly property real dynamicDotSize: totalWindowCount >= 5 ? Style.space(4) : Style.space(5)
+    readonly property real dynamicActiveWidth: totalWindowCount >= 5 ? Style.space(9) : Style.space(12)
+    readonly property real dynamicSpacing: totalWindowCount >= 5 ? Style.space(2) : Style.space(3)
+
     // Fixed at the slot bottom, never scaled or pushed out of the dock.
     Row {
       id: indicatorRow
       anchors.horizontalCenter: parent.horizontalCenter
       anchors.bottom: parent.bottom
       anchors.bottomMargin: Style.space(1)
-      spacing: Style.space(3)
+      spacing: item.dynamicSpacing
       visible: item.running
       z: 2
 
       Repeater {
-        model: (item.windowList && item.windowList.length > 0)
-          ? Math.min(item.windowList.length, 3)
-          : (item.running ? 1 : 0)
+        model: item.maxVisibleDots
         delegate: Rectangle {
           readonly property var winObj: (item.windowList && item.windowList.length > index) ? item.windowList[index] : null
           readonly property bool winMinimized: winObj ? item.isWinMinimized(winObj) : item.minimized
           readonly property bool winActive: !winMinimized && (winObj ? item.isWinActive(winObj) : (index === 0 && item.isFocused))
 
-          width: winActive ? Style.space(12) : (index === 2 && item.windows > 3 ? Style.space(9) : Style.space(5))
-          height: winActive ? Style.space(4) : Style.space(5)
+          width: winActive ? item.dynamicActiveWidth : item.dynamicDotSize
+          height: winActive ? Style.space(4) : item.dynamicDotSize
           radius: height / 2
           anchors.verticalCenter: parent.verticalCenter
 
@@ -306,6 +310,29 @@ Item {
           Behavior on width { NumberAnimation { duration: 140; easing.type: Easing.OutQuad } }
           Behavior on color { ColorAnimation { duration: 120 } }
           Behavior on border.color { ColorAnimation { duration: 120 } }
+        }
+      }
+
+      // Compact overflow pill when 6+ windows are open
+      Rectangle {
+        visible: item.totalWindowCount > 5
+        width: overflowText.implicitWidth + Style.space(4)
+        height: Style.space(5)
+        radius: height / 2
+        anchors.verticalCenter: parent.verticalCenter
+        color: Util.alpha(root.dockForeground, 0.20)
+        border.color: Qt.rgba(0, 0, 0, 0.35)
+        border.width: 1
+
+        Text {
+          id: overflowText
+          anchors.centerIn: parent
+          text: "+" + (item.totalWindowCount - item.maxVisibleDots)
+          textFormat: Text.PlainText
+          color: root.dockForeground
+          font.family: Style.font.family
+          font.pixelSize: Math.max(7, Style.font.caption - 4)
+          font.bold: true
         }
       }
     }
@@ -458,7 +485,7 @@ Item {
 
         Repeater {
           model: (root.advancedTooltips && item.windowList && item.windowList.length > 0)
-            ? Math.min(item.windowList.length, 6) : 0
+            ? Math.min(item.windowList.length, 8) : 0
           delegate: Row {
             spacing: Style.space(5)
             anchors.horizontalCenter: parent.horizontalCenter
@@ -501,9 +528,9 @@ Item {
         }
 
         Text {
-          visible: root.advancedTooltips && item.windowList.length > 6
+          visible: root.advancedTooltips && item.windowList.length > 8
           anchors.horizontalCenter: parent.horizontalCenter
-          text: "+" + (item.windowList.length - 6) + " more"
+          text: "+" + (item.windowList.length - 8) + " more"
           textFormat: Text.PlainText
           color: Util.alpha(Color.tooltip.text, 0.6)
           font.family: Style.font.family
