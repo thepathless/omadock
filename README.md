@@ -139,11 +139,13 @@ Right-click the leftmost Omarchy icon to open the full visual settings menu:
 - **Magnification Effects**: Smooth raised-cosine `Wave` hover, single-icon `Zoom` peak, or `Off`.
 
 <p align="center">
-  <img src="assets/preview-options-submenus.png" alt="Behavior & Minimize Sub-Options" width="340" />
+  <img src="assets/preview-settings-1.png" alt="Omadock Settings Menu 1" width="220" />
   &nbsp;
-  <img src="assets/preview-options-appearance.png" alt="Appearance & Opacity Settings" width="260" />
+  <img src="assets/preview-settings-2.png" alt="Omadock Settings Menu 2" width="260" />
   &nbsp;
-  <img src="assets/preview-options-behaviors.png" alt="Behavior & Shape Options" width="260" />
+  <img src="assets/preview-settings-3.png" alt="Omadock Settings Menu 3" width="215" />
+  &nbsp;
+  <img src="assets/preview-settings-4.png" alt="Omadock Settings Menu 4" width="215" />
 </p>
 
 ---
