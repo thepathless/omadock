@@ -814,7 +814,8 @@ Item {
   property bool urgentOnNotification: true
   property bool urgentSound: true
   property string urgentSoundName: "bell"
-  readonly property var notifService: root.shell ? root.shell.firstPartyServiceFor("omarchy.notifications") : null
+  property var notifService: null
+  property var _lastProcessedNotifTimestamp: 0
   property int revealDelay: 160
   property int tooltipDelay: 450
   property string settingsSubmenu: ""
@@ -1133,56 +1134,96 @@ Item {
     }
   }
 
+  function updateNotifService() {
+    if (!root.notifService && root.shell && typeof root.shell.serviceFor === "function") {
+      var s = root.shell.serviceFor("omarchy.notifications") || root.shell.firstPartyServiceFor("omarchy.notifications")
+      if (s) root.notifService = s
+    }
+  }
+
+  Timer {
+    id: serviceCheckTimer
+    interval: 200
+    repeat: true
+    running: !root.notifService
+    onTriggered: {
+      root.updateNotifService()
+      if (root.notifService) serviceCheckTimer.stop()
+    }
+  }
+
+  function handleNotificationReceived(row) {
+    if (!row) return
+    var ts = row.timestamp || row.id || 0
+    if (ts && ts === root._lastProcessedNotifTimestamp) return
+    root._lastProcessedNotifTimestamp = ts
+
+    var appName = String(row.app || "")
+    var appIcon = String(row.appIcon || "")
+    var summary = String(row.summary || "")
+
+    var activeHandle = root.hyprToplevelFor(ToplevelManager.activeToplevel)
+    var activeAddr = root.windowAddress(activeHandle)
+
+    var allEntries = root.pinnedSection.concat(root.runningSection)
+    var map = DockModel.copyMap(root.urgentMap)
+    var found = false
+
+    for (var e = 0; e < allEntries.length; e++) {
+      var entry = allEntries[e]
+      if (!entry || !entry.running) continue
+      var match = (appName !== "" && DockModel.isAppMatch(entry.id, appName))
+               || (appIcon !== "" && DockModel.isAppMatch(entry.id, appIcon))
+               || (summary !== "" && DockModel.isAppMatch(entry.id, summary))
+               || (entry.name && appName && String(entry.name).toLowerCase() === appName.toLowerCase())
+
+      if (match) {
+        var wins = entry.windowList || []
+        for (var w = 0; w < wins.length; w++) {
+          var h = wins[w] ? wins[w].hypr : null
+          var addr = root.windowAddress(h)
+          // Suppress bounce if window is already active and focused in foreground
+          if (addr && addr !== activeAddr) {
+            map[addr] = true
+            found = true
+          }
+        }
+      }
+    }
+
+    if (found) {
+      root.urgentMap = map
+      modelTimer.restart()
+    }
+
+    // Play notification alert sound
+    if (root.urgentSound && root.urgentSoundName !== "none") {
+      Quickshell.execDetached(["canberra-gtk-play", "-i", root.urgentSoundName])
+    }
+  }
+
   Connections {
     target: root.notifService ? root.notifService.popupModel : null
     function onRowsInserted(parent, first, last) {
       if (!root.showUrgentHint || !root.urgentOnNotification || !root.notifService || !root.notifService.popupModel) return
-      var playedSound = false
       for (var i = first; i <= last; i++) {
         var row = root.notifService.popupModel.get(i)
-        if (!row) continue
-        var appName = String(row.app || "")
-        var appIcon = String(row.appIcon || "")
-        if (!appName && !appIcon) continue
-
-        var activeHandle = root.hyprToplevelFor(ToplevelManager.activeToplevel)
-        var activeAddr = root.windowAddress(activeHandle)
-
-        var allEntries = root.pinnedSection.concat(root.runningSection)
-        var map = DockModel.copyMap(root.urgentMap)
-        var found = false
-        for (var e = 0; e < allEntries.length; e++) {
-          var entry = allEntries[e]
-          if (!entry || !entry.running) continue
-          var match = DockModel.isAppMatch(entry.id, appName)
-                   || (appIcon !== "" && DockModel.isAppMatch(entry.id, appIcon))
-                   || (entry.name && appName && String(entry.name).toLowerCase() === appName.toLowerCase())
-
-          if (match) {
-            var wins = entry.windowList || []
-            for (var w = 0; w < wins.length; w++) {
-              var h = wins[w] ? wins[w].hypr : null
-              var addr = root.windowAddress(h)
-              if (addr && addr !== activeAddr) {
-                map[addr] = true
-                found = true
-              }
-            }
-          }
-        }
-        if (found) {
-          root.urgentMap = map
-          if (!playedSound && root.urgentSound && root.urgentSoundName !== "none") {
-            Quickshell.execDetached(["canberra-gtk-play", "-i", root.urgentSoundName])
-            playedSound = true
-          }
-          modelTimer.restart()
-        }
+        if (row) root.handleNotificationReceived(row)
+      }
+    }
+    function onCountChanged() {
+      if (!root.showUrgentHint || !root.urgentOnNotification || !root.notifService || !root.notifService.popupModel) return
+      if (root.notifService.popupModel.count > 0) {
+        var row = root.notifService.popupModel.get(0)
+        if (row) root.handleNotificationReceived(row)
       }
     }
   }
 
-  onShellChanged: root.rescanApps()
+  onShellChanged: {
+    root.updateNotifService()
+    root.rescanApps()
+  }
   onPinnedIdsChanged: root.refreshDock()
 
   // ------------------------------------------------- functions
