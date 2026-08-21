@@ -405,3 +405,104 @@ function closeApp(toplevels, appId) {
   }
   return closed
 }
+
+function cleanExecCommand(execStr) {
+  if (!execStr) return ""
+  return String(execStr).replace(/%[fFuUdDnNickvm]/g, "").trim()
+}
+
+function parseDesktopActions(desktopContent, fallbackTargetId) {
+  if (!desktopContent) return []
+  var lines = String(desktopContent).split(/\r?\n/)
+  var actionNames = []
+  var actionBlocks = {}
+  var currentSection = ""
+  var mainExec = ""
+
+  for (var i = 0; i < lines.length; i++) {
+    var line = lines[i].trim()
+    if (!line || line.charAt(0) === "#") continue
+
+    var sectionMatch = line.match(/^\[(.*)\]$/)
+    if (sectionMatch) {
+      currentSection = sectionMatch[1].trim()
+      continue
+    }
+
+    var eqIdx = line.indexOf("=")
+    if (eqIdx <= 0) continue
+    var key = line.slice(0, eqIdx).trim()
+    var val = line.slice(eqIdx + 1).trim()
+
+    if (currentSection === "Desktop Entry") {
+      if (key === "Actions") {
+        var acts = val.split(";")
+        for (var a = 0; a < acts.length; a++) {
+          var act = acts[a].trim()
+          if (act && actionNames.indexOf(act) < 0) {
+            actionNames.push(act)
+          }
+        }
+      } else if (key === "Exec") {
+        mainExec = val
+      }
+    } else if (currentSection.indexOf("Desktop Action ") === 0) {
+      var actionId = currentSection.slice(15).trim()
+      if (!actionBlocks[actionId]) actionBlocks[actionId] = {}
+      if (key === "Name") {
+        actionBlocks[actionId].name = val
+      } else if (key.indexOf("Name[") === 0 && !actionBlocks[actionId].name) {
+        actionBlocks[actionId].name = val
+      } else if (key === "Exec") {
+        actionBlocks[actionId].exec = val
+      } else if (key === "Icon") {
+        actionBlocks[actionId].icon = val
+      }
+    }
+  }
+
+  var result = []
+  for (var k = 0; k < actionNames.length; k++) {
+    var actId = actionNames[k]
+    var block = actionBlocks[actId]
+    if (block && block.name) {
+      result.push({
+        id: actId,
+        name: block.name,
+        exec: cleanExecCommand(block.exec || mainExec),
+        icon: block.icon || "",
+        targetId: fallbackTargetId || ""
+      })
+    }
+  }
+
+  if (result.length === 0 && mainExec) {
+    var webAppMatch = mainExec.match(/omarchy-launch-webapp\s+([^\s]+)/i)
+    if (webAppMatch && webAppMatch[1]) {
+      var url = webAppMatch[1]
+      result.push({
+        id: "open-browser",
+        name: "Open in Browser",
+        exec: "xdg-open " + url,
+        icon: "internet-web-browser",
+        targetId: fallbackTargetId || ""
+      })
+    }
+  }
+
+  return result
+}
+
+function folderIconFor(path, explicitIcon) {
+  if (explicitIcon) return explicitIcon
+  var norm = String(path || "").toLowerCase()
+  if (norm.indexOf("download") >= 0) return "folder-download"
+  if (norm.indexOf("document") >= 0) return "folder-documents"
+  if (norm.indexOf("picture") >= 0) return "folder-pictures"
+  if (norm.indexOf("music") >= 0) return "folder-music"
+  if (norm.indexOf("video") >= 0) return "folder-videos"
+  if (norm === "~" || (norm.indexOf("/home/") === 0 && norm.split("/").length <= 3)) return "user-home"
+  return "folder"
+}
+
+
