@@ -27,7 +27,9 @@ function toArray(list) {
 
 function normalizeId(id) {
   return stripDesktop(id)
-}function copyMap(src) {
+}
+
+function copyMap(src) {
   var out = {}
   for (var key in src) out[key] = src[key]
   return out

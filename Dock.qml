@@ -114,8 +114,8 @@ Item {
 
     readonly property bool urgent: {
       if (!root.showUrgentHint) return false
-      // macOS rule: An app that is currently active/focused in the foreground never bounces
-      if (item.focused) return false
+      // Foreground Suppression Rule: An app currently focused in the foreground suppresses urgency bounce
+      if (item.isFocused) return false
       if (item.appId && root.urgentMap[item.appId]) return true
       var list = item.windowList
       for (var i = 0; i < list.length; i++) {
@@ -1167,7 +1167,7 @@ Item {
         if (rawAddr.slice(0, 2) === "0x" || rawAddr.slice(0, 2) === "0X") rawAddr = rawAddr.slice(2)
         var fullAddr = "0x" + rawAddr
 
-        // macOS rule: If the window is ALREADY active and focused, suppress urgency
+        // Foreground Suppression Rule: If the window is ALREADY active and focused, suppress urgency
         var activeAddr = root.windowAddress(root.hyprToplevelFor(ToplevelManager.activeToplevel))
         if (activeAddr && activeAddr === fullAddr) {
           return
@@ -1949,7 +1949,7 @@ Item {
     // 1. If an active window of this application is currently focused
     if (focusedIdx >= 0) {
       if (hadUrgency) {
-        // macOS rule: Clicking an urgent app NEVER minimizes. It acknowledges attention and keeps the app in front.
+        // Attention Priority Rule: Clicking an urgent app acknowledges attention and keeps the app in front without minimizing.
         return
       }
 

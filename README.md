@@ -92,17 +92,32 @@ Right-click the leftmost Omarchy icon to open the native settings menu:
   - `Urgent Highlights` — Toggle the pulsing attention indicator.
   - `Click Active to Minimize` — Toggle minimize-on-click for the focused app.
 
-### 🎯 Layout-Aware Window Focus
-- **Compositor-Native Focus**: Clicks and wheel cycling go through Hyprland's own focus dispatcher instead of the plain Wayland activate request, so **scrolling layouts scroll the target column into view** rather than switching workspace and leaving the window off-screen. Falls back to Wayland activation when no Hyprland address is available, and speaks either the Lua (Hyprland 0.56+) or legacy dispatcher syntax.
-- **Workspace Hints**: When an app's windows all live on another workspace, its tooltip names that workspace (`Slack [3]`), and the right-click window list prefixes every window with the workspace it sits on (`[3] Slack — DM`). Parked and starting windows read the same way: `Files [minimized]`, `Slack [starting…]`.
-- **Urgent Highlights**: A window demanding attention pulses its indicator dot and icon ring in the theme's urgent color until you focus it.
-- **Launch Feedback**: Clicking a cold app pulses its icon until the window shows up (or the wait stops being informative), so one click does not become three.
-- **Minimize on Click** *(optional)*: Clicking the app you are already in parks its window on a hidden `special:minimized` workspace; clicking the icon once the app no longer holds focus brings it back to where it came from. A click only parks when it cannot be misread — one window, or `minimizeMode: "all"`, which takes the whole app and restores it in one click. With several windows and no rule for which one, a click cycles instead and the right-click menu parks a specific window. Off by default.
+### 🔘 3-State Window Indicator System & Dynamic Multi-Window Scaling
+- **Instant Visual State Recognition**:
+  - `[ ▬ ]` **Active Focused Window** — Illuminated theme-accented bar (`12px`).
+  - `[ ● ]` **Open Visible Window** — High-contrast solid dot (`5px`).
+  - `[ ○ ]` **Minimized / Parked Window** — Instant hollow circle ring with transparent fill (`5px`, `1.5px` border).
+- **Adaptive Multi-Window Layout**:
+  - **1–4 Windows**: Each window receives its own distinct indicator dot/bar.
+  - **5 Windows**: Dynamic micro-dot compression (`4px` dots, `9px` bar) fits 5 instances seamlessly.
+  - **6+ Windows**: Renders the first 4 window states + a sleek miniature `+N` count pill (`[ ▬ ] [ ● ] [ ○ ] [ ● ] [ +4 ]`).
 
-### 🪟 Multi-Window Management & Mouse-Wheel Cycling
-- **Mouse-Wheel Window Cycling**: Hover over an application with multiple open windows and scroll up or down to cycle focus between instances in real time.
-- **Active & Multi-Instance Indicators**: Clean Omarchy-styled dots show running state and active window status.
-- **Direct Window Switching**: Right-click any app icon to view open window titles and switch directly to a specific instance or open a new window.
+### 🔄 Granular Sequential & Group Minimization / Restoration
+- **Three Configurable Minimize Modes**:
+  - **`Active Window`** *(Sequential)*: Clicking a focused application minimizes only that active window into a hollow ring `○`, seamlessly passing focus to sibling windows. Clicking from a minimized state sequentially restores windows in chronological FIFO order.
+  - **`All Windows`** *(Group Hide)*: 1-click batch minimize/restore for the entire application across the workspace.
+  - **`Disabled`** *(Classic)*: Clicking an active window cycles focus to the next instance.
+- **Hidden Workspace Parking**: Parked windows sit on Hyprland's native `special:minimized` workspace and remember their exact origin workspace.
+
+### 📜 Interactive Multi-Window Tooltips with Scroll Selection
+- **Hover Previews**: Tooltips display up to 8 live window titles with workspace hints and `[minimized]` / `[starting…]` badges.
+- **Scroll-to-Select**: Scroll your mouse wheel over the dock icon to cycle through open and minimized windows directly in the tooltip (`› Window Title [minimized]`).
+- **Click-to-Restore**: Left-clicking while a window is highlighted in the tooltip instantly un-minimizes and focuses that exact window.
+
+### 🪟 Layout-Aware Window Focus & Compositor Dispatching
+- **Compositor-Native Focus**: Clicks and wheel cycling go through Hyprland's own focus dispatcher instead of plain Wayland activate requests, so **scrolling layouts scroll the target column into view** rather than leaving the window off-screen. Supports both Lua (Hyprland 0.56+) and legacy dispatchers.
+- **Attention & Urgency Alerts**: Desktop notification urgency triggers real-time icon hopping and sound feedback, while active foreground windows automatically suppress distracting alerts.
+- **Launch Feedback**: Clicking a cold app pulses its icon until the window shows up, preventing duplicate launch attempts.
 
 ### 🔄 Live Drag-and-Drop Reordering
 - Click and drag pinned app icons to rearrange them live.
