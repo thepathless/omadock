@@ -138,6 +138,14 @@ Right-click the leftmost Omarchy icon to open the full visual settings menu:
 - **Icon Sizing & Spacing**: Choose between `Small (28px)`, `Medium (36px)`, `Large (44px)`, or `Extra Large (52px)`, and customize icon gaps (`Compact`, `Normal`, `Relaxed`).
 - **Magnification Effects**: Smooth raised-cosine `Wave` hover, single-icon `Zoom` peak, or `Off`.
 
+<p align="center">
+  <img src="assets/preview-options-main.png" alt="Preferences Menu Categories" width="280" />
+  &nbsp;
+  <img src="assets/preview-options-appearance.png" alt="Appearance & Opacity Settings" width="280" />
+  &nbsp;
+  <img src="assets/preview-options-behaviors.png" alt="Behavior & Shape Options" width="280" />
+</p>
+
 ---
 
 ### 🎯 7. Zero-CPU Autohide & Tiling Adaptation
