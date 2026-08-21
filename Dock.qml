@@ -950,15 +950,6 @@ Item {
     onTriggered: root.pruneLaunching()
   }
 
-  Timer {
-    id: urgencyTestTimer
-    interval: 5000
-    onTriggered: {
-      root.urgentMap = ({})
-      modelTimer.restart()
-    }
-  }
-
   // Reactive, debounced overlap check — zero CPU polling loops
   Timer {
     id: debounceOverlapTimer
@@ -1460,33 +1451,6 @@ Item {
       Quickshell.execDetached(["canberra-gtk-play", "-i", name])
     }
     root.saveConfig()
-  }
-
-  function triggerUrgentPreview() {
-    var activeHandle = root.hyprToplevelFor(ToplevelManager.activeToplevel)
-    var activeAddr = root.windowAddress(activeHandle)
-
-    var map = DockModel.copyMap(root.urgentMap)
-    var allEntries = root.pinnedSection.concat(root.runningSection)
-    for (var i = 0; i < allEntries.length; i++) {
-      var entry = allEntries[i]
-      if (!entry || !entry.running) continue
-      var wins = entry.windowList || []
-      for (var w = 0; w < wins.length; w++) {
-        var h = wins[w] ? wins[w].hypr : null
-        var addr = root.windowAddress(h)
-        // Suppress active focused window, only make background windows urgent
-        if (addr && addr !== activeAddr) {
-          map[addr] = true
-        }
-      }
-    }
-    root.urgentMap = map
-    if (root.urgentSound && root.urgentSoundName !== "none") {
-      Quickshell.execDetached(["canberra-gtk-play", "-i", root.urgentSoundName])
-    }
-    urgencyTestTimer.restart()
-    modelTimer.restart()
   }
 
   function cycleApp(appId, direction) {
@@ -2532,15 +2496,6 @@ Item {
             ContextRow {
               text: "Urgent Sound: " + (root.urgentSoundName === "message-new-instant" ? "Message" : (root.urgentSoundName === "complete" ? "Complete" : (root.urgentSoundName === "dialog-information" ? "Information" : (root.urgentSoundName === "dialog-warning" ? "Warning" : (root.urgentSoundName === "phone-incoming-call" ? "Phone" : (root.urgentSoundName === "alarm-clock-elapsed" ? "Alarm" : (root.urgentSoundName === "none" ? "Mute" : "Bell"))))))) + " ›"
               onTriggered: root.settingsSubmenu = "urgent_sound"
-            }
-
-            ContextRow {
-              text: "Preview Urgent Bounce & Sound (5s)"
-              glyph: "\ue038"
-              onTriggered: {
-                root.triggerUrgentPreview()
-                root.closeContext()
-              }
             }
           }
 
