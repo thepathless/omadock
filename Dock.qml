@@ -689,12 +689,19 @@ Item {
 
   // Corner radius for the dock card. "rounded" tracks the card's own height, so
   // the panel keeps the same visual softness at any icon size.
-  function cardRadius(height) {
-    if (root.dockShape === "round" || root.dockShape === "pill") return Math.round(height / 2)
+  readonly property int effectiveCardRadius: {
+    var h = dockCard.height > 0 ? dockCard.height : (root.iconSlot + Style.space(10))
+    if (root.dockShape === "round" || root.dockShape === "pill") return Math.round(h / 2)
     if (root.dockShape === "square") return 0
-    if (root.dockShape === "theme" || root.dockShape === "auto")
-      return Style.cornerRadius > 0 ? Style.cornerRadius : Math.max(14, Style.space(14))
-    return Math.max(Style.space(14), Math.min(Style.space(28), Math.round(height * 0.26)))
+    if (root.dockShape === "theme" || root.dockShape === "auto") {
+      var n = Style.cornerRadius
+      return (typeof n === "number" && isFinite(n) && n >= 0) ? n : Math.max(14, Style.space(14))
+    }
+    return Math.max(Style.space(14), Math.min(Style.space(28), Math.round(h * 0.26)))
+  }
+
+  function cardRadius(height) {
+    return root.effectiveCardRadius
   }
 
   readonly property color dockForeground: {
