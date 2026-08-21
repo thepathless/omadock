@@ -681,6 +681,196 @@ Item {
     }
   }
 
+  component MenuDivider: Item {
+    id: mdiv
+    readonly property bool isMenuContent: false
+    implicitWidth: contextMenu.rowWidth > 0 ? contextMenu.rowWidth : Style.space(160)
+    width: contextMenu.rowWidth > 0 ? contextMenu.rowWidth : implicitWidth
+    implicitHeight: Math.max(7, Style.space(7))
+    height: Math.max(7, Style.space(7))
+
+    Rectangle {
+      anchors.left: parent.left
+      anchors.right: parent.right
+      anchors.leftMargin: Style.space(6)
+      anchors.rightMargin: Style.space(6)
+      anchors.verticalCenter: parent.verticalCenter
+      height: 1
+      color: Util.alpha(Color.menu.border, 0.45)
+    }
+  }
+
+  component FileStackRow: Item {
+    id: frow
+
+    property string name: ""
+    property string path: ""
+    property string icon: "folder"
+    property string subtext: ""
+    signal triggered()
+
+    readonly property bool isMenuContent: true
+    readonly property real rowWidth: (folderStackPopover && folderStackPopover.rowWidth > 0)
+      ? folderStackPopover.rowWidth
+      : ((contextMenu && contextMenu.rowWidth > 0) ? contextMenu.rowWidth : frow.implicitWidth)
+
+    implicitWidth: Math.max(220, Style.space(8) + Style.space(16) + Style.space(6)
+      + label.implicitWidth + (sublabel.text !== "" ? (sublabel.implicitWidth + Style.space(8)) : 0) + Style.space(8))
+    width: frow.rowWidth
+    height: Math.max(28, Style.space(28))
+
+    Rectangle {
+      anchors.fill: parent
+      radius: Style.cornerRadius
+      color: area.containsMouse ? Color.menu.selectedBackground : "transparent"
+    }
+
+    Row {
+      id: content
+      anchors.left: parent.left
+      anchors.leftMargin: Style.space(8)
+      anchors.right: parent.right
+      anchors.rightMargin: Style.space(8)
+      anchors.verticalCenter: parent.verticalCenter
+      spacing: Style.space(6)
+
+      Image {
+        width: Style.space(16)
+        height: Style.space(16)
+        anchors.verticalCenter: parent.verticalCenter
+        source: root.appLibrary ? root.appLibrary.iconSource(frow.icon) : Quickshell.iconPath(frow.icon, true)
+        fillMode: Image.PreserveAspectFit
+        asynchronous: true
+        smooth: true
+      }
+
+      Text {
+        id: label
+        anchors.verticalCenter: parent.verticalCenter
+        width: Math.max(40, content.width - Style.space(16) - content.spacing - (sublabel.text !== "" ? (sublabel.implicitWidth + Style.space(8)) : 0))
+        text: frow.name
+        textFormat: Text.PlainText
+        color: Color.menu.text
+        font.family: Style.font.family
+        font.pixelSize: Style.font.body
+        elide: Text.ElideMiddle
+      }
+
+      Text {
+        id: sublabel
+        visible: frow.subtext !== ""
+        anchors.verticalCenter: parent.verticalCenter
+        text: frow.subtext
+        textFormat: Text.PlainText
+        color: Util.alpha(Color.menu.text, 0.45)
+        font.family: Style.font.family
+        font.pixelSize: Style.font.caption
+      }
+    }
+
+    MouseArea {
+      id: area
+      anchors.fill: parent
+      hoverEnabled: true
+      cursorShape: Qt.PointingHandCursor
+      onClicked: frow.triggered()
+    }
+  }
+
+  component DockFolderItem: Item {
+    id: fitem
+
+    property string folderPath: ""
+    property string name: ""
+    property string icon: "folder"
+    property real homeCenter: 0
+
+    signal openStackRequested(string path, string name, real cx, real cy)
+    signal menuRequested(string path, string name, real cx, real cy)
+
+    width: root.iconSlot * (root.waveHover ? fitem.magnifyScale : 1)
+    height: root.iconSlot
+
+    readonly property bool isOpen: root.activeStackFolder === fitem.folderPath
+
+    property real magnifyScale: {
+      if (root.waveHover) return root.magnifyScaleAt(fitem.homeCenter)
+      if (root.hoverEffect === "off") return 1
+      return area.containsMouse ? root.zoomPeak : 1
+    }
+
+    Behavior on magnifyScale {
+      NumberAnimation { duration: 110; easing.type: Easing.OutQuad }
+    }
+
+    Item {
+      id: iconSlot
+      width: root.iconSlot
+      height: root.iconSlot
+      anchors.horizontalCenter: parent.horizontalCenter
+      anchors.verticalCenter: parent.verticalCenter
+
+      Item {
+        id: iconContainer
+        width: root.iconSize
+        height: root.iconSize
+        anchors.centerIn: parent
+        scale: fitem.magnifyScale
+
+        Image {
+          anchors.fill: parent
+          source: root.appLibrary ? root.appLibrary.iconSource(fitem.icon) : Quickshell.iconPath(fitem.icon, true)
+          fillMode: Image.PreserveAspectFit
+          asynchronous: true
+          smooth: true
+        }
+      }
+    }
+
+    // Active stack open indicator dot
+    Rectangle {
+      visible: fitem.isOpen
+      anchors.bottom: parent.bottom
+      anchors.bottomMargin: Style.space(1)
+      anchors.horizontalCenter: parent.horizontalCenter
+      width: Style.space(4)
+      height: Style.space(4)
+      radius: width / 2
+      color: Color.bar.active
+    }
+
+    MouseArea {
+      id: area
+      anchors.fill: parent
+      hoverEnabled: true
+      acceptedButtons: Qt.LeftButton | Qt.RightButton
+      cursorShape: Qt.PointingHandCursor
+
+      onClicked: function(mouse) {
+        if (mouse.button === Qt.RightButton) {
+          var mappedPos = fitem.mapToItem(dockWindow.contentItem, mouse.x, mouse.y)
+          fitem.menuRequested(fitem.folderPath, fitem.name, mappedPos.x, mappedPos.y)
+        } else {
+          var centerPos = fitem.mapToItem(dockWindow.contentItem, fitem.width / 2, 0)
+          fitem.openStackRequested(fitem.folderPath, fitem.name, centerPos.x, centerPos.y)
+        }
+      }
+    }
+
+    // Hover Tooltip
+    Item {
+      id: tooltipAnchor
+      anchors.horizontalCenter: parent.horizontalCenter
+      anchors.top: parent.top
+      anchors.topMargin: -Style.space(4)
+
+      PanelToolTip {
+        visible: area.containsMouse && root.showTooltips && root.contextAppId === "" && root.activeStackFolder === ""
+        text: fitem.name + " (Folder)"
+      }
+    }
+  }
+
   // -------------------------------------------------- shell integration
 
   property var shell: null
@@ -740,11 +930,14 @@ Item {
   readonly property bool hasSeparator: root.pinnedSection.length > 0 && root.runningSection.length > 0
   readonly property real gapWidth: Style.space(root.itemSpacing)
   readonly property real separatorWidth: Style.space(1)
-  readonly property int slotTotal: root.appsSlots + root.pinnedSection.length + root.runningSection.length
-  readonly property int elementTotal: root.slotTotal + (root.hasSeparator ? 1 : 0)
+  readonly property int folderSlots: root.pinnedFolders ? root.pinnedFolders.length : 0
+  readonly property bool hasFolderSeparator: root.folderSlots > 0 && (root.pinnedSection.length > 0 || root.runningSection.length > 0)
+  readonly property int slotTotal: root.appsSlots + root.pinnedSection.length + root.runningSection.length + root.folderSlots
+  readonly property int elementTotal: root.slotTotal + (root.hasSeparator ? 1 : 0) + (root.hasFolderSeparator ? 1 : 0)
 
   readonly property real baseRowWidth: root.slotTotal * root.iconSlot
     + (root.hasSeparator ? root.separatorWidth : 0)
+    + (root.hasFolderSeparator ? root.separatorWidth : 0)
     + Math.max(0, root.elementTotal - 1) * root.gapWidth
 
   // Where the row would start if nothing were magnified. The card is centred,
@@ -753,11 +946,12 @@ Item {
     - (root.baseRowWidth + dockCard.contentLeftInset + dockCard.contentRightInset)) / 2
     + dockCard.contentLeftInset
 
-  function slotHomeCenter(elementIndex, slotsBefore, sepBefore) {
+  function slotHomeCenter(elementIndex, slotsBefore, sepCount) {
+    var seps = (typeof sepCount === "number") ? sepCount : (sepCount ? 1 : 0)
     return root.baseRowLeft
       + elementIndex * root.gapWidth
       + slotsBefore * root.iconSlot
-      + (sepBefore ? root.separatorWidth : 0)
+      + seps * root.separatorWidth
       + root.iconSlot / 2
   }
 
@@ -875,8 +1069,22 @@ Item {
   property bool contextPinned: false
   property int contextWindows: 0
   property var contextWindowList: []
+  property var contextDesktopActions: []
+  property var appActionsCache: ({})
   property real contextX: 0
   property real contextY: 0
+
+  // ------------------------------------------------- folder stacks state
+
+  property var pinnedFolders: []
+  property string activeStackFolder: ""
+  property string activeStackName: ""
+  property var activeStackEntries: []
+  property int activeStackTotalCount: 0
+  property real activeStackX: 0
+  property string activeStackViewMode: "grid"
+  property string contextFolderPath: ""
+  property string contextFolderName: ""
 
   // ------------------------------------------------- configuration options
 
@@ -1035,6 +1243,56 @@ Item {
     }
   }
 
+  Process {
+    id: desktopActionsScanner
+    command: ["python3", "-c", "import os, glob, re, json\ndirs = [os.path.expanduser('~/.local/share/applications'), '/usr/local/share/applications', '/usr/share/applications', '/var/lib/flatpak/exports/share/applications', os.path.expanduser('~/.local/share/flatpak/exports/share/applications')]\nout = {}\nfor d in dirs:\n    for f in glob.glob(os.path.join(d, '*.desktop')):\n        try:\n            with open(f, 'r', encoding='utf-8', errors='ignore') as fp:\n                content = fp.read()\n            if 'Actions=' not in content:\n                continue\n            base = os.path.basename(f)\n            app_id = base[:-8] if base.endswith('.desktop') else base\n            lines = content.splitlines()\n            current_section = ''\n            action_names = []\n            action_blocks = {}\n            for line in lines:\n                line = line.strip()\n                if not line or line.startswith('#'): continue\n                m = re.match(r'^\\[(.*)\\]$', line)\n                if m:\n                    current_section = m.group(1).strip()\n                    continue\n                if '=' not in line: continue\n                k, v = line.split('=', 1)\n                k, v = k.strip(), v.strip()\n                if current_section == 'Desktop Entry' and k == 'Actions':\n                    action_names = [x.strip() for x in v.split(';') if x.strip()]\n                elif current_section.startswith('Desktop Action '):\n                    act_id = current_section[15:].strip()\n                    if act_id not in action_blocks: action_blocks[act_id] = {}\n                    if k == 'Name':\n                        action_blocks[act_id]['name'] = v\n                    elif k.startswith('Name[') and 'name' not in action_blocks[act_id]:\n                        action_blocks[act_id]['name'] = v\n                    elif k == 'Exec':\n                        action_blocks[act_id]['exec'] = v\n            acts = []\n            for act_id in action_names:\n                if act_id in action_blocks and 'name' in action_blocks[act_id]:\n                    acts.append({\n                        'id': act_id,\n                        'name': action_blocks[act_id]['name'],\n                        'exec': re.sub(r'%[fFuUdDnNickvm]', '', action_blocks[act_id].get('exec', '')).strip(),\n                        'targetId': app_id\n                    })\n            if acts:\n                out[app_id.lower()] = acts\n        except Exception:\n            pass\nprint(json.dumps(out))\n"]
+    running: true
+    stdout: StdioCollector {
+      onStreamFinished: {
+        try {
+          var parsed = JSON.parse(this.text) || {}
+          root.appActionsCache = parsed
+        } catch (e) {}
+      }
+    }
+  }
+
+  Process {
+    id: folderStackScanner
+    property string targetFolder: ""
+    command: ["python3", "-c", "import os, json, time, sys\nfolder = os.path.expanduser(sys.argv[1]) if len(sys.argv) > 1 else ''\nif not folder or not os.path.exists(folder):\n    print('{\"count\":0,\"items\":[]}')\n    sys.exit(0)\nentries = []\ntry:\n    for entry in os.scandir(folder):\n        try:\n            stat = entry.stat()\n            is_dir = entry.is_dir()\n            size_bytes = stat.st_size if not is_dir else 0\n            if size_bytes < 1024:\n                size_str = f'{size_bytes} B'\n            elif size_bytes < 1024 * 1024:\n                size_str = f'{size_bytes / 1024:.1f} KB'\n            elif size_bytes < 1024 * 1024 * 1024:\n                size_str = f'{size_bytes / (1024 * 1024):.1f} MB'\n            else:\n                size_str = f'{size_bytes / (1024 * 1024 * 1024):.1f} GB'\n            diff = time.time() - stat.st_mtime\n            if diff < 60:\n                time_str = 'Just now'\n            elif diff < 3600:\n                time_str = f'{int(diff // 60)}m ago'\n            elif diff < 86400:\n                time_str = f'{int(diff // 3600)}h ago'\n            else:\n                time_str = f'{int(diff // 86400)}d ago'\n            ext = os.path.splitext(entry.name)[1].lower()\n            is_img = ext in ['.png', '.jpg', '.jpeg', '.webp', '.svg', '.gif']\n            if is_dir:\n                icon = 'folder'\n            elif is_img:\n                icon = 'image-x-generic'\n            elif ext in ['.mp4', '.mkv', '.webm', '.mov', '.avi']:\n                icon = 'video-x-generic'\n            elif ext in ['.mp3', '.flac', '.wav', '.ogg', '.m4a']:\n                icon = 'audio-x-generic'\n            elif ext in ['.zip', '.tar', '.gz', '.xz', '.7z', '.rar']:\n                icon = 'package-x-generic'\n            elif ext in ['.pdf']:\n                icon = 'application-pdf'\n            elif ext in ['.txt', '.md', '.json', '.qml', '.py', '.cpp', '.js', '.lua', '.rs', '.go', '.html', '.css']:\n                icon = 'text-x-generic'\n            else:\n                icon = 'application-x-executable'\n            entries.append({'name': entry.name, 'path': entry.path, 'isDir': is_dir, 'isImage': is_img, 'size': size_str, 'time': time_str, 'mtime': stat.st_mtime, 'icon': icon})\n        except Exception:\n            pass\nexcept Exception:\n    pass\nentries.sort(key=lambda x: x['mtime'], reverse=True)\nprint(json.dumps({'count': len(entries), 'items': entries[:16]}))\n", folderStackScanner.targetFolder]
+    running: false
+    stdout: StdioCollector {
+      onStreamFinished: {
+        try {
+          var parsed = JSON.parse(this.text) || { count: 0, items: [] }
+          root.activeStackTotalCount = parsed.count || 0
+          root.activeStackEntries = parsed.items || []
+        } catch (e) {
+          root.activeStackTotalCount = 0
+          root.activeStackEntries = []
+        }
+      }
+    }
+  }
+
+  Process {
+    id: customFolderPickerProc
+    command: ["python3", "-c", "import gi\ngi.require_version('Gtk', '3.0')\nfrom gi.repository import Gtk\ndialog = Gtk.FileChooserDialog(title='Select Folder to Pin to Dock', action=Gtk.FileChooserAction.SELECT_FOLDER)\ndialog.add_buttons(Gtk.STOCK_CANCEL, Gtk.ResponseType.CANCEL, Gtk.STOCK_OPEN, Gtk.ResponseType.OK)\nres = dialog.run()\nif res == Gtk.ResponseType.OK:\n    print(dialog.get_filename())\ndialog.destroy()\n"]
+    running: false
+    stdout: StdioCollector {
+      onStreamFinished: {
+        var chosen = String(this.text || "").trim()
+        if (chosen.length > 0) {
+          var baseName = chosen.split("/").pop() || "Folder"
+          var home = Quickshell.env("HOME")
+          var relPath = (chosen.indexOf(home) === 0) ? chosen.replace(home, "~") : chosen
+          root.toggleFolderPin(relPath, baseName, DockModel.folderIconFor(relPath, ""))
+        }
+      }
+    }
+  }
+
   function syncVisibility() {
     // Mode 1: Always Show
     if (!root.autohide) {
@@ -1044,7 +1302,7 @@ Item {
       return
     }
 
-    var isHovered = (cardHover && cardHover.hovered) || (revealHover && revealHover.hovered) || root.contextAppId !== "" || root.dragAppId !== ""
+    var isHovered = (cardHover && cardHover.hovered) || (revealHover && revealHover.hovered) || root.contextAppId !== "" || root.dragAppId !== "" || root.activeStackFolder !== ""
 
     // Hovered, Context Menu Open, or Dragging: keep visible
     if (isHovered) {
@@ -1070,6 +1328,7 @@ Item {
   }
 
   onContextAppIdChanged: root.syncVisibility()
+  onActiveStackFolderChanged: root.syncVisibility()
   onDragAppIdChanged: root.syncVisibility()
   onAutohideChanged: root.syncVisibility()
   onIntelligentAutohideChanged: {
@@ -1077,6 +1336,12 @@ Item {
     root.syncVisibility()
   }
   onWindowsOverlapDockChanged: root.syncVisibility()
+  onDockVisibleChanged: {
+    if (!root.dockVisible) {
+      root.closeContext()
+      root.closeFolderStack()
+    }
+  }
 
   // ------------------------------------------------- file views
 
@@ -1103,7 +1368,10 @@ Item {
   Connections {
     target: root.appLibrary
     enabled: target !== null
-    function onAppsChanged() { root.rescanApps() }
+    function onAppsChanged() {
+      root.rescanApps()
+      desktopActionsScanner.running = true
+    }
   }
 
   Connections {
@@ -1118,7 +1386,9 @@ Item {
   // Wayland announcement; rebuilding on both is what keeps the handles attached.
   Connections {
     target: Hyprland.toplevels
-    function onValuesChanged() { modelTimer.restart() }
+    function onValuesChanged() {
+      modelTimer.restart()
+    }
   }
 
   Connections {
@@ -1135,6 +1405,7 @@ Item {
         }
       }
       debounceOverlapTimer.restart()
+      if (!terminalProcScanner.running) terminalProcScanner.running = true
     }
   }
 
@@ -1377,6 +1648,13 @@ Item {
     root.tooltipDelay = parsed && typeof parsed.tooltipDelay === "number"
       ? Math.max(0, Math.min(5000, Math.round(parsed.tooltipDelay)))
       : 450
+    if (parsed && Array.isArray(parsed.pinnedFolders)) {
+      root.pinnedFolders = parsed.pinnedFolders
+    } else {
+      root.pinnedFolders = [
+        { path: "~/Downloads", name: "Downloads", icon: "folder-download" }
+      ]
+    }
   }
 
   function rescanApps() {
@@ -1808,6 +2086,7 @@ Item {
     conf.urgentSoundName = root.urgentSoundName
     conf.revealDelay = root.revealDelay
     conf.tooltipDelay = root.tooltipDelay
+    conf.pinnedFolders = root.pinnedFolders
     configFile.setText(JSON.stringify(conf, null, 2))
   }
 
@@ -2017,6 +2296,46 @@ Item {
     root.setPinned(DockModel.togglePinned(root.pinnedIds, appId))
   }
 
+  function getDesktopActions(appId) {
+    if (!appId || appId === "__dock_settings__") return []
+    var cleanId = DockModel.stripDesktop(appId).toLowerCase()
+    if (root.appActionsCache && root.appActionsCache[cleanId]) return root.appActionsCache[cleanId]
+
+    var deskEntry = DockModel.entryFor(root.appRows, appId)
+    var targetId = (deskEntry && deskEntry.id) ? DockModel.stripDesktop(deskEntry.id).toLowerCase() : cleanId
+    if (root.appActionsCache && root.appActionsCache[targetId]) return root.appActionsCache[targetId]
+
+    var cands = DockModel.getCandidates(cleanId)
+    for (var i = 0; i < cands.length; i++) {
+      var cand = cands[i].toLowerCase()
+      if (root.appActionsCache && root.appActionsCache[cand]) return root.appActionsCache[cand]
+    }
+
+    if (deskEntry && deskEntry.exec) {
+      var webAppMatch = String(deskEntry.exec).match(/omarchy-launch-webapp\s+([^\s]+)/i)
+      if (webAppMatch && webAppMatch[1]) {
+        return [{
+          id: "open-browser",
+          name: "Open in Browser",
+          exec: "xdg-open " + webAppMatch[1],
+          targetId: targetId
+        }]
+      }
+    }
+
+    return []
+  }
+
+  function launchDesktopAction(action, appName) {
+    if (!action) return
+    root.beginLaunchFeedback(appName || action.name)
+    if (action.exec) {
+      Util.execDetached("uwsm-app -- " + action.exec)
+    } else if (action.targetId && action.id) {
+      Util.execDetached("uwsm-app -- gtk-launch " + Util.shellQuote(action.targetId + ".desktop") + " " + Util.shellQuote(action.id))
+    }
+  }
+
   function openContext(appId, x, y) {
     var entry = root.entryForId(appId)
     root.contextName = entry ? entry.name : appId
@@ -2025,6 +2344,7 @@ Item {
     var deskEntry = DockModel.entryFor(root.appRows, appId)
     var canonicalId = (deskEntry && deskEntry.id) ? deskEntry.id : appId
     root.contextPinned = DockModel.isPinned(root.pinnedIds, appId) || (canonicalId !== appId && DockModel.isPinned(root.pinnedIds, canonicalId))
+    root.contextDesktopActions = root.getDesktopActions(appId)
     root.contextX = x
     root.contextY = y
     root.contextAppId = appId
@@ -2032,6 +2352,69 @@ Item {
 
   function closeContext() {
     root.contextAppId = ""
+  }
+
+  function openFolderStack(path, name, cx) {
+    if (root.activeStackFolder === path) {
+      root.closeFolderStack()
+      return
+    }
+    root.closeContext()
+    root.activeStackFolder = path
+    root.activeStackName = name || "Folder"
+    root.activeStackX = cx
+    root.activeStackEntries = []
+    folderStackScanner.targetFolder = (path || "").replace(/^~/, Quickshell.env("HOME"))
+    folderStackScanner.running = true
+    root.syncVisibility()
+  }
+
+  function closeFolderStack() {
+    root.activeStackFolder = ""
+    root.activeStackName = ""
+    root.activeStackEntries = []
+    root.syncVisibility()
+  }
+
+  function openFolderContext(path, name, cx, cy) {
+    root.closeFolderStack()
+    root.contextFolderPath = path
+    root.contextFolderName = name || "Folder"
+    root.contextX = cx
+    root.contextY = cy
+    root.contextAppId = "__folder_context__"
+    root.syncVisibility()
+  }
+
+  function isFolderPinned(path) {
+    var norm = (path || "").replace(/^~/, Quickshell.env("HOME"))
+    var list = root.pinnedFolders || []
+    for (var i = 0; i < list.length; i++) {
+      var p = (list[i].path || "").replace(/^~/, Quickshell.env("HOME"))
+      if (p === norm) return true
+    }
+    return false
+  }
+
+  function toggleFolderPin(path, name, icon) {
+    var next = []
+    var found = false
+    var norm = (path || "").replace(/^~/, Quickshell.env("HOME"))
+    var list = root.pinnedFolders || []
+    for (var i = 0; i < list.length; i++) {
+      var f = list[i]
+      var p = (f.path || "").replace(/^~/, Quickshell.env("HOME"))
+      if (p === norm) {
+        found = true
+      } else {
+        next.push(f)
+      }
+    }
+    if (!found) {
+      next.push({ path: path, name: name || "Folder", icon: icon || DockModel.folderIconFor(path, "") })
+    }
+    root.pinnedFolders = next
+    root.saveConfig()
   }
 
   // Widest piece of content in the open menu. Only implicit widths are read, so
@@ -2071,6 +2454,7 @@ Item {
       item: dockCard
       regions: [
         Region { item: contextMenu },
+        Region { item: folderStackPopover },
         Region { item: revealStrip },
         Region { item: globalDismiss }
       ]
@@ -2101,11 +2485,11 @@ Item {
       }
     }
 
-    // Global dismiss area - catches clicks outside context menu
+    // Global dismiss area - catches clicks outside context menu or folder stack
     Item {
       id: globalDismiss
-      width: root.contextAppId !== "" ? dockWindow.width : 0
-      height: root.contextAppId !== "" ? dockWindow.height : 0
+      width: (root.contextAppId !== "" || root.activeStackFolder !== "") ? dockWindow.width : 0
+      height: (root.contextAppId !== "" || root.activeStackFolder !== "") ? dockWindow.height : 0
       MouseArea {
         anchors.fill: parent
         z: -1
@@ -2113,6 +2497,9 @@ Item {
         onClicked: function(mouse) {
           if (root.contextAppId !== "") {
             root.closeContext()
+          }
+          if (root.activeStackFolder !== "") {
+            root.closeFolderStack()
           }
         }
         onReleased: function(mouse) {
@@ -2327,6 +2714,35 @@ Item {
             onWheelScrolled: function(aid, dir) { root.cycleApp(aid, dir) }
           }
         }
+
+        Rectangle {
+          id: folderSeparator
+          visible: root.hasFolderSeparator
+          anchors.verticalCenter: parent.verticalCenter
+          width: Style.space(1)
+          height: root.iconSize * 0.7
+          color: Util.alpha(root.dockForeground, 0.25)
+        }
+
+        Repeater {
+          id: foldersRepeater
+          model: root.pinnedFolders
+          delegate: DockFolderItem {
+            folderPath: modelData.path
+            name: modelData.name || "Folder"
+            icon: modelData.icon || DockModel.folderIconFor(modelData.path, "")
+            homeCenter: root.slotHomeCenter(
+              root.appsSlots + root.pinnedSection.length + (root.hasSeparator ? 1 : 0) + root.runningSection.length + (root.hasFolderSeparator ? 1 : 0) + index,
+              root.appsSlots + root.pinnedSection.length + root.runningSection.length + index,
+              (root.hasSeparator ? 1 : 0) + (root.hasFolderSeparator ? 1 : 0))
+            onOpenStackRequested: function(fpath, fname, cx, cy) {
+              root.openFolderStack(fpath, fname, cx)
+            }
+            onMenuRequested: function(fpath, fname, cx, cy) {
+              root.openFolderContext(fpath, fname, cx, cy)
+            }
+          }
+        }
       }
 
       // Drop indicator line
@@ -2339,6 +2755,89 @@ Item {
         radius: 1
         color: Color.bar.active
         z: 10
+      }
+    }
+
+    // ------------------------------------------------------------ Folder Stack Popover
+    BorderSurface {
+      id: folderStackPopover
+      visible: root.activeStackFolder !== "" && root.dockVisible
+      opacity: (root.activeStackFolder !== "" && root.dockVisible) ? 1 : 0
+      Behavior on opacity { NumberAnimation { duration: 120 } }
+
+      z: 100
+      color: Color.menu.background
+      borderSpec: Border.surfaceSpec("menu", "border", Color.menu.border, 1)
+      radius: Style.cornerRadius
+      padding: Style.space(4)
+
+      readonly property real rowWidth: root.activeStackFolder !== ""
+        ? root.menuContentWidth(stackColumn)
+        : 0
+
+      width: root.activeStackFolder !== ""
+        ? rowWidth + contentLeftInset + contentRightInset
+        : 0
+      height: root.activeStackFolder !== ""
+        ? stackColumn.implicitHeight + contentTopInset + contentBottomInset
+        : 0
+
+      anchors.bottom: dockCard.top
+      anchors.bottomMargin: Style.space(6)
+      x: Math.max(Style.gapsOut, Math.min(dockWindow.width - width - Style.gapsOut, root.activeStackX - width / 2))
+
+      Column {
+        id: stackColumn
+        spacing: Style.space(2)
+
+        anchors.left: parent.left
+        anchors.leftMargin: folderStackPopover.contentLeftInset
+        anchors.right: parent.right
+        anchors.rightMargin: folderStackPopover.contentRightInset
+        anchors.top: parent.top
+        anchors.topMargin: folderStackPopover.contentTopInset
+        anchors.bottom: parent.bottom
+        anchors.bottomMargin: folderStackPopover.contentBottomInset
+
+        ContextRow {
+          text: (root.activeStackName || "Folder") + (root.activeStackTotalCount > 0 ? (" (" + root.activeStackTotalCount + ")") : "")
+          isHeader: true
+        }
+
+        Text {
+          visible: root.activeStackEntries.length === 0
+          width: parent.width
+          horizontalAlignment: Text.AlignHCenter
+          text: "Folder is empty"
+          color: Util.alpha(Color.menu.text, 0.45)
+          font.family: Style.font.family
+          font.pixelSize: Style.font.body
+          padding: Style.space(8)
+        }
+
+        Repeater {
+          model: root.activeStackEntries.slice(0, 10)
+          delegate: FileStackRow {
+            name: modelData.name
+            path: modelData.path
+            icon: modelData.icon
+            subtext: modelData.size
+            onTriggered: {
+              Util.execDetached("uwsm-app -- xdg-open " + Util.shellQuote(modelData.path))
+              root.closeFolderStack()
+            }
+          }
+        }
+
+        MenuDivider {}
+
+        ContextRow {
+          text: "Open in File Manager"
+          onTriggered: {
+            Util.execDetached("uwsm-app -- xdg-open " + Util.shellQuote(root.activeStackFolder.replace(/^~/, Quickshell.env("HOME"))))
+            root.closeFolderStack()
+          }
+        }
       }
     }
 
@@ -2414,6 +2913,81 @@ Item {
             ContextRow {
               text: "Size & Spacing ›"
               onTriggered: root.settingsSubmenu = "size_spacing"
+            }
+
+            ContextRow {
+              text: "Folders & Stacks ›"
+              onTriggered: root.settingsSubmenu = "folders"
+            }
+          }
+
+          // Folders & Stacks Category Page
+          Column {
+            spacing: Style.space(1)
+            visible: root.settingsSubmenu === "folders"
+
+            ContextRow {
+              text: "‹ Back"
+              textColor: Color.bar.active
+              onTriggered: root.settingsSubmenu = ""
+            }
+
+            ContextRow {
+              text: "Pinned Folder Stacks"
+              isHeader: true
+            }
+
+            ContextRow {
+              text: "+ Add Custom Folder..."
+              textColor: Color.bar.active
+              onTriggered: {
+                customFolderPickerProc.running = true
+                root.closeContext()
+              }
+            }
+
+            MenuDivider {}
+
+            ContextRow {
+              text: "Downloads (~/Downloads)"
+              checked: root.isFolderPinned("~/Downloads")
+              onTriggered: root.toggleFolderPin("~/Downloads", "Downloads", "folder-download")
+            }
+
+            ContextRow {
+              text: "Documents (~/Documents)"
+              checked: root.isFolderPinned("~/Documents")
+              onTriggered: root.toggleFolderPin("~/Documents", "Documents", "folder-documents")
+            }
+
+            ContextRow {
+              text: "Pictures (~/Pictures)"
+              checked: root.isFolderPinned("~/Pictures")
+              onTriggered: root.toggleFolderPin("~/Pictures", "Pictures", "folder-pictures")
+            }
+
+            ContextRow {
+              text: "Projects (~/Projects)"
+              checked: root.isFolderPinned("~/Projects")
+              onTriggered: root.toggleFolderPin("~/Projects", "Projects", "folder-development")
+            }
+
+            ContextRow {
+              text: "Music (~/Music)"
+              checked: root.isFolderPinned("~/Music")
+              onTriggered: root.toggleFolderPin("~/Music", "Music", "folder-music")
+            }
+
+            ContextRow {
+              text: "Videos (~/Videos)"
+              checked: root.isFolderPinned("~/Videos")
+              onTriggered: root.toggleFolderPin("~/Videos", "Videos", "folder-videos")
+            }
+
+            ContextRow {
+              text: "Home (~/)"
+              checked: root.isFolderPinned("~")
+              onTriggered: root.toggleFolderPin("~", "Home", "user-home")
             }
           }
 
@@ -3017,10 +3591,48 @@ Item {
           }
         }
 
+        // Folder Context Menu
+        Column {
+          spacing: Style.space(2)
+          visible: root.contextAppId === "__folder_context__"
+
+          ContextRow {
+            text: root.contextFolderName || "Folder"
+            isHeader: true
+          }
+
+          ContextRow {
+            text: "Open in File Manager"
+            onTriggered: {
+              Util.execDetached("uwsm-app -- xdg-open " + Util.shellQuote(root.contextFolderPath.replace(/^~/, Quickshell.env("HOME"))))
+              root.closeContext()
+            }
+          }
+
+          ContextRow {
+            text: "Open in Terminal"
+            onTriggered: {
+              Util.execDetached("uwsm-app -- foot --working-directory=" + Util.shellQuote(root.contextFolderPath.replace(/^~/, Quickshell.env("HOME"))))
+              root.closeContext()
+            }
+          }
+
+          MenuDivider {}
+
+          ContextRow {
+            text: "Unpin from Dock"
+            danger: true
+            onTriggered: {
+              root.toggleFolderPin(root.contextFolderPath, root.contextFolderName, "")
+              root.closeContext()
+            }
+          }
+        }
+
         // Regular App Context Menu
         Column {
           spacing: Style.space(2)
-          visible: root.contextAppId !== "" && root.contextAppId !== "__dock_settings__"
+          visible: root.contextAppId !== "" && root.contextAppId !== "__dock_settings__" && root.contextAppId !== "__folder_context__"
 
           // Multi-window instance list
           Column {
@@ -3043,15 +3655,24 @@ Item {
               }
             }
 
-            Rectangle {
-              width: parent.width
-              height: 1
-              color: Util.alpha(Color.menu.border, 0.5)
+            MenuDivider {}
+          }
+
+          // Desktop Actions / Jump List
+          Repeater {
+            model: root.contextDesktopActions
+            delegate: ContextRow {
+              text: modelData.name
+              onTriggered: {
+                root.launchDesktopAction(modelData, root.contextName)
+                root.closeContext()
+              }
             }
           }
 
           ContextRow {
             text: root.contextWindows > 0 ? "New Window" : "Launch"
+            visible: root.contextDesktopActions.length === 0
             onTriggered: {
               root.launchApp(root.contextAppId, null)
               root.closeContext()
