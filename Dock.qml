@@ -276,8 +276,8 @@ Item {
           : (item.running ? 1 : 0)
         delegate: Rectangle {
           readonly property var winObj: (item.windowList && item.windowList.length > index) ? item.windowList[index] : null
-          readonly property bool winActive: winObj ? item.isWinActive(winObj) : (index === 0 && item.isFocused)
           readonly property bool winMinimized: winObj ? item.isWinMinimized(winObj) : item.minimized
+          readonly property bool winActive: !winMinimized && (winObj ? item.isWinActive(winObj) : (index === 0 && item.isFocused))
 
           width: winActive ? Style.space(12) : (index === 2 && item.windows > 3 ? Style.space(9) : Style.space(5))
           height: winActive ? Style.space(4) : Style.space(5)
@@ -1950,16 +1950,14 @@ Item {
         }
       }
 
-      // If all windows of this app are minimized, restore all of them back together!
-      if (visible.length === 0) {
+      // Sequential restore: restore one parked window at a time
+      if (root.minimizeMode === "all") {
         for (var i = 0; i < parked.length; i++) root.restoreWindow(parked[i])
         return
       }
 
-      if (parkedOnCurrentWs) {
-        root.restoreWindow(parkedOnCurrentWs)
-        return
-      }
+      root.restoreWindow(parkedOnCurrentWs || parked[parked.length - 1])
+      return
     }
 
     // 3. Focus a visible window (preferring current workspace, then recent, then first)
