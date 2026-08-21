@@ -236,17 +236,30 @@ Item {
     }
 
     // How the running indicator reads: one dot per window, and the third widens
-    // into a pill once there are more than three, because past three nobody
-    // How the running indicator reads: active window expands into an illuminated pill
-    // with high-contrast outline to pop against any wallpaper background.
-    readonly property color indicatorColor: item.urgent
-      ? Color.urgent
-      : (item.active
-          ? Color.bar.active
-          : Util.alpha(root.dockForeground, item.minimized ? 0.40 : 0.88))
-    readonly property real indicatorOpacity: item.urgent ? (0.4 + 0.6 * item.pulse) : 1.0
-    readonly property real dotWidth: item.active ? Style.space(12) : Style.space(5)
-    readonly property real dotHeight: Style.space(4)
+    // into a pill once there are more than three, because past three n    readonly property bool isFocused: {
+      if (!ToplevelManager.activeToplevel) return false
+      var top = ToplevelManager.activeToplevel
+      if (item.appId && DockModel.isAppMatch(item.appId, top.appId)) return true
+      var list = item.windowList || []
+      for (var i = 0; i < list.length; i++) {
+        if (list[i] && list[i].toplevel === top) return true
+      }
+      return false
+    }
+
+    property int selectedWindowIdx: -1
+
+    function isWinMinimized(w) {
+      if (!w) return false
+      var h = w.hypr || null
+      var ws = h ? h.workspace : null
+      return !!ws && ws.name === root.minimizedWorkspace
+    }
+
+    function isWinActive(w) {
+      if (!w || !ToplevelManager.activeToplevel) return false
+      return w.toplevel === ToplevelManager.activeToplevel
+    }
 
     // Fixed at the slot bottom, never scaled or pushed out of the dock.
     Row {
@@ -258,41 +271,43 @@ Item {
       visible: item.running
       z: 2
 
-      Rectangle {
-        width: item.dotWidth
-        height: item.dotHeight
-        radius: height / 2
-        color: item.indicatorColor
-        opacity: item.indicatorOpacity
-        border.color: Qt.rgba(0, 0, 0, 0.45)
-        border.width: 1
-        Behavior on width { NumberAnimation { duration: 140; easing.type: Easing.OutQuad } }
-        Behavior on color { ColorAnimation { duration: 120 } }
-      }
+      Repeater {
+        model: (item.windowList && item.windowList.length > 0)
+          ? Math.min(item.windowList.length, 3)
+          : (item.running ? 1 : 0)
+        delegate: Rectangle {
+          readonly property var winObj: (item.windowList && item.windowList.length > index) ? item.windowList[index] : null
+          readonly property bool winActive: winObj ? item.isWinActive(winObj) : (index === 0 && item.isFocused)
+          readonly property bool winMinimized: winObj ? item.isWinMinimized(winObj) : item.minimized
 
-      Rectangle {
-        visible: item.windows > 1
-        width: item.active ? Style.space(5) : Style.space(5)
-        height: item.dotHeight
-        radius: height / 2
-        color: item.indicatorColor
-        opacity: item.indicatorOpacity
-        border.color: Qt.rgba(0, 0, 0, 0.45)
-        border.width: 1
-        Behavior on width { NumberAnimation { duration: 140; easing.type: Easing.OutQuad } }
-      }
+          width: winActive ? Style.space(12) : (index === 2 && item.windows > 3 ? Style.space(9) : Style.space(5))
+          height: winActive ? Style.space(4) : Style.space(5)
+          radius: height / 2
+          anchors.verticalCenter: parent.verticalCenter
 
-      // The third dot doubles as "three or more".
-      Rectangle {
-        visible: item.windows > 2
-        width: item.windows > 3 ? Style.space(9) : Style.space(5)
-        height: item.dotHeight
-        radius: height / 2
-        color: item.indicatorColor
-        opacity: item.indicatorOpacity
-        border.color: Qt.rgba(0, 0, 0, 0.45)
-        border.width: 1
-        Behavior on width { NumberAnimation { duration: 140; easing.type: Easing.OutQuad } }
+          // 1. Active window: Solid illuminated bar
+          // 2. Open visible window: Solid circle
+          // 3. Minimized window: Hollow circle (transparent fill with solid border)
+          color: winActive
+            ? Color.bar.active
+            : (winMinimized
+                ? "transparent"
+                : (item.urgent ? Color.urgent : Util.alpha(root.dockForeground, 0.88)))
+
+          border.color: winActive
+            ? Qt.rgba(0, 0, 0, 0.45)
+            : (winMinimized
+                ? (item.urgent ? Color.urgent : Util.alpha(root.dockForeground, 0.88))
+                : Qt.rgba(0, 0, 0, 0.45))
+
+          border.width: winMinimized ? 1.5 : 1
+
+          opacity: item.urgent ? (0.4 + 0.6 * item.pulse) : 1.0
+
+          Behavior on width { NumberAnimation { duration: 140; easing.type: Easing.OutQuad } }
+          Behavior on color { ColorAnimation { duration: 120 } }
+          Behavior on border.color { ColorAnimation { duration: 120 } }
+        }
       }
     }
 
@@ -306,7 +321,22 @@ Item {
       onWheel: function(wheel) {
         if (wheel.angleDelta.y !== 0) {
           var dir = wheel.angleDelta.y > 0 ? -1 : 1
-          item.wheelScrolled(item.appId, dir)
+          var wins = item.windowList || []
+          if (wins.length > 1) {
+            // Scroll over tooltip cycles window selection
+            if (item.selectedWindowIdx < 0) {
+              var cur = 0
+              for (var c = 0; c < wins.length; c++) {
+                if (item.windowFocused(wins[c])) { cur = c; break; }
+              }
+              item.selectedWindowIdx = (cur + dir + wins.length) % wins.length
+            } else {
+              item.selectedWindowIdx = (item.selectedWindowIdx + dir + wins.length) % wins.length
+            }
+            itemTooltip.shown = true
+          } else {
+            item.wheelScrolled(item.appId, dir)
+          }
         }
       }
 
@@ -360,6 +390,20 @@ Item {
         } else if (mouse.button === Qt.MiddleButton) {
           item.newWindowRequested(item.appId)
         } else if (mouse.button === Qt.LeftButton) {
+          // If a specific window was selected via scroll wheel in tooltip:
+          if (item.selectedWindowIdx >= 0 && item.windowList && item.selectedWindowIdx < item.windowList.length) {
+            var chosenWin = item.windowList[item.selectedWindowIdx]
+            var chosenHypr = chosenWin ? chosenWin.hypr : null
+            var chosenWs = chosenHypr ? chosenHypr.workspace : null
+            var isParked = chosenWs && chosenWs.name === root.minimizedWorkspace
+            if (isParked) {
+              root.restoreWindow(chosenHypr || chosenWin)
+            } else if (chosenWin && chosenWin.toplevel) {
+              root.focusToplevel(chosenWin.toplevel)
+            }
+            item.selectedWindowIdx = -1
+            return
+          }
           item.activateRequested(item.appId)
         }
       }
@@ -386,6 +430,7 @@ Item {
         else {
           tooltipDwell.stop()
           itemTooltip.shown = false
+          item.selectedWindowIdx = -1
         }
       }
 
@@ -414,27 +459,42 @@ Item {
 
         Repeater {
           model: (root.advancedTooltips && item.windowList && item.windowList.length > 0)
-            ? Math.min(item.windowList.length, 4) : 0
+            ? Math.min(item.windowList.length, 6) : 0
           delegate: Row {
-            spacing: Style.space(4)
+            spacing: Style.space(5)
             anchors.horizontalCenter: parent.horizontalCenter
+            readonly property bool isSelected: item.selectedWindowIdx === index
+            readonly property bool isWinFocused: item.windowFocused(item.windowList[index])
+            readonly property bool isWinParked: {
+              var w = item.windowList[index]
+              var h = w ? w.hypr : null
+              var ws = h ? h.workspace : null
+              return !!ws && ws.name === root.minimizedWorkspace
+            }
+
             Rectangle {
-              width: Style.space(4)
-              height: Style.space(4)
+              width: Style.space(5)
+              height: Style.space(5)
               radius: width / 2
               anchors.verticalCenter: parent.verticalCenter
-              color: item.windowFocused(item.windowList[index]) ? Color.bar.active : Util.alpha(Color.tooltip.text, 0.4)
+              color: isSelected ? Color.accent : (isWinFocused ? Color.bar.active : (isWinParked ? Util.alpha(Color.tooltip.text, 0.25) : Util.alpha(Color.tooltip.text, 0.5)))
+              border.color: isSelected ? Color.accent : "transparent"
+              border.width: 1
             }
+
             Text {
               text: {
                 var w = item.windowList[index]
                 var t = w ? root.windowRowLabel(w) : ""
-                return t.length > 30 ? t.slice(0, 28) + "…" : t
+                var prefix = isSelected ? "› " : ""
+                var str = prefix + t
+                return str.length > 32 ? str.slice(0, 30) + "…" : str
               }
               textFormat: Text.PlainText
-              color: item.windowFocused(item.windowList[index]) ? Color.tooltip.text : Util.alpha(Color.tooltip.text, 0.75)
+              color: isSelected ? Color.accent : (isWinFocused ? Color.tooltip.text : (isWinParked ? Util.alpha(Color.tooltip.text, 0.50) : Util.alpha(Color.tooltip.text, 0.80)))
               font.family: Style.font.family
-              font.pixelSize: Math.max(10, Style.font.caption - 2)
+              font.pixelSize: Math.max(10, Style.font.caption - 1)
+              font.bold: isSelected || isWinFocused
               elide: Text.ElideRight
               maximumLineCount: 1
             }
@@ -442,15 +502,16 @@ Item {
         }
 
         Text {
-          visible: root.advancedTooltips && item.windowList.length > 4
+          visible: root.advancedTooltips && item.windowList.length > 6
           anchors.horizontalCenter: parent.horizontalCenter
-          text: "+" + (item.windowList.length - 4) + " more"
+          text: "+" + (item.windowList.length - 6) + " more"
           textFormat: Text.PlainText
           color: Util.alpha(Color.tooltip.text, 0.6)
           font.family: Style.font.family
-          font.pixelSize: Math.max(10, Style.font.caption - 2)
+          font.pixelSize: Math.max(9, Style.font.caption - 3)
         }
       }
+    } }
     }
   }
 
@@ -1857,22 +1918,6 @@ Item {
         return
       }
 
-      // If there are parked windows belonging to this app, restore the parked window
-      // rather than re-minimizing the only visible one (prevents 1-window trapped loop!)
-      if (parked.length > 0) {
-        var currentWsTarget = root.workspaceTarget(Hyprland.focusedWorkspace)
-        var parkedOnCurrentWs = null
-        for (var p = parked.length - 1; p >= 0; p--) {
-          var pAddr = root.windowAddress(parked[p])
-          if (pAddr && root.minimizedOrigins[pAddr] === currentWsTarget) {
-            parkedOnCurrentWs = parked[p]
-            break
-          }
-        }
-        root.restoreWindow(parkedOnCurrentWs || parked[parked.length - 1])
-        return
-      }
-
       if (root.minimizeMode === "all") {
         root.minimizeAllWindows(entry)
         return
@@ -1907,12 +1952,14 @@ Item {
         }
       }
 
-      if (visible.length === 0 || parkedOnCurrentWs) {
-        if (root.minimizeMode === "all") {
-          for (var i = 0; i < parked.length; i++) root.restoreWindow(parked[i])
-        } else {
-          root.restoreWindow(parkedOnCurrentWs || parked[parked.length - 1])
-        }
+      // If all windows of this app are minimized, restore all of them back together!
+      if (visible.length === 0) {
+        for (var i = 0; i < parked.length; i++) root.restoreWindow(parked[i])
+        return
+      }
+
+      if (parkedOnCurrentWs) {
+        root.restoreWindow(parkedOnCurrentWs)
         return
       }
     }
