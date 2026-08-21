@@ -1,6 +1,14 @@
 // Pure helpers for the dock plugin. No QML state — the host object owns the
 // model; this file only turns inputs into output arrays.
 
+var IGNORED_TOKENS = {
+  "org": true, "com": true, "io": true, "net": true, "app": true, "bin": true,
+  "linux": true, "desktop": true, "client": true, "gui": true, "wrapper": true,
+  "window": true, "default": true, "profile": true, "profile_1": true, "profile_2": true,
+  "chrome": true, "chromium": true, "brave": true, "edge": true, "microsoft-edge": true,
+  "https": true, "http": true, "www": true, "x86_64": true, "x86": true, "amd64": true, "lib": true
+};
+
 function stripDesktop(id) {
   var value = String(id == null ? "" : id).trim()
   if (value.slice(-8) === ".desktop") value = value.slice(0, -8)
@@ -19,6 +27,88 @@ function toArray(list) {
 
 function normalizeId(id) {
   return stripDesktop(id)
+}
+
+function copyMap(src) {
+  var out = {}
+  for (var key in src) out[key] = src[key]
+  return out
+}
+
+// Compact workspace label for a tooltip: numbered workspaces only. Special
+// workspaces have no number worth showing, so they get nothing.
+function workspaceShort(wsId, wsName) {
+  if (wsId === null || wsId === undefined || wsId < 0) return ""
+  var name = String(wsName == null ? "" : wsName)
+  if (name && name.length <= 2) return name
+  return String(wsId)
+}
+
+// Spelled-out label for menu rows: "3", "scratchpad", "minimized".
+function workspaceLabel(wsName, wsId) {
+  var name = String(wsName == null ? "" : wsName).trim()
+  if (name.indexOf("special:") === 0) return name.slice(8)
+  if (name) return name
+  return (wsId === null || wsId === undefined) ? "" : String(wsId)
+}
+
+function getCandidates(id) {
+  var raw = stripDesktop(id).toLowerCase()
+  if (!raw) return []
+  var list = [raw]
+
+  // WebApp extraction (Chrome, Chromium, Brave, Edge PWAs)
+  var webAppMatch = raw.match(/^(?:chrome|chromium|brave|edge|microsoft-edge)-(.*?)__?-(?:default|profile.*)$/i)
+                 || raw.match(/^(?:chrome|chromium|brave|edge|microsoft-edge)-(.*?)$/i)
+  if (webAppMatch) {
+    var webTarget = webAppMatch[1].replace(/^https?___?/i, "").replace(/__.*$/, "")
+    if (webTarget && list.indexOf(webTarget) < 0) list.push(webTarget)
+    var webDomain = webTarget.split(/[\.\/_]+/)
+    for (var w = 0; w < webDomain.length; w++) {
+      var seg = webDomain[w]
+      if (seg && list.indexOf(seg) < 0) list.push(seg)
+    }
+  }
+
+  // Split by dots, underscores, dashes, slashes
+  var parts = raw.split(/[\.\/_-]+/)
+  for (var i = 0; i < parts.length; i++) {
+    var p = parts[i]
+    if (p && list.indexOf(p) < 0) list.push(p)
+  }
+
+  var len = list.length
+  for (var i = 0; i < len; i++) {
+    var item = list[i]
+    var stripped = item.replace(/[-_](app|bin|linux|gtk|wrapper|desktop|client|qt\d?|gui)$/i, "")
+    if (stripped && list.indexOf(stripped) < 0) list.push(stripped)
+    var prefixStripped = item.replace(/^(app|bin|linux|gtk|wrapper|desktop|client|qt\d?|gui)[-_]/i, "")
+    if (prefixStripped && list.indexOf(prefixStripped) < 0) list.push(prefixStripped)
+  }
+
+  var out = []
+  for (var i = 0; i < list.length; i++) {
+    var s = list[i]
+    if (s && !IGNORED_TOKENS[s] && out.indexOf(s) < 0) {
+      out.push(s)
+    }
+  }
+  return out
+}
+
+function isAppMatch(idA, idB) {
+  if (!idA || !idB) return false
+  var a = stripDesktop(idA).toLowerCase()
+  var b = stripDesktop(idB).toLowerCase()
+  if (a === b) return true
+
+  var candsA = getCandidates(a)
+  var candsB = getCandidates(b)
+  for (var i = 0; i < candsA.length; i++) {
+    var ca = candsA[i]
+    if (candsB.indexOf(ca) >= 0) return true
+  }
+  return false
 }
 
 function parsePinned(raw) {
@@ -105,42 +195,48 @@ function entryFor(appRows, appId) {
     var row = appRows[i]
     var entry = row && row.entry
     if (!entry) continue
-    if (stripDesktop(entry.id) === want) return entry
+    if (stripDesktop(entry.id) === want || stripDesktop(entry.id).toLowerCase() === wantLower) return entry
   }
 
-  // 2. Case-insensitive ID match
+  // 2. Multi-token candidate match (e.g. chrome-x.com__-Default -> X.desktop, org.localsend.localsend_app -> localsend.desktop)
+  var wantCands = getCandidates(want)
   for (var i = 0; i < appRows.length; i++) {
     var entry = appRows[i] && appRows[i].entry
     if (!entry) continue
-    if (stripDesktop(entry.id).toLowerCase() === wantLower) return entry
+    var entryCands = getCandidates(entry.id)
+      .concat(getCandidates(entry.name))
+      .concat(getCandidates(entry.icon))
+    for (var k = 0; k < wantCands.length; k++) {
+      var cand = wantCands[k]
+      if (entryCands.indexOf(cand) >= 0) return entry
+    }
   }
 
-  // 3. Suffix/prefix match for reverse domain names (e.g. org.gnome.Nautilus vs nautilus)
+  // 3. Webapp Exec URL Match (if entry.exec contains candidate domain or URL)
   for (var i = 0; i < appRows.length; i++) {
     var entry = appRows[i] && appRows[i].entry
     if (!entry) continue
-    var eid = stripDesktop(entry.id).toLowerCase()
-    var lastDot = eid.lastIndexOf(".")
-    var shortEid = lastDot >= 0 ? eid.slice(lastDot + 1) : eid
-    var lastDotWant = wantLower.lastIndexOf(".")
-    var shortWant = lastDotWant >= 0 ? wantLower.slice(lastDotWant + 1) : wantLower
-
-    if (shortEid === shortWant && shortWant.length > 1) return entry
+    var execStr = String(entry.exec || "").toLowerCase()
+    if (execStr) {
+      for (var k = 0; k < wantCands.length; k++) {
+        var cand = wantCands[k]
+        if (cand.length >= 2 && execStr.indexOf(cand) >= 0) return entry
+      }
+    }
   }
 
-  // 4. Name / genericName match
+  // 4. GenericName / Substring match
   for (var i = 0; i < appRows.length; i++) {
     var entry = appRows[i] && appRows[i].entry
     if (!entry) continue
-    var name = String(entry.name || "").toLowerCase()
     var generic = String(entry.genericName || "").toLowerCase()
-    if (name === wantLower || (generic && generic === wantLower)) return entry
+    if (generic && wantCands.indexOf(generic) >= 0) return entry
   }
 
   return null
 }
 
-function buildEntries(pinnedIds, toplevels, appRows, appLibrary) {
+function buildEntries(pinnedIds, toplevels, appRows, appLibrary, hyprFor) {
   var pinned = Array.isArray(pinnedIds) ? pinnedIds : []
   var list = toArray(toplevels)
 
@@ -158,8 +254,21 @@ function buildEntries(pinnedIds, toplevels, appRows, appLibrary) {
     winMap[appId].push({
       title: String(toplevel.title || "Window"),
       toplevel: toplevel,
-      activated: !!toplevel.activated
+      // Live Hyprland handle. Urgency and workspace are read off this object
+      // directly so the dock follows them without rebuilding the model.
+      hypr: hyprFor ? hyprFor(toplevel) : null
     })
+  }
+
+  function getWindowsFor(targetId) {
+    if (winMap[targetId] && winMap[targetId].length > 0) return winMap[targetId]
+    for (var k = 0; k < runningIds.length; k++) {
+      var rid = runningIds[k]
+      if (isAppMatch(targetId, rid)) {
+        return winMap[rid] || []
+      }
+    }
+    return []
   }
 
   function enrich(list) {
@@ -171,7 +280,19 @@ function buildEntries(pinnedIds, toplevels, appRows, appLibrary) {
         item.icon = appLibrary.iconSource(entry.icon)
       } else {
         item.name = item.appId
-        item.icon = ""
+        var iconFound = ""
+        if (appLibrary) {
+          var cands = getCandidates(item.appId)
+          for (var k = 0; k < cands.length; k++) {
+            var cand = cands[k]
+            var testSrc = appLibrary.iconSource(cand)
+            if (testSrc && testSrc.indexOf("application-x-executable") < 0) {
+              iconFound = testSrc
+              break
+            }
+          }
+        }
+        item.icon = iconFound
       }
     }
   }
@@ -184,8 +305,9 @@ function buildEntries(pinnedIds, toplevels, appRows, appLibrary) {
     var pid = stripDesktop(pinned[j])
     if (!pid || seen[pid]) continue
     seen[pid] = true
-    var wins = winMap[pid] || []
+    var wins = getWindowsFor(pid)
     pinnedOut.push({
+      id: pid,
       appId: pid,
       pinned: true,
       running: wins.length > 0,
@@ -198,10 +320,18 @@ function buildEntries(pinnedIds, toplevels, appRows, appLibrary) {
   var runningOut = []
   for (j = 0; j < runningIds.length; j++) {
     var rid = runningIds[j]
-    if (seen[rid]) continue
+    var alreadyPinned = false
+    for (var p = 0; p < pinned.length; p++) {
+      if (isAppMatch(pinned[p], rid)) {
+        alreadyPinned = true
+        break
+      }
+    }
+    if (alreadyPinned || seen[rid]) continue
     seen[rid] = true
     var wins = winMap[rid] || []
     runningOut.push({
+      id: rid,
       appId: rid,
       pinned: false,
       running: true,
@@ -222,43 +352,34 @@ function activeAppId(toplevels, activeToplevel) {
   return ""
 }
 
-function cycleAppWindow(toplevels, activeToplevel, appId, direction) {
+// Which window a click or a wheel step should land on. Pure: the caller
+// decides how to bring it forward.
+function pickAppWindow(toplevels, activeToplevel, appId, direction) {
   var want = stripDesktop(appId)
-  if (!want) return
+  if (!want) return null
   var list = toArray(toplevels)
   var matching = []
 
   for (var i = 0; i < list.length; i++) {
     var t = list[i]
-    if (t && stripDesktop(t.appId) === want) matching.push(t)
+    if (t && (stripDesktop(t.appId) === want || isAppMatch(t.appId, want))) matching.push(t)
   }
 
-  if (matching.length === 0) return
-  if (matching.length === 1) {
-    if (matching[0].activate) matching[0].activate()
-    return
-  }
+  if (matching.length === 0) return null
+  if (matching.length === 1) return matching[0]
 
-  // Multi-window: cycle in requested direction (default forward +1, backward -1)
-  var dir = (typeof direction === "number" && direction !== 0) ? (direction > 0 ? 1 : -1) : 1
+  var dir = (typeof direction === "number" && direction < 0) ? -1 : 1
   var activeIdx = -1
-  if (activeToplevel) {
-    for (var i = 0; i < matching.length; i++) {
-      if (matching[i] === activeToplevel || matching[i].activated) {
-        activeIdx = i
-        break
-      }
+  for (var j = 0; j < matching.length; j++) {
+    if (matching[j] === activeToplevel || matching[j].activated) {
+      activeIdx = j
+      break
     }
   }
 
-  var nextIdx = (activeIdx + dir + matching.length) % matching.length
-  if (matching[nextIdx] && matching[nextIdx].activate) {
-    matching[nextIdx].activate()
-  }
-}
-
-function activateApp(toplevels, activeToplevel, appId) {
-  cycleAppWindow(toplevels, activeToplevel, appId, 1)
+  // Nothing of this app is focused: enter the list from the end we came from.
+  if (activeIdx < 0) return matching[dir > 0 ? 0 : matching.length - 1]
+  return matching[(activeIdx + dir + matching.length) % matching.length]
 }
 
 function focusWindow(toplevel) {
@@ -277,7 +398,7 @@ function closeApp(toplevels, appId) {
   for (var i = 0; i < list.length; i++) {
     var t = list[i]
     if (!t) continue
-    if (stripDesktop(t.appId) === want) {
+    if (stripDesktop(t.appId) === want || isAppMatch(t.appId, want)) {
       if (t.close) t.close()
       closed += 1
     }
