@@ -1856,6 +1856,23 @@ Item {
         // macOS rule: Clicking an urgent app NEVER minimizes. It acknowledges attention and keeps the app in front.
         return
       }
+
+      // If there are parked windows belonging to this app, restore the parked window
+      // rather than re-minimizing the only visible one (prevents 1-window trapped loop!)
+      if (parked.length > 0) {
+        var currentWsTarget = root.workspaceTarget(Hyprland.focusedWorkspace)
+        var parkedOnCurrentWs = null
+        for (var p = parked.length - 1; p >= 0; p--) {
+          var pAddr = root.windowAddress(parked[p])
+          if (pAddr && root.minimizedOrigins[pAddr] === currentWsTarget) {
+            parkedOnCurrentWs = parked[p]
+            break
+          }
+        }
+        root.restoreWindow(parkedOnCurrentWs || parked[parked.length - 1])
+        return
+      }
+
       if (root.minimizeMode === "all") {
         root.minimizeAllWindows(entry)
         return
