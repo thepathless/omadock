@@ -139,11 +139,11 @@ Right-click the leftmost Omarchy icon to open the full visual settings menu:
 - **Magnification Effects**: Smooth raised-cosine `Wave` hover, single-icon `Zoom` peak, or `Off`.
 
 <p align="center">
-  <img src="assets/preview-options-main.png" alt="Preferences Menu Categories" width="280" />
+  <img src="assets/preview-options-submenus.png" alt="Behavior & Minimize Sub-Options" width="340" />
   &nbsp;
-  <img src="assets/preview-options-appearance.png" alt="Appearance & Opacity Settings" width="280" />
+  <img src="assets/preview-options-appearance.png" alt="Appearance & Opacity Settings" width="260" />
   &nbsp;
-  <img src="assets/preview-options-behaviors.png" alt="Behavior & Shape Options" width="280" />
+  <img src="assets/preview-options-behaviors.png" alt="Behavior & Shape Options" width="260" />
 </p>
 
 ---
