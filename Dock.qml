@@ -2081,8 +2081,8 @@ Item {
         return 1
       }
       readonly property color effectiveBorderColor: {
-        if (root.effectiveDockOpacity < 0.1) return Util.alpha(root.dockForeground, 0.48)
-        if (root.effectiveDockOpacity < 0.3) return Util.alpha(root.dockForeground, 0.38)
+        if (root.effectiveDockOpacity < 0.1) return Util.alpha(Color.bar.active, 0.45)
+        if (root.effectiveDockOpacity < 0.3) return Util.alpha(Color.bar.active, 0.35)
         return Util.alpha(root.dockForeground, Math.max(0.22, root.effectiveDockOpacity * 0.32))
       }
 
