@@ -2077,13 +2077,14 @@ Item {
       }
 
       readonly property real effectiveBorderWidth: {
-        if (root.effectiveDockOpacity < 0.25) return Math.max(1.5, Style.space(2))
-        return 1
+        if (root.effectiveDockOpacity < 0.25) return 2.5
+        if (root.effectiveDockOpacity < 0.5) return 2.0
+        return 1.5
       }
       readonly property color effectiveBorderColor: {
-        if (root.effectiveDockOpacity < 0.1) return Util.alpha(Color.bar.active, 0.45)
-        if (root.effectiveDockOpacity < 0.3) return Util.alpha(Color.bar.active, 0.35)
-        return Util.alpha(root.dockForeground, Math.max(0.22, root.effectiveDockOpacity * 0.32))
+        if (root.effectiveDockOpacity < 0.1) return Util.alpha(Color.bar.active, 0.65)
+        if (root.effectiveDockOpacity < 0.3) return Util.alpha(Color.bar.active, 0.50)
+        return Util.alpha(root.dockForeground, Math.max(0.25, root.effectiveDockOpacity * 0.35))
       }
 
       color: Util.alpha(effectiveBgColor, root.effectiveDockOpacity)
@@ -2147,6 +2148,7 @@ Item {
           visible: root.showAppsButton
           homeCenter: root.slotHomeCenter(0, 0, false)
           glyph: "\ue900"
+          glyphColor: Color.bar.active
           tooltip: "Apps"
           onPressed: root.toggleAppsMenu()
           onMenuRequested: function(cx, cy) {
