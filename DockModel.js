@@ -305,6 +305,7 @@ function buildEntries(pinnedIds, toplevels, appRows, appLibrary, hyprFor) {
     seen[pid] = true
     var wins = getWindowsFor(pid)
     pinnedOut.push({
+      id: pid,
       appId: pid,
       pinned: true,
       running: wins.length > 0,
@@ -328,6 +329,7 @@ function buildEntries(pinnedIds, toplevels, appRows, appLibrary, hyprFor) {
     seen[rid] = true
     var wins = winMap[rid] || []
     runningOut.push({
+      id: rid,
       appId: rid,
       pinned: false,
       running: true,

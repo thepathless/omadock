@@ -116,6 +116,7 @@ Item {
       if (!root.showUrgentHint) return false
       // macOS rule: An app that is currently active/focused in the foreground never bounces
       if (item.focused) return false
+      if (item.appId && root.urgentMap[item.appId]) return true
       var list = item.windowList
       for (var i = 0; i < list.length; i++) {
         var handle = list[i] ? list[i].hypr : null
@@ -1171,22 +1172,32 @@ Item {
 
     for (var e = 0; e < allEntries.length; e++) {
       var entry = allEntries[e]
-      if (!entry || !entry.running) continue
-      var match = (appName !== "" && DockModel.isAppMatch(entry.id, appName))
-               || (appIcon !== "" && DockModel.isAppMatch(entry.id, appIcon))
-               || (summary !== "" && DockModel.isAppMatch(entry.id, summary))
+      if (!entry) continue
+      var appId = entry.appId || entry.id
+      var match = (appName !== "" && DockModel.isAppMatch(appId, appName))
+               || (appIcon !== "" && DockModel.isAppMatch(appId, appIcon))
+               || (summary !== "" && DockModel.isAppMatch(appId, summary))
                || (entry.name && appName && String(entry.name).toLowerCase() === appName.toLowerCase())
 
       if (match) {
         var wins = entry.windowList || []
+        var isFocused = false
         for (var w = 0; w < wins.length; w++) {
           var h = wins[w] ? wins[w].hypr : null
           var addr = root.windowAddress(h)
-          // Suppress bounce if window is already active and focused in foreground
-          if (addr && addr !== activeAddr) {
-            map[addr] = true
-            found = true
+          if (addr && addr === activeAddr) {
+            isFocused = true
+            break
           }
+        }
+        if (!isFocused) {
+          map[appId] = true
+          for (var w = 0; w < wins.length; w++) {
+            var h = wins[w] ? wins[w].hypr : null
+            var addr = root.windowAddress(h)
+            if (addr) map[addr] = true
+          }
+          found = true
         }
       }
     }
@@ -1797,6 +1808,10 @@ Item {
 
     // Clear urgency map entries for this application immediately on click
     var map = DockModel.copyMap(root.urgentMap)
+    if (map[appId]) {
+      delete map[appId]
+      hadUrgency = true
+    }
     for (var w = 0; w < windows.length; w++) {
       var h = windows[w] ? windows[w].hypr : null
       var a = root.windowAddress(h)
