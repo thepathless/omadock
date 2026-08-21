@@ -470,21 +470,6 @@ Item {
     width: root.iconSlot * (root.waveHover ? btn.magnifyScale : 1)
     height: root.iconSlot
 
-    Rectangle {
-      id: btnBg
-      anchors.centerIn: parent
-      width: root.iconSize
-      height: root.iconSize
-      radius: width / 2
-      color: area.containsMouse
-        ? Util.alpha(root.dockForeground, 0.20)
-        : (root.effectiveDockOpacity < 0.25 ? Util.alpha(root.dockForeground, 0.10) : "transparent")
-      border.color: area.containsMouse ? Util.alpha(root.dockForeground, 0.35) : (root.effectiveDockOpacity < 0.25 ? Util.alpha(root.dockForeground, 0.18) : "transparent")
-      border.width: 1
-      scale: btn.magnifyScale
-      Behavior on color { ColorAnimation { duration: 120 } }
-    }
-
     Text {
       anchors.centerIn: parent
       text: btn.glyph
@@ -493,6 +478,7 @@ Item {
       font.pixelSize: btn.glyphSize
       color: area.containsMouse ? Color.accent : btn.glyphColor
       scale: btn.magnifyScale * (area.pressed ? 0.92 : 1.0)
+      Behavior on color { ColorAnimation { duration: 120 } }
     }
 
     MouseArea {
