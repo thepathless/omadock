@@ -237,15 +237,16 @@ Item {
 
     // How the running indicator reads: one dot per window, and the third widens
     // into a pill once there are more than three, because past three nobody
-    // counts dots at this size — the tooltip lists them by name instead. Colour
-    // carries state, size carries focus, the way this dock always did it.
+    // How the running indicator reads: active window expands into an illuminated pill
+    // with high-contrast outline to pop against any wallpaper background.
     readonly property color indicatorColor: item.urgent
       ? Color.urgent
       : (item.active
           ? Color.bar.active
-          : Util.alpha(root.dockForeground, item.minimized ? 0.3 : 0.65))
+          : Util.alpha(root.dockForeground, item.minimized ? 0.40 : 0.88))
     readonly property real indicatorOpacity: item.urgent ? (0.4 + 0.6 * item.pulse) : 1.0
-    readonly property real dotSize: item.active ? Style.space(5) : Style.space(4)
+    readonly property real dotWidth: item.active ? Style.space(12) : Style.space(5)
+    readonly property real dotHeight: Style.space(4)
 
     // Fixed at the slot bottom, never scaled or pushed out of the dock.
     Row {
@@ -253,38 +254,45 @@ Item {
       anchors.horizontalCenter: parent.horizontalCenter
       anchors.bottom: parent.bottom
       anchors.bottomMargin: Style.space(1)
-      spacing: Style.space(2)
+      spacing: Style.space(3)
       visible: item.running
       z: 2
 
       Rectangle {
-        width: item.dotSize
-        height: item.dotSize
+        width: item.dotWidth
+        height: item.dotHeight
         radius: height / 2
         color: item.indicatorColor
         opacity: item.indicatorOpacity
-        Behavior on width { NumberAnimation { duration: 120 } }
+        border.color: Qt.rgba(0, 0, 0, 0.45)
+        border.width: 1
+        Behavior on width { NumberAnimation { duration: 140; easing.type: Easing.OutQuad } }
+        Behavior on color { ColorAnimation { duration: 120 } }
       }
 
       Rectangle {
         visible: item.windows > 1
-        width: item.dotSize
-        height: item.dotSize
+        width: item.active ? Style.space(5) : Style.space(5)
+        height: item.dotHeight
         radius: height / 2
         color: item.indicatorColor
         opacity: item.indicatorOpacity
-        Behavior on width { NumberAnimation { duration: 120 } }
+        border.color: Qt.rgba(0, 0, 0, 0.45)
+        border.width: 1
+        Behavior on width { NumberAnimation { duration: 140; easing.type: Easing.OutQuad } }
       }
 
       // The third dot doubles as "three or more".
       Rectangle {
         visible: item.windows > 2
-        width: item.windows > 3 ? item.dotSize * 2 : item.dotSize
-        height: item.dotSize
+        width: item.windows > 3 ? Style.space(9) : Style.space(5)
+        height: item.dotHeight
         radius: height / 2
         color: item.indicatorColor
         opacity: item.indicatorOpacity
-        Behavior on width { NumberAnimation { duration: 120 } }
+        border.color: Qt.rgba(0, 0, 0, 0.45)
+        border.width: 1
+        Behavior on width { NumberAnimation { duration: 140; easing.type: Easing.OutQuad } }
       }
     }
 
@@ -2044,25 +2052,25 @@ Item {
 
     Item {
       id: cardShadow
-      visible: root.dockBgColor !== "none" && root.effectiveDockOpacity > 0.05
+      visible: true
       // Follows the card out of view; a blur left behind would hang on screen
       // after the dock has gone.
       opacity: dockCard.opacity
       anchors.fill: dockCard
-      anchors.margins: -Style.space(18)
+      anchors.margins: -Style.space(16)
       z: 0
       layer.enabled: true
       layer.effect: MultiEffect {
         blurEnabled: true
         blur: 1.0
-        blurMax: 40
+        blurMax: 36
       }
 
       Rectangle {
         anchors.fill: parent
-        anchors.margins: Style.space(18)
+        anchors.margins: Style.space(16)
         radius: dockCard.radius
-        color: Qt.rgba(0, 0, 0, 0.4)
+        color: Qt.rgba(0, 0, 0, root.dockBgColor === "none" ? 0.52 : 0.40)
       }
     }
 
@@ -2070,16 +2078,16 @@ Item {
       id: dockCard
 
       readonly property color effectiveBgColor: {
-        if (root.dockBgColor === "none") return Qt.rgba(0, 0, 0, 0.22)
+        if (root.dockBgColor === "none") return Qt.rgba(0, 0, 0, 0.25)
         if (root.dockBgColor === "theme" || !root.dockBgColor) return Color.bar.background
         return root.dockBgColor
       }
 
-      readonly property real effectiveBorderWidth: 1.2
+      readonly property real effectiveBorderWidth: 1.5
       readonly property color effectiveBorderColor: {
-        // Specular Frosted Glass Rim: Crisp, neutral highlight that lets app icons pop naturally
-        if (root.effectiveDockOpacity < 0.25 || root.dockBgColor === "none") return Util.alpha(root.dockForeground, 0.35)
-        return Util.alpha(root.dockForeground, Math.max(0.22, root.effectiveDockOpacity * 0.32))
+        // Specular Frosted Glass Rim: Crisp highlight with high alpha for contrast on dark and light surfaces
+        if (root.effectiveDockOpacity < 0.25 || root.dockBgColor === "none") return Util.alpha(root.dockForeground, 0.48)
+        return Util.alpha(root.dockForeground, Math.max(0.24, root.effectiveDockOpacity * 0.35))
       }
 
       color: root.dockBgColor === "none" ? effectiveBgColor : Util.alpha(effectiveBgColor, root.effectiveDockOpacity)
