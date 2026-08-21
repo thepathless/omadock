@@ -470,15 +470,28 @@ Item {
     width: root.iconSlot * (root.waveHover ? btn.magnifyScale : 1)
     height: root.iconSlot
 
+    Rectangle {
+      id: btnBg
+      anchors.centerIn: parent
+      width: root.iconSize
+      height: root.iconSize
+      radius: width / 2
+      color: area.containsMouse
+        ? Util.alpha(root.dockForeground, 0.20)
+        : (root.effectiveDockOpacity < 0.25 ? Util.alpha(root.dockForeground, 0.10) : "transparent")
+      border.color: area.containsMouse ? Util.alpha(root.dockForeground, 0.35) : (root.effectiveDockOpacity < 0.25 ? Util.alpha(root.dockForeground, 0.18) : "transparent")
+      border.width: 1
+      scale: btn.magnifyScale
+      Behavior on color { ColorAnimation { duration: 120 } }
+    }
+
     Text {
-      anchors.horizontalCenter: parent.horizontalCenter
-      anchors.verticalCenter: parent.verticalCenter
+      anchors.centerIn: parent
       text: btn.glyph
       textFormat: Text.PlainText
       font.family: "omarchy"
       font.pixelSize: btn.glyphSize
-      color: btn.glyphColor
-      transformOrigin: Item.Bottom
+      color: area.containsMouse ? Color.accent : btn.glyphColor
       scale: btn.magnifyScale * (area.pressed ? 0.92 : 1.0)
     }
 
@@ -2071,23 +2084,19 @@ Item {
       id: dockCard
 
       readonly property color effectiveBgColor: {
-        if (root.dockBgColor === "none") return "transparent"
+        if (root.dockBgColor === "none") return Qt.rgba(0, 0, 0, 0.22)
         if (root.dockBgColor === "theme" || !root.dockBgColor) return Color.bar.background
         return root.dockBgColor
       }
 
-      readonly property real effectiveBorderWidth: {
-        if (root.effectiveDockOpacity < 0.25) return 2.5
-        if (root.effectiveDockOpacity < 0.5) return 2.0
-        return 1.5
-      }
+      readonly property real effectiveBorderWidth: 1.2
       readonly property color effectiveBorderColor: {
-        if (root.effectiveDockOpacity < 0.1) return Util.alpha(Color.bar.active, 0.65)
-        if (root.effectiveDockOpacity < 0.3) return Util.alpha(Color.bar.active, 0.50)
-        return Util.alpha(root.dockForeground, Math.max(0.25, root.effectiveDockOpacity * 0.35))
+        // Specular Frosted Glass Rim: Crisp, neutral highlight that lets app icons pop naturally
+        if (root.effectiveDockOpacity < 0.25 || root.dockBgColor === "none") return Util.alpha(root.dockForeground, 0.35)
+        return Util.alpha(root.dockForeground, Math.max(0.22, root.effectiveDockOpacity * 0.32))
       }
 
-      color: Util.alpha(effectiveBgColor, root.effectiveDockOpacity)
+      color: root.dockBgColor === "none" ? effectiveBgColor : Util.alpha(effectiveBgColor, root.effectiveDockOpacity)
       borderSpec: Border.flat(dockCard.effectiveBorderColor, dockCard.effectiveBorderWidth)
       radius: root.cardRadius(height)
       padding: Style.space(5)
@@ -2148,7 +2157,7 @@ Item {
           visible: root.showAppsButton
           homeCenter: root.slotHomeCenter(0, 0, false)
           glyph: "\ue900"
-          glyphColor: Color.bar.active
+          glyphColor: root.dockForeground
           tooltip: "Apps"
           onPressed: root.toggleAppsMenu()
           onMenuRequested: function(cx, cy) {
