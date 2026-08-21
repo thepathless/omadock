@@ -68,10 +68,12 @@ Right-click the leftmost Omarchy icon to open the native settings menu:
   - `Intelligent Autohide` — Stays visible on empty workspaces; hides smoothly when windows overlap.
   - `Auto Hide` — Standard edge-reveal dock.
 - **Dock Corner Shapes**:
-  - `Rounded` — Modern 14px rounded rectangle.
+  - `Auto (Theme)` — Dynamically mirrors active Hyprland / Omarchy theme rounding (`decoration:rounding`).
+  - `Rounded` — Modern rounded rectangle with proportional scaling.
   - `Round` — Full capsule / pill curvature (`height / 2`).
   - `Square` — Sharp minimalist edges (`0px`).
 - **Background Opacity**:
+  - `Auto (Theme)` — Automatically matches the active Omarchy theme's bar/panel opacity (`Color.bar.background.a`).
   - `Opaque (100%)`
   - `Glass (80%)`
   - `Frosted Glass (65%)`
@@ -137,7 +139,7 @@ All settings can be toggled interactively via the right-click menu or configured
 | :--- | :--- | :--- | :--- |
 | `autohide` | `boolean` | `true` | Enable autohide on hover reveal. Set `false` for always-visible dock. |
 | `intelligentAutohide` | `boolean` | `true` | Hide dock only when windows on the current workspace overlap its area. |
-| `opacity` | `number` | `1.0` | Background transparency (`1.0`, `0.80`, `0.65`, `0.35`, `0.0`). |
+| `opacity` | `number \| string` | `1.0` | Background transparency (`"theme"`, `1.0`, `0.80`, `0.65`, `0.35`, `0.0`). |
 | `shape` | `string` | `"rounded"` | Corner shape style (`"rounded"`, `"round"`, or `"square"`). |
 | `bgColor` | `string` | `"theme"` | Base color (`"theme"`, `"none"`, or custom hex string e.g. `"#1e1e2e"`). A custom hex value also switches dock glyphs and indicators to whichever side reads against it. |
 | `itemSpacing` | `number` | `4` | Spacing in pixels between icons (`2`, `4`, `8`). |

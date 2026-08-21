@@ -796,6 +796,13 @@ Item {
   property bool launchBounce: true
   property bool advancedTooltips: true
   property real dockOpacity: 1.0
+  readonly property real effectiveDockOpacity: {
+    if (root.dockOpacity < 0) {
+      var a = (Color.bar && Color.bar.background && typeof Color.bar.background.a === "number") ? Color.bar.background.a : 1.0
+      return (isFinite(a) && a >= 0) ? a : 1.0
+    }
+    return Math.max(0.0, Math.min(1.0, root.dockOpacity))
+  }
   property string dockShape: "rounded"
   property string dockBgColor: "theme"
   property int itemSpacing: 4
@@ -1076,7 +1083,13 @@ Item {
     root.advancedTooltips = parsed && parsed.advancedTooltips !== false
     root.screenName = parsed && typeof parsed.screen === "string" ? parsed.screen : ""
     root.configuredIconSize = parsed && typeof parsed.iconSize === "number" ? parsed.iconSize : 0
-    root.dockOpacity = parsed && typeof parsed.opacity === "number" ? Math.max(0.0, Math.min(1.0, parsed.opacity)) : 1.0
+    if (parsed && (parsed.opacity === "theme" || parsed.opacity === "auto" || parsed.opacity === -1)) {
+      root.dockOpacity = -1.0
+    } else if (parsed && typeof parsed.opacity === "number") {
+      root.dockOpacity = Math.max(0.0, Math.min(1.0, parsed.opacity))
+    } else {
+      root.dockOpacity = 1.0
+    }
     root.dockShape = parsed && typeof parsed.shape === "string" ? parsed.shape : "rounded"
     root.dockBgColor = parsed && typeof parsed.bgColor === "string" ? parsed.bgColor : "theme"
     root.itemSpacing = parsed && typeof parsed.itemSpacing === "number" ? parsed.itemSpacing : 4
@@ -1494,7 +1507,7 @@ Item {
     if (root.screenName) conf.screen = root.screenName
     if (root.configuredIconSize > 0) conf.iconSize = root.configuredIconSize
     else delete conf.iconSize
-    conf.opacity = root.dockOpacity
+    conf.opacity = root.dockOpacity < 0 ? "theme" : root.dockOpacity
     conf.shape = root.dockShape
     conf.bgColor = root.dockBgColor
     conf.itemSpacing = root.itemSpacing
@@ -1711,7 +1724,7 @@ Item {
 
     Item {
       id: cardShadow
-      visible: root.dockBgColor !== "none" && root.dockOpacity > 0.05
+      visible: root.dockBgColor !== "none" && root.effectiveDockOpacity > 0.05
       // Follows the card out of view; a blur left behind would hang on screen
       // after the dock has gone.
       opacity: dockCard.opacity
@@ -1742,8 +1755,8 @@ Item {
         return root.dockBgColor
       }
 
-      color: Util.alpha(effectiveBgColor, root.dockOpacity)
-      borderSpec: Border.flat(Util.alpha(root.dockForeground, Math.max(0.22, root.dockOpacity * 0.32)), 1)
+      color: Util.alpha(effectiveBgColor, root.effectiveDockOpacity)
+      borderSpec: Border.flat(Util.alpha(root.dockForeground, Math.max(0.22, root.effectiveDockOpacity * 0.32)), 1)
       radius: root.cardRadius(height)
       padding: Style.space(5)
       z: 1
@@ -2013,7 +2026,7 @@ Item {
             }
 
             ContextRow {
-              text: "Background: " + (root.dockOpacity >= 0.95 ? "Opaque" : (root.dockOpacity >= 0.75 ? "Glass" : (root.dockOpacity >= 0.55 ? "Frosted Glass" : (root.dockOpacity >= 0.20 ? "Translucent" : "Transparent")))) + " ›"
+              text: "Opacity: " + (root.dockOpacity < 0 ? "Auto (Theme)" : (root.dockOpacity >= 0.95 ? "Opaque" : (root.dockOpacity >= 0.75 ? "Glass" : (root.dockOpacity >= 0.55 ? "Frosted Glass" : (root.dockOpacity >= 0.20 ? "Translucent" : "Transparent"))))) + " ›"
               onTriggered: root.settingsSubmenu = "opacity"
             }
 
@@ -2393,6 +2406,12 @@ Item {
             }
 
             ContextRow {
+              text: "Auto (Theme)"
+              checked: root.dockOpacity < 0
+              onTriggered: root.setDockOpacity(-1.0)
+            }
+
+            ContextRow {
               text: "Opaque (100%)"
               checked: root.dockOpacity >= 0.95
               onTriggered: root.setDockOpacity(1.0)
@@ -2418,7 +2437,7 @@ Item {
 
             ContextRow {
               text: "Transparent (0%)"
-              checked: root.dockOpacity < 0.20
+              checked: root.dockOpacity >= 0.0 && root.dockOpacity < 0.20
               onTriggered: root.setDockOpacity(0.0)
             }
           }
