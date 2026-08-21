@@ -511,7 +511,6 @@ Item {
           font.pixelSize: Math.max(9, Style.font.caption - 3)
         }
       }
-    } }
     }
   }
 
