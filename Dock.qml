@@ -2076,8 +2076,18 @@ Item {
         return root.dockBgColor
       }
 
+      readonly property real effectiveBorderWidth: {
+        if (root.effectiveDockOpacity < 0.25) return Math.max(1.5, Style.space(2))
+        return 1
+      }
+      readonly property color effectiveBorderColor: {
+        if (root.effectiveDockOpacity < 0.1) return Util.alpha(root.dockForeground, 0.48)
+        if (root.effectiveDockOpacity < 0.3) return Util.alpha(root.dockForeground, 0.38)
+        return Util.alpha(root.dockForeground, Math.max(0.22, root.effectiveDockOpacity * 0.32))
+      }
+
       color: Util.alpha(effectiveBgColor, root.effectiveDockOpacity)
-      borderSpec: Border.flat(Util.alpha(root.dockForeground, Math.max(0.22, root.effectiveDockOpacity * 0.32)), 1)
+      borderSpec: Border.flat(dockCard.effectiveBorderColor, dockCard.effectiveBorderWidth)
       radius: root.cardRadius(height)
       padding: Style.space(5)
       z: 1
