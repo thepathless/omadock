@@ -61,6 +61,7 @@ Item {
       y: bubble.contentTopInset
       width: bubble.width - bubble.contentLeftInset - bubble.contentRightInset
       text: bubble.text
+      textFormat: Text.PlainText
       color: Color.tooltip.text
       font.family: Style.font.family
       font.pixelSize: Style.font.caption
@@ -113,10 +114,13 @@ Item {
 
     readonly property bool urgent: {
       if (!root.showUrgentHint) return false
+      // macOS rule: An app that is currently active/focused in the foreground never bounces
+      if (item.focused) return false
       var list = item.windowList
       for (var i = 0; i < list.length; i++) {
         var handle = list[i] ? list[i].hypr : null
-        if (handle && handle.urgent) return true
+        var addr = root.windowAddress(handle)
+        if ((handle && handle.urgent) || (addr && root.urgentMap[addr])) return true
       }
       return false
     }
@@ -185,14 +189,16 @@ Item {
       NumberAnimation { duration: 120 }
     }
 
+    readonly property bool bouncing: (item.starting && root.launchBounce) || (item.urgent && root.showUrgentHint)
+    onBouncingChanged: if (!item.bouncing) item.bounceY = 0
+
     SequentialAnimation on bounceY {
-      running: item.starting && root.launchBounce
+      running: item.bouncing
       loops: Animation.Infinite
       NumberAnimation { from: 0; to: -Style.space(13); duration: 260; easing.type: Easing.OutQuad }
       NumberAnimation { from: -Style.space(13); to: 0; duration: 260; easing.type: Easing.OutBounce }
-      PauseAnimation { duration: 220 }
+      PauseAnimation { duration: item.urgent ? 380 : 220 }
     }
-    onStartingChanged: if (!item.starting) item.bounceY = 0
 
     // The icon carries every state on its own: it grows on hover, dips on
     // press, bounces while starting. No plate, no frame — the only chrome in
@@ -225,18 +231,6 @@ Item {
         opacity: item.starting ? (0.4 + 0.6 * item.pulse) : 1.0
         mipmap: true
         smooth: true
-
-        // Urgency has to reach past the icon art itself, so it rings the slot.
-        Rectangle {
-          anchors.centerIn: parent
-          width: parent.width + Style.space(8)
-          height: width
-          radius: width / 2
-          visible: item.urgent
-          color: "transparent"
-          border.width: Math.max(1, Style.space(2))
-          border.color: Util.alpha(Color.urgent, 0.25 + 0.65 * item.pulse)
-        }
       }
     }
 
@@ -400,6 +394,7 @@ Item {
 
         Text {
           text: item.tooltipText !== "" ? item.tooltipText : item.name
+          textFormat: Text.PlainText
           color: Color.tooltip.text
           font.family: Style.font.family
           font.pixelSize: Style.font.caption
@@ -427,6 +422,7 @@ Item {
                 var t = w ? root.windowRowLabel(w) : ""
                 return t.length > 30 ? t.slice(0, 28) + "…" : t
               }
+              textFormat: Text.PlainText
               color: item.windowFocused(item.windowList[index]) ? Color.tooltip.text : Util.alpha(Color.tooltip.text, 0.75)
               font.family: Style.font.family
               font.pixelSize: Math.max(10, Style.font.caption - 2)
@@ -440,6 +436,7 @@ Item {
           visible: root.advancedTooltips && item.windowList.length > 4
           anchors.horizontalCenter: parent.horizontalCenter
           text: "+" + (item.windowList.length - 4) + " more"
+          textFormat: Text.PlainText
           color: Util.alpha(Color.tooltip.text, 0.6)
           font.family: Style.font.family
           font.pixelSize: Math.max(10, Style.font.caption - 2)
@@ -476,6 +473,7 @@ Item {
       anchors.horizontalCenter: parent.horizontalCenter
       anchors.verticalCenter: parent.verticalCenter
       text: btn.glyph
+      textFormat: Text.PlainText
       font.family: "omarchy"
       font.pixelSize: btn.glyphSize
       color: btn.glyphColor
@@ -525,7 +523,7 @@ Item {
     readonly property bool isMenuContent: true
     readonly property real markWidth: Style.space(14)
 
-    implicitWidth: Math.max(180, Style.space(8) + crow.markWidth + Style.space(6)
+    implicitWidth: Math.max(220, Style.space(8) + crow.markWidth + Style.space(6)
       + label.implicitWidth + Style.space(8))
     width: contextMenu.rowWidth > 0 ? contextMenu.rowWidth : crow.implicitWidth
     height: crow.isHeader ? Math.max(22, Style.space(22)) : Math.max(28, Style.space(28))
@@ -555,6 +553,7 @@ Item {
         width: crow.markWidth
         anchors.verticalCenter: parent.verticalCenter
         horizontalAlignment: Text.AlignHCenter
+        textFormat: Text.PlainText
         opacity: (crow.glyph !== "" || crow.checked) ? 1 : 0
         text: crow.glyph !== "" ? crow.glyph : "\ue92b"
         font.family: "omarchy"
@@ -567,6 +566,7 @@ Item {
         anchors.verticalCenter: parent.verticalCenter
         width: content.width - mark.width - content.spacing
         text: crow.text
+        textFormat: Text.PlainText
         color: crow.isHeader
           ? Util.alpha(Color.menu.text, 0.5)
           : (crow.checked ? Color.bar.active : (area.containsMouse && crow.danger ? Color.urgent : crow.textColor))
@@ -752,6 +752,8 @@ Item {
   // means the window comes back to wherever you are.
   readonly property string minimizedWorkspace: "special:minimized"
   property var minimizedOrigins: ({})
+  property var urgentMap: ({})
+  property var recentOpenedWindowAddrs: ({})
 
   // Per app: the window it parked last, and the window it was in last. Both
   // hold addresses rather than live handles — a closed window then leaves a
@@ -809,6 +811,10 @@ Item {
   property string minimizeMode: "off"
   readonly property bool clickToMinimize: root.minimizeMode !== "off"
   property bool showUrgentHint: true
+  property bool urgentOnNotification: true
+  property bool urgentSound: true
+  property string urgentSoundName: "bell"
+  readonly property var notifService: root.shell ? root.shell.firstPartyServiceFor("omarchy.notifications") : null
   property int revealDelay: 160
   property int tooltipDelay: 450
   property string settingsSubmenu: ""
@@ -846,6 +852,15 @@ Item {
     interval: 500
     repeat: true
     onTriggered: root.pruneLaunching()
+  }
+
+  Timer {
+    id: urgencyTestTimer
+    interval: 5000
+    onTriggered: {
+      root.urgentMap = ({})
+      modelTimer.restart()
+    }
   }
 
   // Reactive, debounced overlap check — zero CPU polling loops
@@ -1043,12 +1058,127 @@ Item {
     }
     function onRawEvent(event) {
       var n = String((event && event.name) || "")
+      if (n === "openwindow") {
+        var rawAddr = String(event.data || "").split(",")[0].trim()
+        if (rawAddr.slice(0, 2) === "0x" || rawAddr.slice(0, 2) === "0X") rawAddr = rawAddr.slice(2)
+        var fullAddr = "0x" + rawAddr
+        var rec = DockModel.copyMap(root.recentOpenedWindowAddrs)
+        rec[fullAddr] = Date.now() + 3000
+        root.recentOpenedWindowAddrs = rec
+      }
+      if (n === "urgent") {
+        var rawAddr = String(event.data || "").trim()
+        if (rawAddr.slice(0, 2) === "0x" || rawAddr.slice(0, 2) === "0X") rawAddr = rawAddr.slice(2)
+        var fullAddr = "0x" + rawAddr
+
+        // macOS rule: If the window is ALREADY active and focused, suppress urgency
+        var activeAddr = root.windowAddress(root.hyprToplevelFor(ToplevelManager.activeToplevel))
+        if (activeAddr && activeAddr === fullAddr) {
+          return
+        }
+
+        // Suppress initial window startup / opening urgency
+        if (root.recentOpenedWindowAddrs && root.recentOpenedWindowAddrs[fullAddr] && Date.now() < root.recentOpenedWindowAddrs[fullAddr]) {
+          return
+        }
+
+        // Suppress if the app was recently launched by user
+        var allEntries = root.pinnedSection.concat(root.runningSection)
+        for (var e = 0; e < allEntries.length; e++) {
+          var entry = allEntries[e]
+          if (!entry) continue
+          if (root.launchPending && root.launchPending[entry.id]) {
+            var wins = entry.windowList || []
+            for (var w = 0; w < wins.length; w++) {
+              var h = wins[w] ? wins[w].hypr : null
+              if (h && root.windowAddress(h) === fullAddr) {
+                return
+              }
+            }
+          }
+        }
+
+        var map = DockModel.copyMap(root.urgentMap)
+        map[fullAddr] = true
+        root.urgentMap = map
+        modelTimer.restart()
+      }
+      if (n === "activewindow" || n === "activewindowv2") {
+        var rawAddr = String(event.data || "").split(",")[0].trim()
+        if (rawAddr.slice(0, 2) === "0x" || rawAddr.slice(0, 2) === "0X") rawAddr = rawAddr.slice(2)
+        var fullAddr = "0x" + rawAddr
+        if (root.urgentMap[fullAddr]) {
+          var map = DockModel.copyMap(root.urgentMap)
+          delete map[fullAddr]
+          root.urgentMap = map
+          modelTimer.restart()
+        }
+      }
+      if (n === "closewindow") {
+        var rawAddr = String(event.data || "").trim()
+        if (rawAddr.slice(0, 2) === "0x" || rawAddr.slice(0, 2) === "0X") rawAddr = rawAddr.slice(2)
+        var fullAddr = "0x" + rawAddr
+        if (root.urgentMap[fullAddr]) {
+          var map = DockModel.copyMap(root.urgentMap)
+          delete map[fullAddr]
+          root.urgentMap = map
+        }
+      }
       if (n === "workspace" || n === "workspacev2" || n === "openwindow" || n === "closewindow" ||
           n === "movewindow" || n === "movewindowv2" || n === "activewindow" || n === "activewindowv2" ||
           n === "changefloatingmode" || n === "fullscreen" || n === "pin" || n === "focusedmon") {
         debounceOverlapTimer.restart()
       }
-      if (n === "openwindow" || n === "closewindow") modelTimer.restart()
+      if (n === "openwindow" || n === "closewindow" || n === "urgent") modelTimer.restart()
+    }
+  }
+
+  Connections {
+    target: root.notifService ? root.notifService.popupModel : null
+    function onRowsInserted(parent, first, last) {
+      if (!root.showUrgentHint || !root.urgentOnNotification || !root.notifService || !root.notifService.popupModel) return
+      var playedSound = false
+      for (var i = first; i <= last; i++) {
+        var row = root.notifService.popupModel.get(i)
+        if (!row) continue
+        var appName = String(row.app || "")
+        var appIcon = String(row.appIcon || "")
+        if (!appName && !appIcon) continue
+
+        var activeHandle = root.hyprToplevelFor(ToplevelManager.activeToplevel)
+        var activeAddr = root.windowAddress(activeHandle)
+
+        var allEntries = root.pinnedSection.concat(root.runningSection)
+        var map = DockModel.copyMap(root.urgentMap)
+        var found = false
+        for (var e = 0; e < allEntries.length; e++) {
+          var entry = allEntries[e]
+          if (!entry || !entry.running) continue
+          var match = DockModel.isAppMatch(entry.id, appName)
+                   || (appIcon !== "" && DockModel.isAppMatch(entry.id, appIcon))
+                   || (entry.name && appName && String(entry.name).toLowerCase() === appName.toLowerCase())
+
+          if (match) {
+            var wins = entry.windowList || []
+            for (var w = 0; w < wins.length; w++) {
+              var h = wins[w] ? wins[w].hypr : null
+              var addr = root.windowAddress(h)
+              if (addr && addr !== activeAddr) {
+                map[addr] = true
+                found = true
+              }
+            }
+          }
+        }
+        if (found) {
+          root.urgentMap = map
+          if (!playedSound && root.urgentSound && root.urgentSoundName !== "none") {
+            Quickshell.execDetached(["canberra-gtk-play", "-i", root.urgentSoundName])
+            playedSound = true
+          }
+          modelTimer.restart()
+        }
+      }
     }
   }
 
@@ -1101,6 +1231,9 @@ Item {
       root.minimizeMode = "off"
     }
     root.showUrgentHint = parsed ? parsed.showUrgentHint !== false : true
+    root.urgentOnNotification = parsed ? parsed.urgentOnNotification !== false : true
+    root.urgentSound = parsed ? parsed.urgentSound !== false : true
+    root.urgentSoundName = parsed && typeof parsed.urgentSoundName === "string" ? parsed.urgentSoundName : "bell"
     root.revealDelay = parsed && typeof parsed.revealDelay === "number"
       ? Math.max(0, Math.min(2000, Math.round(parsed.revealDelay)))
       : 160
@@ -1172,6 +1305,42 @@ Item {
   function setItemSpacing(sp) {
     root.itemSpacing = sp
     root.saveConfig()
+  }
+
+  function setUrgentSoundName(name) {
+    root.urgentSoundName = name
+    root.urgentSound = name !== "none"
+    if (name !== "none") {
+      Quickshell.execDetached(["canberra-gtk-play", "-i", name])
+    }
+    root.saveConfig()
+  }
+
+  function triggerUrgentPreview() {
+    var activeHandle = root.hyprToplevelFor(ToplevelManager.activeToplevel)
+    var activeAddr = root.windowAddress(activeHandle)
+
+    var map = DockModel.copyMap(root.urgentMap)
+    var allEntries = root.pinnedSection.concat(root.runningSection)
+    for (var i = 0; i < allEntries.length; i++) {
+      var entry = allEntries[i]
+      if (!entry || !entry.running) continue
+      var wins = entry.windowList || []
+      for (var w = 0; w < wins.length; w++) {
+        var h = wins[w] ? wins[w].hypr : null
+        var addr = root.windowAddress(h)
+        // Suppress active focused window, only make background windows urgent
+        if (addr && addr !== activeAddr) {
+          map[addr] = true
+        }
+      }
+    }
+    root.urgentMap = map
+    if (root.urgentSound && root.urgentSoundName !== "none") {
+      Quickshell.execDetached(["canberra-gtk-play", "-i", root.urgentSoundName])
+    }
+    urgencyTestTimer.restart()
+    modelTimer.restart()
   }
 
   function cycleApp(appId, direction) {
@@ -1249,7 +1418,8 @@ Item {
     var address = root.windowAddress(handle)
     if (!address) return false
 
-    var origin = root.workspaceTarget(handle.workspace)
+    var origin = (handle && handle.workspace) ? root.workspaceTarget(handle.workspace) : root.workspaceTarget(Hyprland.focusedWorkspace)
+    if (!origin || origin === root.minimizedWorkspace) origin = root.workspaceTarget(Hyprland.focusedWorkspace)
     if (origin === root.minimizedWorkspace) return false
 
     var origins = DockModel.copyMap(root.minimizedOrigins)
@@ -1278,6 +1448,8 @@ Item {
       'hl.dsp.window.move({ window = "address:' + address + '", workspace = "'
         + root.luaString(target) + '", follow = true })',
       "movetoworkspace " + target + ",address:" + address)
+    root.hyprDispatch('hl.dsp.workspace({ workspace = "' + root.luaString(target) + '" })',
+                      "workspace " + target)
     root.hyprDispatch('hl.dsp.focus({ window = "address:' + address + '" })',
                       "focuswindow address:" + address)
     return true
@@ -1418,6 +1590,7 @@ Item {
 
     root.minimizedOrigins = root.keepLive(root.minimizedOrigins, live, false)
     root.appRecentWindow = root.keepLive(root.appRecentWindow, live, true)
+    root.urgentMap = root.keepLive(root.urgentMap, live, false)
   }
 
   // byValue: the map holds addresses as values (app -> window) rather than keys.
@@ -1514,6 +1687,9 @@ Item {
     conf.minimizeMode = root.minimizeMode
     conf.clickToMinimize = root.minimizeMode !== "off"
     conf.showUrgentHint = root.showUrgentHint
+    conf.urgentOnNotification = root.urgentOnNotification
+    conf.urgentSound = root.urgentSound
+    conf.urgentSoundName = root.urgentSoundName
     conf.revealDelay = root.revealDelay
     conf.tooltipDelay = root.tooltipDelay
     configFile.setText(JSON.stringify(conf, null, 2))
@@ -1553,36 +1729,125 @@ Item {
 
     var visible = root.visibleWindows(windows)
     var parked = root.parkedWindows(windows)
+    var focusedIdx = root.focusedIndex(visible)
 
-    if (root.focusedIndex(windows) < 0) {
-      if (parked.length > 0) {
-        // Symmetric with how they left: "all" parks in one click and restores in
-        // one, "active" restores newest first.
-        if (root.minimizeMode === "all") {
-          for (var i = 0; i < parked.length; i++) root.restoreWindow(parked[i])
-        } else {
-          root.restoreWindow(parked[parked.length - 1])
-        }
+    // Check if this application has any urgent windows or is currently bouncing
+    var hadUrgency = false
+    var urgentWin = null
+    for (var u = 0; u < visible.length; u++) {
+      var uh = visible[u] ? visible[u].hypr : null
+      var ua = root.windowAddress(uh)
+      if ((uh && uh.urgent) || (ua && root.urgentMap[ua])) {
+        urgentWin = visible[u]
+        hadUrgency = true
+        break
+      }
+    }
+
+    var urgentParked = null
+    for (var p = 0; p < parked.length; p++) {
+      var pa = root.windowAddress(parked[p])
+      if ((parked[p] && parked[p].urgent) || (pa && root.urgentMap[pa])) {
+        urgentParked = parked[p]
+        hadUrgency = true
+        break
+      }
+    }
+
+    // Clear urgency map entries for this application immediately on click
+    var map = DockModel.copyMap(root.urgentMap)
+    for (var w = 0; w < windows.length; w++) {
+      var h = windows[w] ? windows[w].hypr : null
+      var a = root.windowAddress(h)
+      if (a && map[a]) {
+        delete map[a]
+        hadUrgency = true
+      }
+    }
+    root.urgentMap = map
+
+    // If an urgent window is parked/minimized: restore it directly to its origin workspace
+    if (urgentParked) {
+      root.restoreWindow(urgentParked)
+      return
+    }
+
+    // If this app was urgent and not yet focused on screen, focus or restore directly without minimizing
+    if (hadUrgency && focusedIdx < 0) {
+      if (urgentWin) {
+        root.focusToplevel(urgentWin.toplevel)
         return
       }
-
+      if (parked.length > 0) {
+        root.restoreWindow(parked[parked.length - 1])
+        return
+      }
       var target = root.windowHere(visible) || root.recentWindow(appId, visible) || visible[0]
       if (target) root.focusToplevel(target.toplevel)
       return
     }
 
-    if (root.minimizeMode === "all") {
-      root.minimizeAllWindows(entry)
+    // 1. If an active window of this application is currently focused
+    if (focusedIdx >= 0) {
+      if (hadUrgency) {
+        // macOS rule: Clicking an urgent app NEVER minimizes. It acknowledges attention and keeps the app in front.
+        return
+      }
+      if (root.minimizeMode === "all") {
+        root.minimizeAllWindows(entry)
+        return
+      }
+      if (root.minimizeMode === "active") {
+        if (visible[focusedIdx] && visible[focusedIdx].toplevel) {
+          root.minimizeToplevel(visible[focusedIdx].toplevel)
+        } else {
+          root.minimizeOneWindow(entry)
+        }
+        return
+      }
+      // If minimize is disabled ("off"), cycle through visible windows
+      if (visible.length > 1) {
+        var next = root.stepWindow(visible, 1)
+        if (next) root.focusToplevel(next.toplevel)
+        return
+      }
       return
     }
 
-    if (visible.length > 1) {
-      var next = root.stepWindow(visible, 1)
-      if (next) root.focusToplevel(next.toplevel)
+    // 2. If no window of this app is currently focused
+    // Check if there are parked windows to restore
+    if (parked.length > 0) {
+      var currentWsTarget = root.workspaceTarget(Hyprland.focusedWorkspace)
+      var parkedOnCurrentWs = null
+      for (var p = parked.length - 1; p >= 0; p--) {
+        var pAddr = root.windowAddress(parked[p])
+        if (pAddr && root.minimizedOrigins[pAddr] === currentWsTarget) {
+          parkedOnCurrentWs = parked[p]
+          break
+        }
+      }
+
+      if (visible.length === 0 || parkedOnCurrentWs) {
+        if (root.minimizeMode === "all") {
+          for (var i = 0; i < parked.length; i++) root.restoreWindow(parked[i])
+        } else {
+          root.restoreWindow(parkedOnCurrentWs || parked[parked.length - 1])
+        }
+        return
+      }
+    }
+
+    // 3. Focus a visible window (preferring current workspace, then recent, then first)
+    if (visible.length > 0) {
+      var target = root.windowHere(visible) || root.recentWindow(appId, visible) || visible[0]
+      if (target) root.focusToplevel(target.toplevel)
       return
     }
 
-    if (root.minimizeMode === "active") root.minimizeOneWindow(entry)
+    // 4. Fallback if only parked windows exist
+    if (parked.length > 0) {
+      root.restoreWindow(parked[parked.length - 1])
+    }
   }
 
   // Menu rows name the workspace a window sits on, including the parked ones.
@@ -2070,6 +2335,29 @@ Item {
                 root.saveConfig()
               }
             }
+
+            ContextRow {
+              text: "Urgent On Notification"
+              checked: root.urgentOnNotification
+              onTriggered: {
+                root.urgentOnNotification = !root.urgentOnNotification
+                root.saveConfig()
+              }
+            }
+
+            ContextRow {
+              text: "Urgent Sound: " + (root.urgentSoundName === "message-new-instant" ? "Message" : (root.urgentSoundName === "complete" ? "Complete" : (root.urgentSoundName === "dialog-information" ? "Information" : (root.urgentSoundName === "dialog-warning" ? "Warning" : (root.urgentSoundName === "phone-incoming-call" ? "Phone" : (root.urgentSoundName === "alarm-clock-elapsed" ? "Alarm" : (root.urgentSoundName === "none" ? "Mute" : "Bell"))))))) + " ›"
+              onTriggered: root.settingsSubmenu = "urgent_sound"
+            }
+
+            ContextRow {
+              text: "Preview Urgent Bounce & Sound (5s)"
+              glyph: "\ue038"
+              onTriggered: {
+                root.triggerUrgentPreview()
+                root.closeContext()
+              }
+            }
           }
 
           // 4. Effects & Animations Category Page
@@ -2262,6 +2550,71 @@ Item {
             }
           }
 
+          // Urgent Sound Alert Submenu Page
+          Column {
+            spacing: Style.space(1)
+            visible: root.settingsSubmenu === "urgent_sound"
+
+            ContextRow {
+              text: "‹ Back"
+              textColor: Color.bar.active
+              onTriggered: root.settingsSubmenu = "behavior"
+            }
+
+            ContextRow {
+              text: "Urgent Sound Alert"
+              isHeader: true
+            }
+
+            ContextRow {
+              text: "Bell (Default)"
+              checked: root.urgentSoundName === "bell"
+              onTriggered: root.setUrgentSoundName("bell")
+            }
+
+            ContextRow {
+              text: "Message Chime"
+              checked: root.urgentSoundName === "message-new-instant"
+              onTriggered: root.setUrgentSoundName("message-new-instant")
+            }
+
+            ContextRow {
+              text: "Complete Ding"
+              checked: root.urgentSoundName === "complete"
+              onTriggered: root.setUrgentSoundName("complete")
+            }
+
+            ContextRow {
+              text: "Information Pop"
+              checked: root.urgentSoundName === "dialog-information"
+              onTriggered: root.setUrgentSoundName("dialog-information")
+            }
+
+            ContextRow {
+              text: "Warning Alert"
+              checked: root.urgentSoundName === "dialog-warning"
+              onTriggered: root.setUrgentSoundName("dialog-warning")
+            }
+
+            ContextRow {
+              text: "Phone Ring"
+              checked: root.urgentSoundName === "phone-incoming-call"
+              onTriggered: root.setUrgentSoundName("phone-incoming-call")
+            }
+
+            ContextRow {
+              text: "Alarm Beeps"
+              checked: root.urgentSoundName === "alarm-clock-elapsed"
+              onTriggered: root.setUrgentSoundName("alarm-clock-elapsed")
+            }
+
+            ContextRow {
+              text: "Mute / Silent"
+              checked: root.urgentSoundName === "none"
+              onTriggered: root.setUrgentSoundName("none")
+            }
+          }
+
           // 8. Shape Submenu Page
           Column {
             spacing: Style.space(1)
@@ -2342,47 +2695,53 @@ Item {
               isHeader: true
             }
 
-            Grid {
+            Item {
               readonly property bool isMenuContent: true
-              columns: 5
-              spacing: Style.space(3)
-              anchors.horizontalCenter: parent.horizontalCenter
-              topPadding: Style.space(2)
-              bottomPadding: Style.space(2)
+              implicitWidth: Math.max(220, 5 * Style.space(24) + 4 * Style.space(4) + Style.space(16))
+              implicitHeight: 2 * Style.space(24) + Style.space(4) + Style.space(8)
+              width: contextMenu.rowWidth > 0 ? contextMenu.rowWidth : implicitWidth
+              height: implicitHeight
 
-              readonly property var presetColors: [
-                "#000000", "#181825", "#1e1e2e", "#0f172a", "#111827",
-                "#062e24", "#1c1917", "#2c0b16", "#1e102d", "#334155"
-              ]
+              Grid {
+                id: swatchGrid
+                anchors.centerIn: parent
+                columns: 5
+                spacing: Style.space(4)
 
-              Repeater {
-                model: parent.presetColors
-                delegate: Rectangle {
-                  id: swatchRect
-                  required property string modelData
-                  width: Style.space(24)
-                  height: Style.space(24)
-                  radius: Style.space(4)
-                  color: modelData
-                  border.color: root.dockBgColor === modelData
-                    ? Color.bar.active
-                    : Util.alpha(Color.menu.border, 0.8)
-                  border.width: root.dockBgColor === modelData ? 2 : 1
+                readonly property var presetColors: [
+                  "#000000", "#181825", "#1e1e2e", "#0f172a", "#111827",
+                  "#062e24", "#1c1917", "#2c0b16", "#1e102d", "#334155"
+                ]
 
-                  Rectangle {
-                    visible: root.dockBgColor === swatchRect.modelData
-                    anchors.centerIn: parent
-                    width: Style.space(8)
-                    height: Style.space(8)
+                Repeater {
+                  model: parent.presetColors
+                  delegate: Rectangle {
+                    id: swatchRect
+                    required property string modelData
+                    width: Style.space(24)
+                    height: Style.space(24)
                     radius: Style.space(4)
-                    color: Color.bar.active
-                  }
+                    color: modelData
+                    border.color: root.dockBgColor === modelData
+                      ? Color.bar.active
+                      : Util.alpha(Color.menu.border, 0.8)
+                    border.width: root.dockBgColor === modelData ? 2 : 1
 
-                  MouseArea {
-                    anchors.fill: parent
-                    hoverEnabled: true
-                    cursorShape: Qt.PointingHandCursor
-                    onClicked: root.setDockBgColor(swatchRect.modelData)
+                    Rectangle {
+                      visible: root.dockBgColor === swatchRect.modelData
+                      anchors.centerIn: parent
+                      width: Style.space(8)
+                      height: Style.space(8)
+                      radius: Style.space(4)
+                      color: Color.bar.active
+                    }
+
+                    MouseArea {
+                      anchors.fill: parent
+                      hoverEnabled: true
+                      cursorShape: Qt.PointingHandCursor
+                      onClicked: root.setDockBgColor(swatchRect.modelData)
+                    }
                   }
                 }
               }
