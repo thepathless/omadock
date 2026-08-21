@@ -1244,46 +1244,41 @@ Item {
     if (ts && ts === root._lastProcessedNotifTimestamp) return
     root._lastProcessedNotifTimestamp = ts
 
-    var appName = String(row.app || "")
-    var appIcon = String(row.appIcon || "")
-    var summary = String(row.summary || "")
+    var allEntries = root.pinnedSection.concat(root.runningSection)
+    var matchedEntries = DockModel.findNotificationTargets(allEntries, root.appRows, row)
+    if (!matchedEntries || matchedEntries.length === 0) return
 
     var activeHandle = root.hyprToplevelFor(ToplevelManager.activeToplevel)
     var activeAddr = root.windowAddress(activeHandle)
 
-    var allEntries = root.pinnedSection.concat(root.runningSection)
     var map = DockModel.copyMap(root.urgentMap)
     var found = false
 
-    for (var e = 0; e < allEntries.length; e++) {
-      var entry = allEntries[e]
+    for (var e = 0; e < matchedEntries.length; e++) {
+      var entry = matchedEntries[e]
       if (!entry) continue
       var appId = entry.appId || entry.id
-      var match = (appName !== "" && DockModel.isAppMatch(appId, appName))
-               || (appIcon !== "" && DockModel.isAppMatch(appId, appIcon))
-               || (summary !== "" && DockModel.isAppMatch(appId, summary))
-               || (entry.name && appName && String(entry.name).toLowerCase() === appName.toLowerCase())
+      var wins = entry.windowList || []
+      var isFocused = false
 
-      if (match) {
-        var wins = entry.windowList || []
-        var isFocused = false
+      for (var w = 0; w < wins.length; w++) {
+        var h = wins[w] ? wins[w].hypr : null
+        var addr = root.windowAddress(h)
+        if (addr && addr === activeAddr) {
+          isFocused = true
+          break
+        }
+      }
+
+      // Foreground Suppression Rule: An app currently focused in the foreground suppresses urgency bounce
+      if (!isFocused) {
+        map[appId] = true
         for (var w = 0; w < wins.length; w++) {
           var h = wins[w] ? wins[w].hypr : null
           var addr = root.windowAddress(h)
-          if (addr && addr === activeAddr) {
-            isFocused = true
-            break
-          }
+          if (addr) map[addr] = true
         }
-        if (!isFocused) {
-          map[appId] = true
-          for (var w = 0; w < wins.length; w++) {
-            var h = wins[w] ? wins[w].hypr : null
-            var addr = root.windowAddress(h)
-            if (addr) map[addr] = true
-          }
-          found = true
-        }
+        found = true
       }
     }
 
@@ -1292,7 +1287,7 @@ Item {
       modelTimer.restart()
     }
 
-    // Play notification alert sound
+    // Play notification alert sound if enabled
     if (root.urgentSound && root.urgentSoundName !== "none") {
       Quickshell.execDetached(["canberra-gtk-play", "-i", root.urgentSoundName])
     }

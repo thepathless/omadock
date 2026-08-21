@@ -2,10 +2,12 @@
 // model; this file only turns inputs into output arrays.
 
 var IGNORED_TOKENS = {
-  "org": true, "com": true, "io": true, "net": true, "app": true, "bin": true,
-  "linux": true, "desktop": true, "client": true, "gui": true, "wrapper": true,
+  "org": true, "com": true, "io": true, "net": true, "app": true, "apps": true, "bin": true,
+  "linux": true, "desktop": true, "client": true, "gui": true, "wrapper": true, "launcher": true,
   "window": true, "default": true, "profile": true, "profile_1": true, "profile_2": true,
   "chrome": true, "chromium": true, "brave": true, "edge": true, "microsoft-edge": true,
+  "helium": true, "helium-browser": true, "opera": true, "vivaldi": true,
+  "web": true, "omarchy": true,
   "https": true, "http": true, "www": true, "x86_64": true, "x86": true, "amd64": true, "lib": true
 };
 
@@ -52,14 +54,41 @@ function workspaceLabel(wsName, wsId) {
   return (wsId === null || wsId === undefined) ? "" : String(wsId)
 }
 
+function isBrowserHost(id) {
+  var raw = stripDesktop(id).toLowerCase()
+  return /^(helium|helium-browser|google-chrome|chromium|brave-browser|brave|microsoft-edge|edge|opera|vivaldi|firefox)$/i.test(raw)
+}
+
+function extractNotificationWebDomain(body, summary) {
+  var text = (String(body || "") + "\n" + String(summary || "")).trim()
+  if (!text) return ""
+
+  // 1. HTML anchor tag href or text: <a href="https://web.whatsapp.com/">web.whatsapp.com</a>
+  var anchorMatch = text.match(/<a\b[^>]*href=["']?([^"'>\s]+)["']?[^>]*>/i)
+                 || text.match(/href=["']?https?:\/\/([^"'>\s/]+)/i)
+  if (anchorMatch && anchorMatch[1]) {
+    var rawHost = anchorMatch[1].replace(/^https?:\/\//i, "").split(/[\/?#]/)[0]
+    if (rawHost) return rawHost.toLowerCase()
+  }
+
+  // 2. Leading URL or domain string (e.g. web.whatsapp.com, https://music.youtube.com)
+  var domainMatch = text.match(/^\s*(?:https?:\/\/|www\.)?([a-zA-Z0-9.-]+\.[a-zA-Z]{2,})/i)
+                 || text.match(/(?:https?:\/\/|www\.)([a-zA-Z0-9.-]+\.[a-zA-Z]{2,})/i)
+  if (domainMatch && domainMatch[1]) {
+    return domainMatch[1].toLowerCase()
+  }
+
+  return ""
+}
+
 function getCandidates(id) {
   var raw = stripDesktop(id).toLowerCase()
   if (!raw) return []
   var list = [raw]
 
-  // WebApp extraction (Chrome, Chromium, Brave, Edge PWAs)
-  var webAppMatch = raw.match(/^(?:chrome|chromium|brave|edge|microsoft-edge)-(.*?)__?-(?:default|profile.*)$/i)
-                 || raw.match(/^(?:chrome|chromium|brave|edge|microsoft-edge)-(.*?)$/i)
+  // WebApp extraction (Chrome, Chromium, Brave, Edge, Helium, Opera, Vivaldi PWAs)
+  var webAppMatch = raw.match(/^(?:chrome|chromium|brave|edge|microsoft-edge|helium|helium-browser|opera|vivaldi)-(.*?)__?-(?:default|profile.*)$/i)
+                 || raw.match(/^(?:chrome|chromium|brave|edge|microsoft-edge|helium|helium-browser|opera|vivaldi)-(.*?)$/i)
   if (webAppMatch) {
     var webTarget = webAppMatch[1].replace(/^https?___?/i, "").replace(/__.*$/, "")
     if (webTarget && list.indexOf(webTarget) < 0) list.push(webTarget)
@@ -109,6 +138,112 @@ function isAppMatch(idA, idB) {
     if (candsB.indexOf(ca) >= 0) return true
   }
   return false
+}
+
+function findNotificationTargets(allEntries, appRows, row) {
+  if (!row || !allEntries || allEntries.length === 0) return []
+
+  var appName = String(row.app || "").trim()
+  var appIcon = String(row.appIcon || "").trim()
+  var summary = String(row.summary || "").trim()
+  var body = String(row.body || "").trim()
+
+  var webDomain = extractNotificationWebDomain(body, summary)
+
+  // Pass 1: If a web domain is found, check for a matching WebApp / PWA dock entry
+  if (webDomain) {
+    var domainCands = getCandidates(webDomain)
+    var pwaMatches = []
+
+    for (var i = 0; i < allEntries.length; i++) {
+      var entry = allEntries[i]
+      if (!entry) continue
+      var appId = entry.appId || entry.id
+
+      // A. Check if the dock entry ID matches any domain candidate
+      var idMatches = false
+      for (var k = 0; k < domainCands.length; k++) {
+        if (isAppMatch(appId, domainCands[k])) {
+          idMatches = true
+          break
+        }
+      }
+
+      // B. Check entry display name (e.g. "WhatsApp", "YouTube Music")
+      var nameMatches = false
+      if (entry.name) {
+        var nameLower = String(entry.name).toLowerCase()
+        for (var k = 0; k < domainCands.length; k++) {
+          if (nameLower === domainCands[k] || isAppMatch(entry.name, domainCands[k])) {
+            nameMatches = true
+            break
+          }
+        }
+      }
+
+      // C. Check underlying desktop entry Exec command (e.g. omarchy-launch-webapp https://web.whatsapp.com/)
+      var execMatches = false
+      var dEntry = entryFor(appRows, appId)
+      if (dEntry && dEntry.exec) {
+        var execStr = String(dEntry.exec).toLowerCase()
+        if (execStr && (execStr.indexOf("http://") >= 0 || execStr.indexOf("https://") >= 0 || execStr.indexOf("--app") >= 0)) {
+          for (var k = 0; k < domainCands.length; k++) {
+            var cand = domainCands[k]
+            if (cand.length >= 4 && !IGNORED_TOKENS[cand] && execStr.indexOf(cand) >= 0) {
+              execMatches = true
+              break
+            }
+          }
+        }
+      }
+
+      // D. Check running window classes of this entry
+      var winMatches = false
+      var wins = entry.windowList || []
+      for (var w = 0; w < wins.length; w++) {
+        var top = wins[w] ? wins[w].toplevel : null
+        var topId = top ? stripDesktop(top.appId) : ""
+        if (topId) {
+          for (var k = 0; k < domainCands.length; k++) {
+            if (isAppMatch(topId, domainCands[k])) {
+              winMatches = true
+              break
+            }
+          }
+        }
+        if (winMatches) break
+      }
+
+      if (idMatches || nameMatches || execMatches || winMatches) {
+        if (pwaMatches.indexOf(entry) < 0) pwaMatches.push(entry)
+      }
+    }
+
+    // WebApp Priority Rule: If any specific WebApp entry matched the web origin,
+    // attribute the notification EXCLUSIVELY to that PWA and suppress the host browser!
+    if (pwaMatches.length > 0) {
+      return pwaMatches
+    }
+  }
+
+  // Pass 2: Standard App Matching (Native Apps, Flatpaks, or generic Browser notifications)
+  var standardMatches = []
+  for (var i = 0; i < allEntries.length; i++) {
+    var entry = allEntries[i]
+    if (!entry) continue
+    var appId = entry.appId || entry.id
+
+    var match = (appName !== "" && isAppMatch(appId, appName))
+             || (appIcon !== "" && isAppMatch(appId, appIcon))
+             || (summary !== "" && isAppMatch(appId, summary))
+             || (entry.name && appName && String(entry.name).toLowerCase() === appName.toLowerCase())
+
+    if (match) {
+      if (standardMatches.indexOf(entry) < 0) standardMatches.push(entry)
+    }
+  }
+
+  return standardMatches
 }
 
 function parsePinned(raw) {
@@ -217,10 +352,10 @@ function entryFor(appRows, appId) {
     var entry = appRows[i] && appRows[i].entry
     if (!entry) continue
     var execStr = String(entry.exec || "").toLowerCase()
-    if (execStr) {
+    if (execStr && (execStr.indexOf("http://") >= 0 || execStr.indexOf("https://") >= 0 || execStr.indexOf("--app") >= 0)) {
       for (var k = 0; k < wantCands.length; k++) {
         var cand = wantCands[k]
-        if (cand.length >= 2 && execStr.indexOf(cand) >= 0) return entry
+        if (cand.length >= 4 && !IGNORED_TOKENS[cand] && execStr.indexOf(cand) >= 0) return entry
       }
     }
   }
