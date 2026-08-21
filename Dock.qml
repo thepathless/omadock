@@ -235,8 +235,7 @@ Item {
       }
     }
 
-    // How the running indicator reads: one dot per window, and the third widens
-    // into a pill once there are more than three, because past three n    readonly property bool isFocused: {
+    readonly property bool isFocused: {
       if (!ToplevelManager.activeToplevel) return false
       var top = ToplevelManager.activeToplevel
       if (item.appId && DockModel.isAppMatch(item.appId, top.appId)) return true
