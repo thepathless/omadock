@@ -1497,7 +1497,9 @@ Item {
   // over keyboard focus, which leaves scrolling layouts parked where they were,
   // so the compositor's own focus dispatcher does the work whenever we know the
   // window's address. It switches the workspace on its way, so nothing else has
-  // to ask for that.
+  // Brings a window forward cleanly. Native Wayland activation hands over focus
+  // and brings the window forward without warping the mouse pointer away from the dock
+  // or desynchronizing layer-shell input state. Switches workspace when target is on another workspace.
   function focusToplevel(toplevel) {
     if (!toplevel) return
     var handle = root.hyprToplevelFor(toplevel)
@@ -1508,14 +1510,15 @@ Item {
       return
     }
 
-    var address = root.windowAddress(handle)
-    if (!address) {
-      DockModel.focusWindow(toplevel)
-      return
-    }
+    DockModel.focusWindow(toplevel)
 
-    root.hyprDispatch('hl.dsp.focus({ window = "address:' + address + '" })',
-                      "focuswindow address:" + address)
+    if (workspace && Hyprland.focusedWorkspace && workspace.id !== Hyprland.focusedWorkspace.id) {
+      var targetWs = root.workspaceTarget(workspace)
+      if (targetWs) {
+        root.hyprDispatch('hl.dsp.workspace({ name = "' + root.luaString(targetWs) + '" })',
+                          "workspace " + targetWs)
+      }
+    }
   }
 
   function minimizeToplevel(toplevel) {
