@@ -396,7 +396,7 @@ Item {
             var chosenWs = chosenHypr ? chosenHypr.workspace : null
             var isParked = chosenWs && chosenWs.name === root.minimizedWorkspace
             if (isParked) {
-              root.restoreWindow(chosenHypr || chosenWin)
+              root.restoreWindow(chosenHypr || chosenWin, item.appId)
             } else if (chosenWin && chosenWin.toplevel) {
               root.focusToplevel(chosenWin.toplevel)
             }
@@ -821,6 +821,7 @@ Item {
   property var minimizedOrigins: ({})
   property var urgentMap: ({})
   property var recentOpenedWindowAddrs: ({})
+  property var _lastRestoredTime: ({})
 
   // Per app: the window it parked last, and the window it was in last. Both
   // hold addresses rather than live handles — a closed window then leaves a
@@ -1551,9 +1552,15 @@ Item {
     return true
   }
 
-  function restoreWindow(handle) {
+  function restoreWindow(handle, appId) {
     var address = root.windowAddress(handle)
     if (!address) return false
+
+    if (appId) {
+      var times = root._lastRestoredTime || ({})
+      times[appId] = Date.now()
+      root._lastRestoredTime = times
+    }
 
     var target = root.minimizedOrigins[address] || root.workspaceTarget(Hyprland.focusedWorkspace)
     if (!target) return false
@@ -1909,10 +1916,29 @@ Item {
       return
     }
 
+    var now = Date.now()
+    var justRestored = (root._lastRestoredTime[appId] && (now - root._lastRestoredTime[appId] < 3000))
+
     // 1. If an active window of this application is currently focused
     if (focusedIdx >= 0) {
       if (hadUrgency) {
         // macOS rule: Clicking an urgent app NEVER minimizes. It acknowledges attention and keeps the app in front.
+        return
+      }
+
+      // If we just restored a window and other parked windows still exist,
+      // subsequent clicks continue sequentially restoring the remaining parked windows!
+      if (justRestored && parked.length > 0) {
+        var currentWsTarget = root.workspaceTarget(Hyprland.focusedWorkspace)
+        var parkedOnCurrentWs = null
+        for (var p = 0; p < parked.length; p++) {
+          var pAddr = root.windowAddress(parked[p])
+          if (pAddr && root.minimizedOrigins[pAddr] === currentWsTarget) {
+            parkedOnCurrentWs = parked[p]
+            break
+          }
+        }
+        root.restoreWindow(parkedOnCurrentWs || parked[0], appId)
         return
       }
 
@@ -1942,7 +1968,7 @@ Item {
     if (parked.length > 0) {
       var currentWsTarget = root.workspaceTarget(Hyprland.focusedWorkspace)
       var parkedOnCurrentWs = null
-      for (var p = parked.length - 1; p >= 0; p--) {
+      for (var p = 0; p < parked.length; p++) {
         var pAddr = root.windowAddress(parked[p])
         if (pAddr && root.minimizedOrigins[pAddr] === currentWsTarget) {
           parkedOnCurrentWs = parked[p]
@@ -1950,13 +1976,13 @@ Item {
         }
       }
 
-      // Sequential restore: restore one parked window at a time
+      // Sequential restore: restore one parked window at a time (FIFO chronological order)
       if (root.minimizeMode === "all") {
-        for (var i = 0; i < parked.length; i++) root.restoreWindow(parked[i])
+        for (var i = 0; i < parked.length; i++) root.restoreWindow(parked[i], appId)
         return
       }
 
-      root.restoreWindow(parkedOnCurrentWs || parked[parked.length - 1])
+      root.restoreWindow(parkedOnCurrentWs || parked[0], appId)
       return
     }
 
