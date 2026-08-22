@@ -150,7 +150,11 @@ Item {
     // Where a left click would take you, when that is somewhere else.
     readonly property string workspaceHint: {
       if (!item.running || item.minimized || item.onFocusedWorkspace) return ""
-      var handle = item.windowList.length > 0 ? item.windowList[0].hypr : null
+      var targetWin = (root.appRecentWindow && item.windowList)
+        ? root.recentWindow(item.appId, item.windowList)
+        : null
+      if (!targetWin && item.windowList && item.windowList.length > 0) targetWin = item.windowList[0]
+      var handle = targetWin ? targetWin.hypr : null
       var ws = handle ? handle.workspace : null
       return ws ? DockModel.workspaceShort(ws.id, ws.name) : ""
     }
@@ -446,7 +450,13 @@ Item {
       borderSpec: Border.surfaceSpec("tooltip", "border", Color.tooltip.border, 1)
       radius: Style.cornerRadius > 0 ? Style.cornerRadius : 8
       padding: Style.space(6)
-      x: (item.width - width) / 2
+      x: {
+        var idealX = (item.width - width) / 2
+        var itemGlobalX = dockCard.x + row.x + item.x
+        var minX = Style.gapsOut - itemGlobalX
+        var maxX = (dockWindow.width - Style.gapsOut - width) - itemGlobalX
+        return Math.max(minX, Math.min(maxX, idealX))
+      }
       y: -height - Style.space(10)
       width: tooltipContent.implicitWidth + contentLeftInset + contentRightInset
       height: tooltipContent.implicitHeight + contentTopInset + contentBottomInset
@@ -595,7 +605,13 @@ Item {
     HoverTooltip {
       text: btn.tooltip
       hovered: area.containsMouse
-      x: (btn.width - width) / 2
+      x: {
+        var idealX = (btn.width - width) / 2
+        var btnGlobalX = dockCard.x + row.x + btn.x
+        var minX = Style.gapsOut - btnGlobalX
+        var maxX = (dockWindow.width - Style.gapsOut - width) - btnGlobalX
+        return Math.max(minX, Math.min(maxX, idealX))
+      }
       y: -height - Style.space(8)
     }
   }
@@ -984,32 +1000,38 @@ Item {
           return
         }
 
-        // Logical monitor dimensions accounting for fractional scaling
-        var mon = Hyprland.focusedMonitor
-        var scale = (mon && mon.scale > 0)
-          ? mon.scale
+        // Logical monitor dimensions accounting for fractional scaling & multi-monitor offsets
+        var targetMon = (root.dockScreen && typeof Hyprland.monitorFor === "function")
+          ? Hyprland.monitorFor(root.dockScreen)
+          : Hyprland.focusedMonitor
+        var monX = (targetMon && typeof targetMon.x === "number") ? targetMon.x : 0
+        var monY = (targetMon && typeof targetMon.y === "number") ? targetMon.y : 0
+        var scale = (targetMon && targetMon.scale > 0)
+          ? targetMon.scale
           : (dockScreen && dockScreen.devicePixelRatio ? dockScreen.devicePixelRatio : 1.0)
-        var screenLogicalW = (mon && mon.width > 0)
-          ? (mon.width / scale)
+        var screenLogicalW = (targetMon && targetMon.width > 0)
+          ? (targetMon.width / scale)
           : (dockScreen ? dockScreen.width : 1920)
-        var screenLogicalH = (mon && mon.height > 0)
-          ? (mon.height / scale)
+        var screenLogicalH = (targetMon && targetMon.height > 0)
+          ? (targetMon.height / scale)
           : (dockScreen ? dockScreen.height : 1080)
 
         var cardW = dockCard.width > 0 ? (dockCard.width + Style.gapsOut * 2) : 320
         var cardH = dockCard.height > 0 ? (dockCard.height + Style.gapsOut * 2) : 60
-        var dockLeft = (screenLogicalW - cardW) / 2
-        var dockRight = (screenLogicalW + cardW) / 2
-        var dockTop = screenLogicalH - cardH - 12
-        var dockBottom = screenLogicalH
+        var dockLeft = monX + (screenLogicalW - cardW) / 2
+        var dockRight = monX + (screenLogicalW + cardW) / 2
+        var dockTop = monY + screenLogicalH - cardH - 12
+        var dockBottom = monY + screenLogicalH
 
         var overlap = false
-        var focusedWsId = Hyprland.focusedWorkspace ? Hyprland.focusedWorkspace.id : -1
+        var activeWsId = (targetMon && targetMon.activeWorkspace)
+          ? targetMon.activeWorkspace.id
+          : (Hyprland.focusedWorkspace ? Hyprland.focusedWorkspace.id : -1)
 
         for (var i = 0; i < clients.length; i++) {
           var c = clients[i]
           if (!c.mapped || c.hidden) continue
-          if (!c.workspace || c.workspace.id !== focusedWsId) continue
+          if (!c.workspace || c.workspace.id !== activeWsId) continue
 
           var at = c.at
           var sz = c.size
@@ -1733,8 +1755,8 @@ Item {
     if (deskEntry && deskEntry.id) {
       root.shell.appLibrary.launch(deskEntry.id, targetName)
     } else {
-      var webAppMatch = String(appId).match(/^(?:chrome|chromium|brave|edge|microsoft-edge)-(.*?)__?-(?:default|profile.*)$/i)
-                     || String(appId).match(/^(?:chrome|chromium|brave|edge|microsoft-edge)-(.*?)$/i)
+      var webAppMatch = String(appId).match(/^(?:chrome|chromium|brave|edge|microsoft-edge|helium|helium-browser|opera|vivaldi)-(.*?)__?-(?:default|profile.*)$/i)
+                     || String(appId).match(/^(?:chrome|chromium|brave|edge|microsoft-edge|helium|helium-browser|opera|vivaldi)-(.*?)$/i)
       if (webAppMatch) {
         var webDomain = webAppMatch[1].replace(/^https?___?/i, "").replace(/__.*$/, "")
         Quickshell.execDetached(["omarchy-launch-webapp", "https://" + webDomain])
@@ -3031,7 +3053,9 @@ Item {
             }
 
             Repeater {
-              model: root.contextWindowList
+              model: (root.contextWindowList && root.contextWindowList.length > 10)
+                ? root.contextWindowList.slice(0, 10)
+                : root.contextWindowList
               delegate: ContextRow {
                 text: root.windowRowLabel(modelData)
                 onTriggered: {
@@ -3039,6 +3063,12 @@ Item {
                   root.closeContext()
                 }
               }
+            }
+
+            ContextRow {
+              visible: root.contextWindowList && root.contextWindowList.length > 10
+              text: "+" + (root.contextWindowList.length - 10) + " more windows"
+              isHeader: true
             }
 
             Rectangle {

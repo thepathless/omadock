@@ -235,11 +235,22 @@ function findNotificationTargets(allEntries, appRows, row) {
 
     var match = (appName !== "" && isAppMatch(appId, appName))
              || (appIcon !== "" && isAppMatch(appId, appIcon))
-             || (summary !== "" && isAppMatch(appId, summary))
              || (entry.name && appName && String(entry.name).toLowerCase() === appName.toLowerCase())
 
     if (match) {
       if (standardMatches.indexOf(entry) < 0) standardMatches.push(entry)
+    }
+  }
+
+  // Fallback: If no direct app match was found, evaluate summary for generic daemons / CLI notifications
+  if (standardMatches.length === 0 && summary !== "") {
+    for (var i = 0; i < allEntries.length; i++) {
+      var entry = allEntries[i]
+      if (!entry) continue
+      var appId = entry.appId || entry.id
+      if (isAppMatch(appId, summary)) {
+        if (standardMatches.indexOf(entry) < 0) standardMatches.push(entry)
+      }
     }
   }
 
