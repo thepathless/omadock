@@ -3384,21 +3384,6 @@ Item {
               }
             }
 
-            // Hollow running-indicator dot — mirrors the DockItem minimized dot.
-            // Sits outside tileVisual so it never scales with zoom/wave.
-            Rectangle {
-              anchors.horizontalCenter: parent.horizontalCenter
-              anchors.bottom: parent.bottom
-              anchors.bottomMargin: Style.space(1)
-              width: Style.space(5)
-              height: Style.space(5)
-              radius: height / 2
-              z: 3
-              color: "transparent"
-              border.color: Util.alpha(root.dockForeground, 0.88)
-              border.width: 1.5
-            }
-
             // Title bubble above the hovered tile (hidden while the menu is open).
             BorderSurface {
               id: tileTooltip
