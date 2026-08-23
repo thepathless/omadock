@@ -3260,9 +3260,9 @@ Item {
                 anchors.leftMargin: -Style.space(3)
                 anchors.bottomMargin: -Style.space(2)
                 radius: Math.max(3, Style.space(4))
-                color: Util.alpha(root.dockForeground, 0.06)
+                color: Util.alpha(root.dockForeground, 0.16)
                 border.width: 1
-                border.color: Util.alpha(root.dockForeground, 0.14)
+                border.color: Util.alpha(root.dockForeground, 0.38)
               }
               Rectangle {
                 visible: tile.isGroup && tile.groupCount > 2
@@ -3270,9 +3270,9 @@ Item {
                 anchors.leftMargin: -Style.space(6)
                 anchors.bottomMargin: -Style.space(4)
                 radius: Math.max(3, Style.space(4))
-                color: Util.alpha(root.dockForeground, 0.04)
+                color: Util.alpha(root.dockForeground, 0.11)
                 border.width: 1
-                border.color: Util.alpha(root.dockForeground, 0.10)
+                border.color: Util.alpha(root.dockForeground, 0.28)
               }
 
               Rectangle {
