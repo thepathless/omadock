@@ -201,8 +201,7 @@ function findNotificationTargets(allEntries, appRows, row) {
       var winMatches = false
       var wins = entry.windowList || []
       for (var w = 0; w < wins.length; w++) {
-        var top = wins[w] ? wins[w].toplevel : null
-        var topId = top ? stripDesktop(top.appId) : ""
+        var topId = wins[w] ? stripDesktop(wins[w].appId || "") : ""
         if (topId) {
           for (var k = 0; k < domainCands.length; k++) {
             if (isAppMatch(topId, domainCands[k])) {
@@ -382,9 +381,17 @@ function entryFor(appRows, appId) {
   return null
 }
 
-function buildEntries(pinnedIds, toplevels, appRows, appLibrary, hyprFor) {
+function windowAddress(handle) {
+  var value = String((handle && handle.address) || "").trim()
+  if (!value) return ""
+  if (value.slice(0, 2) === "0x" || value.slice(0, 2) === "0X") value = value.slice(2)
+  return "0x" + value
+}
+
+function buildEntries(pinnedIds, toplevels, appRows, appLibrary, hyprFor, minimizedWs) {
   var pinned = Array.isArray(pinnedIds) ? pinnedIds : []
   var list = toArray(toplevels)
+  var minWs = minimizedWs || "special:minimized"
 
   var runningIds = []
   var winMap = {}
@@ -397,12 +404,17 @@ function buildEntries(pinnedIds, toplevels, appRows, appLibrary, hyprFor) {
       winMap[appId] = []
       runningIds.push(appId)
     }
+    var h = hyprFor ? hyprFor(toplevel) : null
+    var addr = windowAddress(h)
+    var ws = h ? h.workspace : null
+    var wsName = ws ? String(ws.name || ws.id || "") : ""
+    var isParked = (wsName === minWs)
     winMap[appId].push({
       title: String(toplevel.title || "Window"),
-      toplevel: toplevel,
-      // Live Hyprland handle. Urgency and workspace are read off this object
-      // directly so the dock follows them without rebuilding the model.
-      hypr: hyprFor ? hyprFor(toplevel) : null
+      address: addr,
+      appId: appId,
+      workspaceName: wsName,
+      isMinimized: isParked
     })
   }
 

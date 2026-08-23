@@ -117,32 +117,28 @@ Item {
       // Foreground Suppression Rule: An app currently focused in the foreground suppresses urgency bounce
       if (item.isFocused) return false
       if (item.appId && root.urgentMap[item.appId]) return true
-      var list = item.windowList
+      var list = item.windowList || []
       for (var i = 0; i < list.length; i++) {
-        var handle = list[i] ? list[i].hypr : null
-        var addr = root.windowAddress(handle)
-        if ((handle && handle.urgent) || (addr && root.urgentMap[addr])) return true
+        var addr = list[i] ? list[i].address : ""
+        if (addr && root.urgentMap[addr]) return true
       }
       return false
     }
 
     readonly property bool minimized: {
-      var list = item.windowList
+      var list = item.windowList || []
       if (list.length === 0) return false
       for (var i = 0; i < list.length; i++) {
-        var handle = list[i] ? list[i].hypr : null
-        var ws = handle ? handle.workspace : null
-        if (!ws || ws.name !== root.minimizedWorkspace) return false
+        if (list[i] && !list[i].isMinimized && list[i].workspaceName !== root.minimizedWorkspace) return false
       }
       return true
     }
 
     readonly property bool onFocusedWorkspace: {
-      var list = item.windowList
+      var list = item.windowList || []
       for (var i = 0; i < list.length; i++) {
-        var handle = list[i] ? list[i].hypr : null
-        var ws = handle ? handle.workspace : null
-        if (ws && ws.id === root.focusedWorkspaceId) return true
+        var ws = list[i] ? list[i].workspaceName : ""
+        if (ws && (ws === String(root.focusedWorkspaceId) || ws === root.focusedWorkspaceName)) return true
       }
       return false
     }
@@ -150,15 +146,12 @@ Item {
     // Where a left click would take you, when that is somewhere else.
     readonly property string workspaceHint: {
       if (!item.running || item.minimized || item.onFocusedWorkspace) return ""
-      var handle = item.windowList.length > 0 ? item.windowList[0].hypr : null
-      var ws = handle ? handle.workspace : null
-      return ws ? DockModel.workspaceShort(ws.id, ws.name) : ""
+      var ws = (item.windowList && item.windowList.length > 0) ? item.windowList[0].workspaceName : ""
+      return ws ? DockModel.workspaceShort(ws, ws) : ""
     }
 
     readonly property bool starting: root.launchPending[item.appId] !== undefined
 
-    // Live, unlike a flag copied into the model: only one window is focused, and
-    // the manager always knows which.
     function windowFocused(window) {
       return root.isWindowFocused(window)
     }
@@ -239,16 +232,10 @@ Item {
     }
 
     readonly property bool isFocused: {
-      try {
-        if (!ToplevelManager.activeToplevel) return false
-        var top = ToplevelManager.activeToplevel
-        if (item.appId && top.appId && DockModel.isAppMatch(item.appId, top.appId)) return true
-        var list = item.windowList || []
-        for (var i = 0; i < list.length; i++) {
-          if (list[i] && list[i].toplevel && list[i].toplevel === top) return true
-        }
-      } catch (e) {
-        return false
+      if (item.appId && root.activeId && DockModel.isAppMatch(item.appId, root.activeId)) return true
+      var list = item.windowList || []
+      for (var i = 0; i < list.length; i++) {
+        if (list[i] && list[i].address && list[i].address === root.activeWindowAddress) return true
       }
       return false
     }
@@ -256,23 +243,14 @@ Item {
     property int selectedWindowIdx: -1
 
     function isWinMinimized(w) {
-      try {
-        if (!w) return false
-        var h = w.hypr || null
-        var ws = h ? h.workspace : null
-        return !!ws && ws.name === root.minimizedWorkspace
-      } catch (e) {
-        return false
-      }
+      if (!w) return false
+      if (typeof w.isMinimized === "boolean") return w.isMinimized
+      return w.workspaceName === root.minimizedWorkspace
     }
 
     function isWinActive(w) {
-      try {
-        if (!w || !w.toplevel || !ToplevelManager.activeToplevel) return false
-        return w.toplevel === ToplevelManager.activeToplevel
-      } catch (e) {
-        return false
-      }
+      if (!w || !w.address || !root.activeWindowAddress) return false
+      return w.address === root.activeWindowAddress
     }
 
     readonly property int totalWindowCount: (item.windowList && item.windowList.length > 0) ? item.windowList.length : (item.running ? 1 : 0)
@@ -448,13 +426,8 @@ Item {
 
             if (chosenIdx >= 0 && item.windowList && chosenIdx < item.windowList.length) {
               var chosenWin = item.windowList[chosenIdx]
-              var chosenHypr = chosenWin ? chosenWin.hypr : null
-              var chosenWs = chosenHypr ? chosenHypr.workspace : null
-              var isParked = chosenWs && chosenWs.name === root.minimizedWorkspace
-              if (isParked) {
-                root.restoreWindow(chosenHypr || chosenWin, item.appId)
-              } else if (chosenWin && chosenWin.toplevel) {
-                root.focusToplevel(chosenWin.toplevel)
+              if (chosenWin && chosenWin.address) {
+                root.focusWindowByAddress(chosenWin.address)
               }
             }
             item.selectedWindowIdx = -1
@@ -466,13 +439,8 @@ Item {
           // If a specific window was selected via scroll wheel in tooltip:
           if (item.selectedWindowIdx >= 0 && item.windowList && item.selectedWindowIdx < item.windowList.length) {
             var chosenWin = item.windowList[item.selectedWindowIdx]
-            var chosenHypr = chosenWin ? chosenWin.hypr : null
-            var chosenWs = chosenHypr ? chosenHypr.workspace : null
-            var isParked = chosenWs && chosenWs.name === root.minimizedWorkspace
-            if (isParked) {
-              root.restoreWindow(chosenHypr || chosenWin, item.appId)
-            } else if (chosenWin && chosenWin.toplevel) {
-              root.focusToplevel(chosenWin.toplevel)
+            if (chosenWin && chosenWin.address) {
+              root.focusWindowByAddress(chosenWin.address)
             }
             item.selectedWindowIdx = -1
             return
@@ -539,13 +507,8 @@ Item {
             spacing: Style.space(5)
             anchors.horizontalCenter: parent.horizontalCenter
             readonly property bool isSelected: item.selectedWindowIdx === index
-            readonly property bool isWinFocused: item.windowFocused(item.windowList[index])
-            readonly property bool isWinParked: {
-              var w = item.windowList[index]
-              var h = w ? w.hypr : null
-              var ws = h ? h.workspace : null
-              return !!ws && ws.name === root.minimizedWorkspace
-            }
+            readonly property bool isWinFocused: item.isWinActive(item.windowList[index])
+            readonly property bool isWinParked: item.isWinMinimized(item.windowList[index])
 
             Rectangle {
               width: Style.space(5)
@@ -1188,7 +1151,7 @@ Item {
   function refreshDock() {
     root.dockModel = root.shell && root.shell.appLibrary
       ? DockModel.buildEntries(root.pinnedIds, ToplevelManager.toplevels.values, root.appRows,
-                               root.shell.appLibrary, root.hyprToplevelFor)
+                               root.shell.appLibrary, root.hyprToplevelFor, root.minimizedWorkspace)
       : { pinned: [], running: [] }
     root.pruneLaunching()
     root.pruneWindowState()
@@ -1203,9 +1166,24 @@ Item {
     }
   }
 
+  readonly property string activeWindowAddress: {
+    try {
+      var top = ToplevelManager.activeToplevel
+      if (!top) return ""
+      var h = root.hyprToplevelFor(top)
+      return h ? root.windowAddress(h) : ""
+    } catch (e) {
+      return ""
+    }
+  }
+
   readonly property int focusedWorkspaceId: Hyprland.focusedWorkspace
     ? Hyprland.focusedWorkspace.id
     : -99999
+
+  readonly property string focusedWorkspaceName: Hyprland.focusedWorkspace
+    ? String(Hyprland.focusedWorkspace.name || Hyprland.focusedWorkspace.id || "")
+    : ""
 
   // Hyprland has no minimize, so a window is parked on its own hidden special
   // workspace. The workspace name is the state, which means it survives a shell
@@ -1704,11 +1682,22 @@ Item {
         var rawAddr = String(event.data || "").trim()
         if (rawAddr.slice(0, 2) === "0x" || rawAddr.slice(0, 2) === "0X") rawAddr = rawAddr.slice(2)
         var fullAddr = "0x" + rawAddr
-        if (root.urgentMap[fullAddr]) {
+        if (root.recentOpenedWindowAddrs && root.recentOpenedWindowAddrs[fullAddr]) {
+          var rec = DockModel.copyMap(root.recentOpenedWindowAddrs)
+          delete rec[fullAddr]
+          root.recentOpenedWindowAddrs = rec
+        }
+        if (root.urgentMap && root.urgentMap[fullAddr]) {
           var map = DockModel.copyMap(root.urgentMap)
           delete map[fullAddr]
           root.urgentMap = map
         }
+        if (root.minimizedOrigins && root.minimizedOrigins[fullAddr]) {
+          var mo = DockModel.copyMap(root.minimizedOrigins)
+          delete mo[fullAddr]
+          root.minimizedOrigins = mo
+        }
+        root.refreshDock()
       }
       if (n === "workspace" || n === "workspacev2" || n === "openwindow" || n === "closewindow" ||
           n === "movewindow" || n === "movewindowv2" || n === "activewindow" || n === "activewindowv2" ||
@@ -2001,13 +1990,14 @@ Item {
   function cycleApp(appId, direction) {
     var entry = root.entryForId(appId)
     var next = root.stepWindow(root.visibleWindows(entry ? (entry.windowList || []) : []), direction)
-    if (next) {
-      root.focusToplevel(next.toplevel)
+    if (next && next.address) {
+      root.focusWindowByAddress(next.address)
       return
     }
     // No handles to tell parked from visible: fall back to the pure order.
-    root.focusToplevel(DockModel.pickAppWindow(
-      ToplevelManager.toplevels.values, ToplevelManager.activeToplevel, appId, direction))
+    var top = DockModel.pickAppWindow(
+      ToplevelManager.toplevels.values, ToplevelManager.activeToplevel, appId, direction)
+    if (top) root.focusToplevel(top)
   }
 
   // ------------------------------------------------- window plumbing
@@ -2043,6 +2033,55 @@ Item {
     return name !== "" ? name : String(workspace.id)
   }
 
+  function liveToplevelForAddress(addr) {
+    if (!addr) return null
+    try {
+      var tops = ToplevelManager.toplevels ? ToplevelManager.toplevels.values : []
+      for (var i = 0; i < tops.length; i++) {
+        var top = tops[i]
+        if (!top) continue
+        var h = root.hyprToplevelFor(top)
+        if (root.windowAddress(h) === addr) return top
+      }
+    } catch (e) {}
+    return null
+  }
+
+  function liveHyprToplevelForAddress(addr) {
+    if (!addr) return null
+    try {
+      var tops = Hyprland.toplevels ? Hyprland.toplevels.values : []
+      for (var i = 0; i < tops.length; i++) {
+        var h = tops[i]
+        if (h && root.windowAddress(h) === addr) return h
+      }
+    } catch (e) {}
+    return null
+  }
+
+  function focusWindowByAddress(addr) {
+    if (!addr) return
+    var handle = root.liveHyprToplevelForAddress(addr)
+    var top = root.liveToplevelForAddress(addr)
+    if (handle) {
+      var workspace = handle.workspace
+      if (workspace && workspace.name === root.minimizedWorkspace) {
+        root.restoreWindow(addr)
+        return
+      }
+      if (top) DockModel.focusWindow(top)
+      if (workspace && Hyprland.focusedWorkspace && workspace.id !== Hyprland.focusedWorkspace.id) {
+        var targetWs = root.workspaceTarget(workspace)
+        if (targetWs) {
+          root.hyprDispatch('hl.dsp.focus({ workspace = "' + root.luaString(targetWs) + '" })',
+                            "workspace " + targetWs)
+        }
+      }
+    } else if (top) {
+      root.focusToplevel(top)
+    }
+  }
+
   // Brings a window forward cleanly. Native Wayland activation hands over focus
   // and brings the window forward without warping the mouse pointer away from the dock
   // or desynchronizing layer-shell input state. Switches workspace when target is on another workspace.
@@ -2061,17 +2100,17 @@ Item {
     if (workspace && Hyprland.focusedWorkspace && workspace.id !== Hyprland.focusedWorkspace.id) {
       var targetWs = root.workspaceTarget(workspace)
       if (targetWs) {
-        root.hyprDispatch('hl.dsp.workspace({ name = "' + root.luaString(targetWs) + '" })',
+        root.hyprDispatch('hl.dsp.focus({ workspace = "' + root.luaString(targetWs) + '" })',
                           "workspace " + targetWs)
       }
     }
   }
 
-  function minimizeToplevel(toplevel) {
-    var handle = root.hyprToplevelFor(toplevel)
-    var address = root.windowAddress(handle)
+  function minimizeToplevel(topOrAddr) {
+    var address = typeof topOrAddr === "string" ? topOrAddr : root.windowAddress(root.hyprToplevelFor(topOrAddr))
     if (!address) return false
 
+    var handle = root.liveHyprToplevelForAddress(address)
     var origin = (handle && handle.workspace) ? root.workspaceTarget(handle.workspace) : root.workspaceTarget(Hyprland.focusedWorkspace)
     if (!origin || origin === root.minimizedWorkspace) origin = root.workspaceTarget(Hyprland.focusedWorkspace)
     if (origin === root.minimizedWorkspace) return false
@@ -2087,8 +2126,8 @@ Item {
     return true
   }
 
-  function restoreWindow(handle, appId) {
-    var address = root.windowAddress(handle)
+  function restoreWindow(targetRef, appId) {
+    var address = typeof targetRef === "string" ? targetRef : root.windowAddress(targetRef)
     if (!address) return false
 
     if (appId) {
@@ -2108,10 +2147,12 @@ Item {
       'hl.dsp.window.move({ window = "address:' + address + '", workspace = "'
         + root.luaString(target) + '", follow = true })',
       "movetoworkspace " + target + ",address:" + address)
-    root.hyprDispatch('hl.dsp.workspace({ name = "' + root.luaString(target) + '" })',
+    root.hyprDispatch('hl.dsp.focus({ workspace = "' + root.luaString(target) + '" })',
                       "workspace " + target)
-    if (handle && (handle.wayland || handle.toplevel)) {
-      DockModel.focusWindow(handle.wayland || handle.toplevel)
+
+    var top = root.liveToplevelForAddress(address)
+    if (top) {
+      DockModel.focusWindow(top)
     }
     return true
   }
@@ -2122,11 +2163,10 @@ Item {
     if (!address) return null
     for (var i = 0; i < windows.length; i++) {
       var win = windows[i]
-      if (!win || !win.toplevel) continue
-      var handle = root.hyprToplevelFor(win.toplevel)
-      if (root.windowAddress(handle) !== address) continue
-      var ws = handle ? handle.workspace : null
-      return (ws && ws.name === root.minimizedWorkspace) ? null : win
+      if (!win) continue
+      if (win.address === address) {
+        return (!win.isMinimized && win.workspaceName !== root.minimizedWorkspace) ? win : null
+      }
     }
     return null
   }
@@ -2136,28 +2176,28 @@ Item {
     var out = []
     for (var i = 0; i < windows.length; i++) {
       var win = windows[i]
-      if (!win || !win.toplevel) continue
-      var handle = root.hyprToplevelFor(win.toplevel)
-      var ws = handle ? handle.workspace : null
-      if (!ws || ws.name !== root.minimizedWorkspace) out.push(win)
+      if (!win) continue
+      if (!win.isMinimized && win.workspaceName !== root.minimizedWorkspace) out.push(win)
     }
     return out
   }
 
   // Which of these windows holds the focus, if any.
   function focusedIndex(windows) {
-    if (!ToplevelManager.activeToplevel) return -1
-    for (var i = 0; i < windows.length; i++)
-      if (windows[i] && windows[i].toplevel === ToplevelManager.activeToplevel) return i
+    if (!root.activeWindowAddress) return -1
+    for (var i = 0; i < windows.length; i++) {
+      if (windows[i] && windows[i].address && windows[i].address === root.activeWindowAddress) return i
+    }
     return -1
   }
 
   // A window of this app on the workspace you are looking at.
   function windowHere(windows) {
     for (var i = 0; i < windows.length; i++) {
-      var handle = root.hyprToplevelFor(windows[i].toplevel)
-      var ws = handle ? handle.workspace : null
-      if (ws && ws.id === root.focusedWorkspaceId) return windows[i]
+      var win = windows[i]
+      if (win && (win.workspaceName === String(root.focusedWorkspaceId) || win.workspaceName === root.focusedWorkspaceName)) {
+        return win
+      }
     }
     return null
   }
@@ -2180,10 +2220,9 @@ Item {
     var out = []
     for (var i = 0; i < windows.length; i++) {
       var win = windows[i]
-      if (!win || !win.toplevel) continue
-      var handle = root.hyprToplevelFor(win.toplevel)
-      var ws = handle ? handle.workspace : null
-      if (ws && ws.name === root.minimizedWorkspace) out.push(handle)
+      if (win && (win.isMinimized || win.workspaceName === root.minimizedWorkspace)) {
+        out.push(win)
+      }
     }
     return out
   }
@@ -2197,10 +2236,8 @@ Item {
     var parked = false
     for (var i = 0; i < windows.length; i++) {
       var win = windows[i]
-      if (!win || !win.toplevel) continue
-      var handle = root.hyprToplevelFor(win.toplevel)
-      var ws = handle ? handle.workspace : null
-      if (ws && ws.name !== root.minimizedWorkspace && root.minimizeToplevel(win.toplevel))
+      if (!win || !win.address) continue
+      if (!win.isMinimized && win.workspaceName !== root.minimizedWorkspace && root.minimizeToplevel(win.address))
         parked = true
     }
     return parked
@@ -2213,7 +2250,7 @@ Item {
     var target = null
 
     for (var i = 0; i < windows.length; i++) {
-      if (windows[i] && windows[i].toplevel === ToplevelManager.activeToplevel) {
+      if (windows[i] && windows[i].address && windows[i].address === root.activeWindowAddress) {
         target = windows[i]
         break
       }
@@ -2221,16 +2258,14 @@ Item {
     if (!target) target = root.recentWindow(entry ? entry.appId : "", windows)
     if (!target) {
       for (var j = 0; j < windows.length; j++) {
-        var handle = root.hyprToplevelFor(windows[j].toplevel)
-        var ws = handle ? handle.workspace : null
-        if (ws && ws.name !== root.minimizedWorkspace) {
+        if (windows[j] && !windows[j].isMinimized && windows[j].workspaceName !== root.minimizedWorkspace) {
           target = windows[j]
           break
         }
       }
     }
 
-    return (target && target.toplevel) ? root.minimizeToplevel(target.toplevel) : false
+    return (target && target.address) ? root.minimizeToplevel(target.address) : false
   }
 
   function minimizeApp(entry) {
@@ -2398,9 +2433,8 @@ Item {
     var hadUrgency = false
     var urgentWin = null
     for (var u = 0; u < visible.length; u++) {
-      var uh = visible[u] ? visible[u].hypr : null
-      var ua = root.windowAddress(uh)
-      if ((uh && uh.urgent) || (ua && root.urgentMap[ua])) {
+      var ua = visible[u] ? visible[u].address : ""
+      if (ua && root.urgentMap[ua]) {
         urgentWin = visible[u]
         hadUrgency = true
         break
@@ -2409,8 +2443,8 @@ Item {
 
     var urgentParked = null
     for (var p = 0; p < parked.length; p++) {
-      var pa = root.windowAddress(parked[p])
-      if ((parked[p] && parked[p].urgent) || (pa && root.urgentMap[pa])) {
+      var pa = parked[p] ? parked[p].address : ""
+      if (pa && root.urgentMap[pa]) {
         urgentParked = parked[p]
         hadUrgency = true
         break
@@ -2424,8 +2458,7 @@ Item {
       hadUrgency = true
     }
     for (var w = 0; w < windows.length; w++) {
-      var h = windows[w] ? windows[w].hypr : null
-      var a = root.windowAddress(h)
+      var a = windows[w] ? windows[w].address : ""
       if (a && map[a]) {
         delete map[a]
         hadUrgency = true
@@ -2435,22 +2468,22 @@ Item {
 
     // If an urgent window is parked/minimized: restore it directly to its origin workspace
     if (urgentParked) {
-      root.restoreWindow(urgentParked)
+      root.restoreWindow(urgentParked.address || urgentParked, appId)
       return
     }
 
     // If this app was urgent and not yet focused on screen, focus or restore directly without minimizing
     if (hadUrgency && focusedIdx < 0) {
-      if (urgentWin) {
-        root.focusToplevel(urgentWin.toplevel)
+      if (urgentWin && urgentWin.address) {
+        root.focusWindowByAddress(urgentWin.address)
         return
       }
       if (parked.length > 0) {
-        root.restoreWindow(parked[parked.length - 1])
+        root.restoreWindow(parked[parked.length - 1], appId)
         return
       }
       var target = root.windowHere(visible) || root.recentWindow(appId, visible) || visible[0]
-      if (target) root.focusToplevel(target.toplevel)
+      if (target && target.address) root.focusWindowByAddress(target.address)
       return
     }
 
@@ -2470,7 +2503,7 @@ Item {
         var currentWsTarget = root.workspaceTarget(Hyprland.focusedWorkspace)
         var parkedOnCurrentWs = null
         for (var p = 0; p < parked.length; p++) {
-          var pAddr = root.windowAddress(parked[p])
+          var pAddr = parked[p] ? parked[p].address : ""
           if (pAddr && root.minimizedOrigins[pAddr] === currentWsTarget) {
             parkedOnCurrentWs = parked[p]
             break
@@ -2485,8 +2518,8 @@ Item {
         return
       }
       if (root.minimizeMode === "active") {
-        if (visible[focusedIdx] && visible[focusedIdx].toplevel) {
-          root.minimizeToplevel(visible[focusedIdx].toplevel)
+        if (visible[focusedIdx] && visible[focusedIdx].address) {
+          root.minimizeToplevel(visible[focusedIdx].address)
         } else {
           root.minimizeOneWindow(entry)
         }
@@ -2495,7 +2528,7 @@ Item {
       // If minimize is disabled ("off"), cycle through visible windows
       if (visible.length > 1) {
         var next = root.stepWindow(visible, 1)
-        if (next) root.focusToplevel(next.toplevel)
+        if (next && next.address) root.focusWindowByAddress(next.address)
         return
       }
       return
@@ -2507,7 +2540,7 @@ Item {
       var currentWsTarget = root.workspaceTarget(Hyprland.focusedWorkspace)
       var parkedOnCurrentWs = null
       for (var p = 0; p < parked.length; p++) {
-        var pAddr = root.windowAddress(parked[p])
+        var pAddr = parked[p] ? parked[p].address : ""
         if (pAddr && root.minimizedOrigins[pAddr] === currentWsTarget) {
           parkedOnCurrentWs = parked[p]
           break
@@ -2527,22 +2560,22 @@ Item {
     // 3. Focus a visible window (preferring current workspace, then recent, then first)
     if (visible.length > 0) {
       var target = root.windowHere(visible) || root.recentWindow(appId, visible) || visible[0]
-      if (target) root.focusToplevel(target.toplevel)
+      if (target && target.address) root.focusWindowByAddress(target.address)
       return
     }
 
     // 4. Fallback if only parked windows exist
     if (parked.length > 0) {
-      root.restoreWindow(parked[parked.length - 1])
+      root.restoreWindow(parked[parked.length - 1], appId)
     }
   }
 
   // Menu rows name the workspace a window sits on, including the parked ones.
   function windowRowLabel(window) {
     var title = String((window && window.title) || "Window")
-    var handle = window ? window.hypr : null
-    var workspace = handle ? handle.workspace : null
-    var label = workspace ? DockModel.workspaceLabel(workspace.name, workspace.id) : ""
+    var wsName = window ? String(window.workspaceName || "") : ""
+    var isMin = window ? (typeof window.isMinimized === "boolean" ? window.isMinimized : (wsName === root.minimizedWorkspace)) : false
+    var label = isMin ? "minimized" : (wsName !== "" ? wsName : "")
     return label !== "" ? "[" + label + "] " + title : title
   }
 
@@ -2586,31 +2619,14 @@ Item {
   }
 
   function isWindowFocused(win) {
-    if (!win) return false
-    try {
-      var activeTop = ToplevelManager.activeToplevel
-      if (!activeTop) return false
-      if (win.toplevel && win.toplevel === activeTop) return true
-      if (win.toplevel && win.toplevel.appId && activeTop.appId) {
-        if (win.toplevel.appId === activeTop.appId && win.title && activeTop.title && win.title === activeTop.title) {
-          return true
-        }
-      }
-    } catch (e) {
-      return false
-    }
-    return false
+    if (!win || !win.address || !root.activeWindowAddress) return false
+    return win.address === root.activeWindowAddress
   }
 
   function isWindowParked(win) {
-    try {
-      if (!win) return false
-      var h = win.hypr || null
-      var ws = h ? h.workspace : null
-      return !!ws && ws.name === root.minimizedWorkspace
-    } catch (e) {
-      return false
-    }
+    if (!win) return false
+    if (typeof win.isMinimized === "boolean") return win.isMinimized
+    return win.workspaceName === root.minimizedWorkspace
   }
 
   function syncContextWindows() {
@@ -2622,10 +2638,16 @@ Item {
       for (var w = 0; w < allTops.length; w++) {
         var top = allTops[w]
         if (top && (top.appId === root.contextAppId || DockModel.isAppMatch(top.appId, root.contextAppId))) {
+          var h = root.hyprToplevelFor ? root.hyprToplevelFor(top) : null
+          var addr = root.windowAddress(h)
+          var ws = h ? h.workspace : null
+          var wsName = ws ? String(ws.name || ws.id || "") : ""
           wins.push({
             title: String(top.title || "Window"),
-            toplevel: top,
-            hypr: root.hyprToplevelFor ? root.hyprToplevelFor(top) : null
+            address: addr,
+            appId: root.contextAppId,
+            workspaceName: wsName,
+            isMinimized: (wsName === root.minimizedWorkspace)
           })
         }
       }
@@ -4074,16 +4096,9 @@ Item {
                   checked: appContextMenuColumn.selectedWindowIdx === index
 
                   onTriggered: {
-                    try {
-                      var h = modelData ? modelData.hypr : null
-                      var ws = h ? h.workspace : null
-                      var isParked = ws && ws.name === root.minimizedWorkspace
-                      if (isParked) {
-                        root.restoreWindow(h || modelData, root.contextAppId)
-                      } else if (modelData && modelData.toplevel) {
-                        root.focusToplevel(modelData.toplevel)
-                      }
-                    } catch (e) {}
+                    if (modelData && modelData.address) {
+                      root.focusWindowByAddress(modelData.address)
+                    }
                     root.closeContext()
                   }
                 }

@@ -9,7 +9,7 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/thepathless/omadock/releases"><img src="https://img.shields.io/badge/release-v1.6.0-blue?style=for-the-badge" alt="Release" /></a>
+  <a href="https://github.com/thepathless/omadock/releases"><img src="https://img.shields.io/badge/release-v2.0.0-blue?style=for-the-badge" alt="Release" /></a>
   <a href="https://omarchy.org"><img src="https://img.shields.io/badge/omarchy-shell_plugin-blueviolet?style=for-the-badge" alt="Omarchy" /></a>
   <a href="https://hyprland.org"><img src="https://img.shields.io/badge/Wayland-Hyprland-00a4dc?style=for-the-badge" alt="Hyprland" /></a>
   <a href="https://quickshell.org"><img src="https://img.shields.io/badge/Quickshell-Qt6_QML-41cd52?style=for-the-badge" alt="Quickshell" /></a>
