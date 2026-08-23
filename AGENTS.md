@@ -33,7 +33,7 @@ Plus manual verification — there is no automated test suite:
 
 ## Architecture notes
 
-- Dock row order (fixed by design): logo → pinned apps → tile separator → minimized-window preview tiles → separator → running apps → folder separator → pinned folders. `dockCard` self-sizes from `row.implicitWidth`.
+- Dock row order (fixed by design): logo → pinned apps → left tile divider → minimized-window preview tiles → right divider (shared with the pinned|running divider) → running apps → folder divider → pinned folders. Tile dividers show only while tiles exist; the left one is additionally pin-gated, the right one running-gated (prevents doubled lines when a middle section is empty). `dockCard` self-sizes from `row.implicitWidth`.
 - Magnification: wave mode grows layout width/height via a `magnifyScale` bound width; zoom mode scales inner content in place. Geometry comes from `slotHomeCenter()` / `magnifyScaleAt()` — tile-width correction (`tiles are wider than iconSlot`) matters or the wave peak drifts.
 - Minimized-window tiles use `ScreencopyView { live: false }` + `captureFrame()`: a failed export emits `stopped` which destroys the capture context; retrying on a dead context only warns. Recovery requires re-assigning `captureSource` to force re-negotiation.
 - Right-click menus share ONE `contextMenu` popup keyed on `contextAppId` (special value `"__dock_settings__"` opens preferences) — don't create per-item menu components.

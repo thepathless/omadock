@@ -1068,9 +1068,9 @@ Item {
     : -1e6
 
   readonly property int appsSlots: root.showAppsButton ? 1 : 0
-  // Pinned|running divider exists only when no tiles are present: a parked
-  // window's tile replaces its icon in the flow, so the row stays seamless.
-  readonly property bool hasSeparator: root.tileCount === 0 && root.pinnedSection.length > 0 && root.runningSection.length > 0
+  // Pinned-group | running divider. Sits after the tile section when tiles
+  // exist, so it doubles as the right tile divider.
+  readonly property bool hasSeparator: root.pinnedSection.length > 0 && root.runningSection.length > 0
   readonly property real gapWidth: Style.space(root.itemSpacing)
   readonly property real separatorWidth: Style.space(1)
   readonly property int folderSlots: root.pinnedFolders ? root.pinnedFolders.length : 0
@@ -1112,16 +1112,20 @@ Item {
   readonly property real tileWidth: Math.round(root.iconSlot * 1.5)
   readonly property real tileHeight: Math.round(root.iconSlot * 0.95)
   readonly property bool hasTiles: root.tileCount > 0 && root.slotTotal > 0
+  // Left tile divider (pinned|tiles) renders only when pins precede the tiles.
+  readonly property bool hasLeftTileSeparator: root.hasTiles && root.pinnedSection.length > 0
 
   readonly property int slotTotal: root.appsSlots + root.pinnedSection.length + root.runningSection.length + root.folderSlots
   readonly property int elementTotal: root.slotTotal
     + (root.hasSeparator ? 1 : 0)
     + (root.hasFolderSeparator ? 1 : 0)
+    + (root.hasLeftTileSeparator ? 1 : 0)
     + (root.hasTiles ? root.tileCount : 0)
 
   readonly property real baseRowWidth: root.slotTotal * root.iconSlot
     + (root.hasSeparator ? root.separatorWidth : 0)
     + (root.hasFolderSeparator ? root.separatorWidth : 0)
+    + (root.hasLeftTileSeparator ? root.separatorWidth : 0)
     + (root.hasTiles ? root.tileCount * root.tileWidth : 0)
     + Math.max(0, root.elementTotal - 1) * root.gapWidth
 
@@ -1141,9 +1145,10 @@ Item {
       + root.iconSlot / 2
   }
 
-  // Width the tile section consumes ahead of elements that follow it.
+  // Width the tile section consumes ahead of elements that follow it,
+  // including its left divider.
   readonly property real tilesFixedWidth: root.hasTiles
-    ? root.tileCount * root.tileWidth
+    ? (root.hasLeftTileSeparator ? root.separatorWidth : 0) + root.tileCount * root.tileWidth
     : 0
   readonly property int tileElements: root.hasTiles ? root.tileCount : 0
 
@@ -3220,6 +3225,15 @@ Item {
           }
         }
 
+        // Divider between pinned apps and the minimized-tile section.
+        Rectangle {
+          visible: root.hasLeftTileSeparator
+          anchors.verticalCenter: parent.verticalCenter
+          width: Style.space(1)
+          height: root.iconSize * 0.7
+          color: Util.alpha(root.dockForeground, 0.25)
+        }
+
         // ------------------------------------------ minimized window tiles
         // macOS-style section: every parked window shows up as a small live
         // preview tile. Click a tile to bring that exact window back.
@@ -3243,10 +3257,10 @@ Item {
             // Same magnify contract as DockItem/DockFolderItem: wave grows the
             // layout slot; zoom scales the visual stack in place (tileVisual).
             readonly property real homeCenter: root.slotHomeCenter(
-              root.appsSlots + root.pinnedSection.length + index,
+              root.appsSlots + root.pinnedSection.length + (root.hasLeftTileSeparator ? 1 : 0) + index,
               root.appsSlots + root.pinnedSection.length + index,
               0,
-              index * root.tileWidth + (root.tileWidth - root.iconSlot) / 2)
+              (root.hasLeftTileSeparator ? root.separatorWidth : 0) + index * root.tileWidth + (root.tileWidth - root.iconSlot) / 2)
             property real magnifyScale: {
               if (root.waveHover) return root.magnifyScaleAt(tile.homeCenter)
               if (root.hoverEffect === "off") return 1
@@ -3458,7 +3472,7 @@ Item {
             windows: modelData.windows
             windowList: modelData.windowList
             homeCenter: root.slotHomeCenter(
-              root.appsSlots + root.pinnedSection.length + (root.hasSeparator ? 1 : 0) + root.tileElements + index,
+              root.appsSlots + root.pinnedSection.length + (root.hasLeftTileSeparator ? 1 : 0) + (root.hasSeparator ? 1 : 0) + root.tileElements + index,
               root.appsSlots + root.pinnedSection.length + index,
               root.hasSeparator,
               root.tilesFixedWidth)
@@ -3511,7 +3525,7 @@ Item {
             name: modelData.name || "Folder"
             icon: modelData.icon || DockModel.folderIconFor(modelData.path, "")
             homeCenter: root.slotHomeCenter(
-              root.appsSlots + root.pinnedSection.length + (root.hasSeparator ? 1 : 0) + root.tileElements + root.runningSection.length + (root.hasFolderSeparator ? 1 : 0) + index,
+              root.appsSlots + root.pinnedSection.length + (root.hasLeftTileSeparator ? 1 : 0) + (root.hasSeparator ? 1 : 0) + root.tileElements + root.runningSection.length + (root.hasFolderSeparator ? 1 : 0) + index,
               root.appsSlots + root.pinnedSection.length + root.runningSection.length + index,
               (root.hasSeparator ? 1 : 0) + (root.hasFolderSeparator ? 1 : 0),
               root.tilesFixedWidth)
