@@ -2845,6 +2845,47 @@ Item {
     root.contextAppId = ""
   }
 
+  // ------------------------------------------------- minimized tile context
+  property var contextTileWins: []
+  property string contextTileAppId: ""
+  property string contextTileName: ""
+  property bool contextTilePinned: false
+
+  function openTileContext(wins, appId, cx) {
+    root.contextTileWins = wins || []
+    root.contextTileAppId = appId || ""
+    // Resolve display name from desktop entries
+    var deskEntry = DockModel.entryFor(root.appRows, appId)
+    if (!deskEntry && typeof DesktopEntries !== "undefined" && DesktopEntries)
+      deskEntry = DesktopEntries.heuristicLookup(appId) || DesktopEntries.byId(appId)
+    root.contextTileName = (deskEntry && deskEntry.name) ? deskEntry.name : appId
+    var canonicalId = (deskEntry && deskEntry.id) ? deskEntry.id : appId
+    root.contextTilePinned = DockModel.isPinned(root.pinnedIds, appId)
+      || (canonicalId !== appId && DockModel.isPinned(root.pinnedIds, canonicalId))
+    root.contextX = cx
+    root.contextY = 0
+    root.contextAppId = "__tile_context__"
+    root.syncVisibility()
+  }
+
+  function restoreContextTile() {
+    var wins = root.contextTileWins
+    for (var i = 0; i < wins.length; i++) {
+      var w = wins[i]
+      if (w && w.address) root.restoreWindow(w.address, w.appId || "")
+    }
+  }
+
+  function closeContextTile() {
+    var wins = root.contextTileWins
+    for (var i = 0; i < wins.length; i++) {
+      var w = wins[i]
+      if (w && w.address) root.hyprDispatch(
+        'hl.dsp.window.close({ window = "address:' + w.address + '" })',
+        "closewindow address:" + w.address)
+    }
+  }
+
   function openFolderStack(path, name, cx) {
     if (root.activeStackFolder === path) {
       root.closeFolderStack()
@@ -3315,15 +3356,16 @@ Item {
                 }
               }
 
-              // App-icon badge in the corner so the tile is identifiable even
-              // before the preview frame arrives (or when capture is refused).
+              // App-icon badge: only shown when there's no preview yet (letter)
+              // or when the group has 2+ windows (count). Single-window tiles
+              // never show a "1" badge once the preview has loaded.
               Rectangle {
-                visible: (!tilePreview.hasContent || tile.isGroup) && tile.win && tile.win.appId !== ""
+                visible: (!tilePreview.hasContent || tile.groupCount > 1) && tile.win && tile.win.appId !== ""
                 anchors.right: parent.right
                 anchors.bottom: parent.bottom
                 anchors.margins: 1
-                width: Style.space(tile.isGroup ? 18 : 14)
-                height: Style.space(tile.isGroup ? 18 : 14)
+                width: Style.space(tile.groupCount > 1 ? 18 : 14)
+                height: Style.space(tile.groupCount > 1 ? 18 : 14)
                 radius: Style.space(3)
                 color: Util.alpha(Color.bar.background, 0.85)
 
@@ -3331,7 +3373,7 @@ Item {
                   anchors.centerIn: parent
                   text: {
                     if (!tile.win || !tile.win.appId) return "?"
-                    return tile.isGroup ? String(tile.groupCount) : tile.win.appId.substring(0, 1).toUpperCase()
+                    return tile.groupCount > 1 ? String(tile.groupCount) : tile.win.appId.substring(0, 1).toUpperCase()
                   }
                   textFormat: Text.PlainText
                   color: Color.bar.text
@@ -3340,6 +3382,21 @@ Item {
                   font.bold: true
                 }
               }
+            }
+
+            // Hollow running-indicator dot — mirrors the DockItem minimized dot.
+            // Sits outside tileVisual so it never scales with zoom/wave.
+            Rectangle {
+              anchors.horizontalCenter: parent.horizontalCenter
+              anchors.bottom: parent.bottom
+              anchors.bottomMargin: Style.space(1)
+              width: Style.space(5)
+              height: Style.space(5)
+              radius: height / 2
+              z: 3
+              color: "transparent"
+              border.color: Util.alpha(root.dockForeground, 0.88)
+              border.width: 1.5
             }
 
             // Title bubble above the hovered tile (hidden while the menu is open).
@@ -3415,6 +3472,7 @@ Item {
         Repeater {
           model: root.runningSection
           delegate: DockItem {
+            id: runningDockItem
             appId: modelData.appId
             name: modelData.name
             icon: modelData.icon
@@ -3432,6 +3490,29 @@ Item {
             onNewWindowRequested: function(aid) { root.launchApp(aid, null) }
             onMenuRequested: function(aid, cx, cy) { root.openContext(aid, cx, cy) }
             onWheelScrolled: function(aid, dir) { root.cycleApp(aid, dir) }
+
+            // When an unpinned app has ALL its windows minimized and tiles are
+            // showing, the tile section already represents it — hide the icon
+            // slot entirely so only the tile (with hollow dot) is visible.
+            readonly property bool isFullyTiled: {
+              if (!root.showMinimizedTiles) return false
+              var list = modelData.windowList || []
+              if (list.length === 0) return false
+              for (var i = 0; i < list.length; i++) {
+                if (list[i] && !list[i].isMinimized) return false
+              }
+              return true
+            }
+            visible: !isFullyTiled
+
+            // Row preserves space for invisible items that have explicit width.
+            // Collapse to 0 when hidden so the dock card shrinks correctly.
+            Binding {
+              target: runningDockItem
+              property: "width"
+              when: runningDockItem.isFullyTiled
+              value: 0
+            }
           }
         }
 
@@ -4464,7 +4545,7 @@ Item {
           visible: root.contextAppId === "__tile_context__"
 
           ContextRow {
-            text: root.contextTileAppId !== "" ? root.contextTileAppId : "Window"
+            text: root.contextTileName !== "" ? root.contextTileName : (root.contextTileAppId !== "" ? root.contextTileAppId : "Window")
             isHeader: true
           }
 
@@ -4472,6 +4553,16 @@ Item {
             text: root.contextTileWins.length > 1 ? "Restore All" : "Restore"
             onTriggered: {
               root.restoreContextTile()
+              root.closeContext()
+            }
+          }
+
+          MenuDivider {}
+
+          ContextRow {
+            text: root.contextTilePinned ? "Unpin from Dock" : "Pin to Dock"
+            onTriggered: {
+              root.togglePin(root.contextTileAppId)
               root.closeContext()
             }
           }
