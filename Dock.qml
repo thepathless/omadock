@@ -6,6 +6,7 @@ import QtQuick.Effects
 import Quickshell
 import Quickshell.Io
 import Quickshell.Wayland
+import Quickshell.Wayland._Screencopy
 import Quickshell.Hyprland
 import qs.Commons
 import qs.Ui
@@ -78,6 +79,9 @@ Item {
     property bool running: false
     property int windows: 0
     property var windowList: []
+    // Minimized windows live as preview tiles on the dock itself, so hover
+    // surfaces list only what is actually on screen.
+    readonly property var tooltipWindows: root.visibleWindows(windowList || [])
     property bool active: false
     property bool pinned: false
 
@@ -109,8 +113,9 @@ Item {
       NumberAnimation { duration: 110; easing.type: Easing.OutQuad }
     }
 
-    // Live window state, read straight off the Hyprland handles carried in the
-    // model, so urgency and workspace moves land without a model rebuild.
+    // Live window state. The model carries plain primitives, so anything that
+    // must be current — urgency, workspace, parked state — resolves through
+    // live handle lookups instead of trusting cached values.
 
     readonly property bool urgent: {
       if (!root.showUrgentHint) return false
@@ -244,8 +249,7 @@ Item {
 
     function isWinMinimized(w) {
       if (!w) return false
-      if (typeof w.isMinimized === "boolean") return w.isMinimized
-      return w.workspaceName === root.minimizedWorkspace
+      return root.liveWsNameOf(w) === root.minimizedWorkspace
     }
 
     function isWinActive(w) {
@@ -340,7 +344,7 @@ Item {
       onWheel: function(wheel) {
         if (wheel.angleDelta.y !== 0) {
           var dir = wheel.angleDelta.y > 0 ? -1 : 1
-          var wins = item.windowList || []
+          var wins = item.tooltipWindows || []
           if (wins.length > 1) {
             var cur = 0
             if (item.selectedWindowIdx < 0) {
@@ -427,7 +431,7 @@ Item {
             if (chosenIdx >= 0 && item.windowList && chosenIdx < item.windowList.length) {
               var chosenWin = item.windowList[chosenIdx]
               if (chosenWin && chosenWin.address) {
-                root.focusWindowByAddress(chosenWin.address)
+                root.focusWindowByAddress(chosenWin.address, item.appId)
               }
             }
             item.selectedWindowIdx = -1
@@ -437,10 +441,10 @@ Item {
           }
 
           // If a specific window was selected via scroll wheel in tooltip:
-          if (item.selectedWindowIdx >= 0 && item.windowList && item.selectedWindowIdx < item.windowList.length) {
-            var chosenWin = item.windowList[item.selectedWindowIdx]
+          if (item.selectedWindowIdx >= 0 && item.tooltipWindows && item.selectedWindowIdx < item.tooltipWindows.length) {
+            var chosenWin = item.tooltipWindows[item.selectedWindowIdx]
             if (chosenWin && chosenWin.address) {
-              root.focusWindowByAddress(chosenWin.address)
+              root.focusWindowByAddress(chosenWin.address, item.appId)
             }
             item.selectedWindowIdx = -1
             return
@@ -501,35 +505,34 @@ Item {
         }
 
         Repeater {
-          model: (root.advancedTooltips && item.windowList && item.windowList.length > 0)
-            ? Math.min(item.windowList.length, 8) : 0
+          model: (root.advancedTooltips && item.tooltipWindows.length > 0)
+            ? Math.min(item.tooltipWindows.length, 8) : 0
           delegate: Row {
             spacing: Style.space(5)
             anchors.horizontalCenter: parent.horizontalCenter
             readonly property bool isSelected: item.selectedWindowIdx === index
-            readonly property bool isWinFocused: item.isWinActive(item.windowList[index])
-            readonly property bool isWinParked: item.isWinMinimized(item.windowList[index])
+            readonly property bool isWinFocused: item.isWinActive(item.tooltipWindows[index])
 
             Rectangle {
               width: Style.space(5)
               height: Style.space(5)
               radius: width / 2
               anchors.verticalCenter: parent.verticalCenter
-              color: isSelected ? Color.accent : (isWinFocused ? Color.bar.active : (isWinParked ? Util.alpha(Color.tooltip.text, 0.25) : Util.alpha(Color.tooltip.text, 0.5)))
+              color: isSelected ? Color.accent : (isWinFocused ? Color.bar.active : Util.alpha(Color.tooltip.text, 0.5))
               border.color: isSelected ? Color.accent : "transparent"
               border.width: 1
             }
 
             Text {
               text: {
-                var w = item.windowList[index]
+                var w = item.tooltipWindows[index]
                 var t = w ? root.windowRowLabel(w) : ""
                 var prefix = isSelected ? "› " : ""
                 var str = prefix + t
                 return str.length > 32 ? str.slice(0, 30) + "…" : str
               }
               textFormat: Text.PlainText
-              color: isSelected ? Color.accent : (isWinFocused ? Color.tooltip.text : (isWinParked ? Util.alpha(Color.tooltip.text, 0.50) : Util.alpha(Color.tooltip.text, 0.80)))
+              color: isSelected ? Color.accent : (isWinFocused ? Color.tooltip.text : Util.alpha(Color.tooltip.text, 0.80))
               font.family: Style.font.family
               font.pixelSize: Math.max(10, Style.font.caption - 1)
               font.bold: isSelected || isWinFocused
@@ -540,9 +543,9 @@ Item {
         }
 
         Text {
-          visible: root.advancedTooltips && item.windowList.length > 8
+          visible: root.advancedTooltips && item.tooltipWindows.length > 8
           anchors.horizontalCenter: parent.horizontalCenter
-          text: "+" + (item.windowList.length - 8) + " more"
+          text: "+" + (item.tooltipWindows.length - 8) + " more"
           textFormat: Text.PlainText
           color: Util.alpha(Color.tooltip.text, 0.6)
           font.family: Style.font.family
@@ -1063,12 +1066,23 @@ Item {
   readonly property real separatorWidth: Style.space(1)
   readonly property int folderSlots: root.pinnedFolders ? root.pinnedFolders.length : 0
   readonly property bool hasFolderSeparator: root.folderSlots > 0 && (root.pinnedSection.length > 0 || root.runningSection.length > 0)
+
+  // Minimized-window preview tiles (macOS-style section on the dock's right).
+  readonly property int tileCount: root.showMinimizedTiles ? root.minimizedWindows.length : 0
+  readonly property real tileWidth: Math.round(root.iconSlot * 1.5)
+  readonly property real tileHeight: Math.round(root.iconSlot * 0.95)
+  readonly property bool hasTileSeparator: root.tileCount > 0 && root.slotTotal > 0
+
   readonly property int slotTotal: root.appsSlots + root.pinnedSection.length + root.runningSection.length + root.folderSlots
-  readonly property int elementTotal: root.slotTotal + (root.hasSeparator ? 1 : 0) + (root.hasFolderSeparator ? 1 : 0)
+  readonly property int elementTotal: root.slotTotal
+    + (root.hasSeparator ? 1 : 0)
+    + (root.hasFolderSeparator ? 1 : 0)
+    + (root.hasTileSeparator ? 1 + root.tileCount : 0)
 
   readonly property real baseRowWidth: root.slotTotal * root.iconSlot
     + (root.hasSeparator ? root.separatorWidth : 0)
     + (root.hasFolderSeparator ? root.separatorWidth : 0)
+    + (root.hasTileSeparator ? root.separatorWidth + root.tileCount * root.tileWidth : 0)
     + Math.max(0, root.elementTotal - 1) * root.gapWidth
 
   // Where the row would start if nothing were magnified. The card is centred,
@@ -1145,6 +1159,10 @@ Item {
   property var pinnedIds: []
   property var appRows: []
   property var dockModel: ({ pinned: [], running: [] })
+  // Live scan of parked windows for the preview-tile section. Built straight
+  // off Hyprland's own toplevel list, so it cannot go stale the way cached
+  // model primitives can.
+  property var minimizedWindows: []
   readonly property var pinnedSection: root.dockModel.pinned || []
   readonly property var runningSection: root.dockModel.running || []
 
@@ -1153,8 +1171,36 @@ Item {
       ? DockModel.buildEntries(root.pinnedIds, ToplevelManager.toplevels.values, root.appRows,
                                root.shell.appLibrary, root.hyprToplevelFor, root.minimizedWorkspace)
       : { pinned: [], running: [] }
+    root.rescanMinimizedWindows()
     root.pruneLaunching()
     root.pruneWindowState()
+  }
+
+  function rescanMinimizedWindows() {
+    var mins = []
+    var tops = Hyprland.toplevels ? Hyprland.toplevels.values : []
+    for (var i = 0; i < tops.length; i++) {
+      var h = tops[i]
+      if (!h || !h.workspace) continue
+      if (String(h.workspace.name || "") !== root.minimizedWorkspace) continue
+      var addr = root.windowAddress(h)
+      if (!addr) continue
+      var top = root.liveToplevelForAddress(addr)
+      var title = String((top && top.title) || h.title || "Window")
+      var appId = ""
+      try {
+        appId = h.appId ? DockModel.normalizeId(h.appId)
+          : (top && top.appId ? DockModel.normalizeId(top.appId) : "")
+      } catch (e) {}
+      mins.push({ address: addr, title: title, appId: appId, waylandToplevel: top })
+    }
+    // Oldest parked first, so the tiles read chronologically left to right.
+    mins.sort(function (a, b) {
+      var ta = root.parkedAt[a.address] !== undefined ? root.parkedAt[a.address] : 0
+      var tb = root.parkedAt[b.address] !== undefined ? root.parkedAt[b.address] : 0
+      return ta - tb
+    })
+    root.minimizedWindows = mins
   }
 
   readonly property string activeId: {
@@ -1191,9 +1237,9 @@ Item {
   // means the window comes back to wherever you are.
   readonly property string minimizedWorkspace: "special:minimized"
   property var minimizedOrigins: ({})
+  property var parkedAt: ({})
   property var urgentMap: ({})
   property var recentOpenedWindowAddrs: ({})
-  property var _lastRestoredTime: ({})
 
   // Per app: the window it parked last, and the window it was in last. Both
   // hold addresses rather than live handles — a closed window then leaves a
@@ -1242,6 +1288,7 @@ Item {
   property bool intelligentAutohide: true
   property bool showAppsButton: true
   property bool showTooltips: true
+  property bool showMinimizedTiles: true
   // "zoom" grows only the icon under the pointer and leaves the layout alone —
   // the behaviour this dock shipped with, and the default. "wave" is the
   // falloff: neighbours respond and the row carries the extra width. "off" is
@@ -1264,7 +1311,7 @@ Item {
   property string currentIconThemeName: "Yaru"
   property string folderColor: "theme"
   property int itemSpacing: 4
-  property string minimizeMode: "off"
+  property string minimizeMode: "active"
   readonly property bool clickToMinimize: root.minimizeMode !== "off"
   property bool showUrgentHint: true
   property bool urgentOnNotification: true
@@ -1654,8 +1701,8 @@ Item {
           if (root.launchPending && root.launchPending[entry.id]) {
             var wins = entry.windowList || []
             for (var w = 0; w < wins.length; w++) {
-              var h = wins[w] ? wins[w].hypr : null
-              if (h && root.windowAddress(h) === fullAddr) {
+              var wa = wins[w] ? wins[w].address : ""
+              if (wa && wa === fullAddr) {
                 return
               }
             }
@@ -1704,7 +1751,9 @@ Item {
           n === "changefloatingmode" || n === "fullscreen" || n === "pin" || n === "focusedmon") {
         debounceOverlapTimer.restart()
       }
-      if (n === "openwindow" || n === "closewindow" || n === "urgent") modelTimer.restart()
+      if (n === "openwindow" || n === "closewindow" || n === "urgent"
+          || n === "movewindow" || n === "movewindowv2"
+          || n === "workspace" || n === "workspacev2") modelTimer.restart()
     }
   }
 
@@ -1756,19 +1805,17 @@ Item {
         var wins = entry.windowList || []
         var isFocused = false
         for (var w = 0; w < wins.length; w++) {
-          var h = wins[w] ? wins[w].hypr : null
-          var addr = root.windowAddress(h)
-          if (addr && addr === activeAddr) {
+          var wa = wins[w] ? wins[w].address : ""
+          if (wa && wa === activeAddr) {
             isFocused = true
             break
           }
         }
         if (!isFocused) {
           map[appId] = true
-          for (var w = 0; w < wins.length; w++) {
-            var h = wins[w] ? wins[w].hypr : null
-            var addr = root.windowAddress(h)
-            if (addr) map[addr] = true
+          for (var w2 = 0; w2 < wins.length; w2++) {
+            var wa2 = wins[w2] ? wins[w2].address : ""
+            if (wa2) map[wa2] = true
           }
           found = true
         }
@@ -1830,6 +1877,7 @@ Item {
     root.intelligentAutohide = parsed && parsed.intelligentAutohide !== false
     root.showAppsButton = parsed && parsed.showAppsButton !== false
     root.showTooltips = parsed && parsed.showTooltips !== false
+    root.showMinimizedTiles = parsed ? parsed.showMinimizedTiles !== false : true
     // Migrates the old boolean: an explicit magnification:false meant no growth.
     root.hoverEffect = parsed && typeof parsed.hoverEffect === "string"
       ? parsed.hoverEffect
@@ -1854,7 +1902,7 @@ Item {
     } else if (parsed && parsed.clickToMinimize === true) {
       root.minimizeMode = "active"
     } else {
-      root.minimizeMode = "off"
+      root.minimizeMode = "active"
     }
     root.showUrgentHint = parsed ? parsed.showUrgentHint !== false : true
     root.urgentOnNotification = parsed ? parsed.urgentOnNotification !== false : true
@@ -1991,13 +2039,13 @@ Item {
     var entry = root.entryForId(appId)
     var next = root.stepWindow(root.visibleWindows(entry ? (entry.windowList || []) : []), direction)
     if (next && next.address) {
-      root.focusWindowByAddress(next.address)
+      root.focusWindowByAddress(next.address, appId)
       return
     }
     // No handles to tell parked from visible: fall back to the pure order.
     var top = DockModel.pickAppWindow(
       ToplevelManager.toplevels.values, ToplevelManager.activeToplevel, appId, direction)
-    if (top) root.focusToplevel(top)
+    if (top) root.focusToplevel(top, appId)
   }
 
   // ------------------------------------------------- window plumbing
@@ -2059,14 +2107,16 @@ Item {
     return null
   }
 
-  function focusWindowByAddress(addr) {
+  function focusWindowByAddress(addr, appId) {
     if (!addr) return
     var handle = root.liveHyprToplevelForAddress(addr)
     var top = root.liveToplevelForAddress(addr)
+
+
     if (handle) {
       var workspace = handle.workspace
       if (workspace && workspace.name === root.minimizedWorkspace) {
-        root.restoreWindow(addr)
+        root.restoreWindow(addr, appId)
         return
       }
       if (top) DockModel.focusWindow(top)
@@ -2085,13 +2135,13 @@ Item {
   // Brings a window forward cleanly. Native Wayland activation hands over focus
   // and brings the window forward without warping the mouse pointer away from the dock
   // or desynchronizing layer-shell input state. Switches workspace when target is on another workspace.
-  function focusToplevel(toplevel) {
+  function focusToplevel(toplevel, appId) {
     if (!toplevel) return
     var handle = root.hyprToplevelFor(toplevel)
     var workspace = handle ? handle.workspace : null
 
     if (workspace && workspace.name === root.minimizedWorkspace) {
-      root.restoreWindow(handle)
+      root.restoreWindow(handle, appId)
       return
     }
 
@@ -2119,6 +2169,11 @@ Item {
     origins[address] = origin
     root.minimizedOrigins = origins
 
+    var parkedTimes = DockModel.copyMap(root.parkedAt)
+    parkedTimes[address] = Date.now()
+    root.parkedAt = parkedTimes
+
+
     root.hyprDispatch(
       'hl.dsp.window.move({ window = "address:' + address + '", workspace = "'
         + root.luaString(root.minimizedWorkspace) + '", follow = false })',
@@ -2130,11 +2185,6 @@ Item {
     var address = typeof targetRef === "string" ? targetRef : root.windowAddress(targetRef)
     if (!address) return false
 
-    if (appId) {
-      var times = root._lastRestoredTime || ({})
-      times[appId] = Date.now()
-      root._lastRestoredTime = times
-    }
 
     var target = root.minimizedOrigins[address] || root.workspaceTarget(Hyprland.focusedWorkspace)
     if (!target) return false
@@ -2143,10 +2193,18 @@ Item {
     delete origins[address]
     root.minimizedOrigins = origins
 
+    var parkedTimes = DockModel.copyMap(root.parkedAt)
+    delete parkedTimes[address]
+    root.parkedAt = parkedTimes
+
+    // Silent move (follow = false): a dispatcher-driven window focus would
+    // warp the mouse pointer into the restored window's center. The workspace
+    // switch plus native Wayland activation below focus the window cleanly
+    // and leave the cursor exactly where the user left it.
     root.hyprDispatch(
       'hl.dsp.window.move({ window = "address:' + address + '", workspace = "'
-        + root.luaString(target) + '", follow = true })',
-      "movetoworkspace " + target + ",address:" + address)
+        + root.luaString(target) + '", follow = false })',
+      "movetoworkspacesilent " + target + ",address:" + address)
     root.hyprDispatch('hl.dsp.focus({ workspace = "' + root.luaString(target) + '" })',
                       "workspace " + target)
 
@@ -2157,6 +2215,20 @@ Item {
     return true
   }
 
+  // The workspace a window sits on right now. Model primitives freeze state at
+  // rebuild time, and Quickshell's Hyprland handle can lag silent moves onto
+  // the special workspace, so park/visibility decisions resolve live at click
+  // time and fall back to the cached name only while no handle exists.
+  function liveWsNameOf(win) {
+    var cached = win ? String(win.workspaceName || "") : ""
+    var h = (win && win.address) ? root.liveHyprToplevelForAddress(win.address) : null
+    return (h && h.workspace) ? String(h.workspace.name || h.workspace.id || "") : cached
+  }
+
+  function isWinParkedLive(win) {
+    return root.liveWsNameOf(win) === root.minimizedWorkspace
+  }
+
   // The window an app should act on: the one it was last focused in, as long as
   // it is still around and not parked.
   function windowByAddress(windows, address) {
@@ -2165,7 +2237,7 @@ Item {
       var win = windows[i]
       if (!win) continue
       if (win.address === address) {
-        return (!win.isMinimized && win.workspaceName !== root.minimizedWorkspace) ? win : null
+        return !root.isWinParkedLive(win) ? win : null
       }
     }
     return null
@@ -2177,7 +2249,7 @@ Item {
     for (var i = 0; i < windows.length; i++) {
       var win = windows[i]
       if (!win) continue
-      if (!win.isMinimized && win.workspaceName !== root.minimizedWorkspace) out.push(win)
+      if (!root.isWinParkedLive(win)) out.push(win)
     }
     return out
   }
@@ -2195,7 +2267,8 @@ Item {
   function windowHere(windows) {
     for (var i = 0; i < windows.length; i++) {
       var win = windows[i]
-      if (win && (win.workspaceName === String(root.focusedWorkspaceId) || win.workspaceName === root.focusedWorkspaceName)) {
+      var wsName = root.liveWsNameOf(win)
+      if (win && (wsName === String(root.focusedWorkspaceId) || wsName === root.focusedWorkspaceName)) {
         return win
       }
     }
@@ -2220,11 +2293,26 @@ Item {
     var out = []
     for (var i = 0; i < windows.length; i++) {
       var win = windows[i]
-      if (win && (win.isMinimized || win.workspaceName === root.minimizedWorkspace)) {
-        out.push(win)
-      }
+      if (win && root.isWinParkedLive(win)) out.push(win)
     }
     return out
+  }
+
+  // The app's parked window that has been waiting the longest — the head of
+  // the chronological FIFO. Windows parked before this shell session have no
+  // timestamp and sort first, matching the "recover the oldest" expectation.
+  function oldestParked(parked) {
+    if (parked.length <= 1) return parked[0] || null
+    var best = parked[0]
+    var bestTime = root.parkedAt[best.address] !== undefined ? root.parkedAt[best.address] : 0
+    for (var i = 1; i < parked.length; i++) {
+      var t = root.parkedAt[parked[i].address] !== undefined ? root.parkedAt[parked[i].address] : 0
+      if (t < bestTime) {
+        best = parked[i]
+        bestTime = t
+      }
+    }
+    return best
   }
 
   function recentWindow(appId, windows) {
@@ -2237,7 +2325,7 @@ Item {
     for (var i = 0; i < windows.length; i++) {
       var win = windows[i]
       if (!win || !win.address) continue
-      if (!win.isMinimized && win.workspaceName !== root.minimizedWorkspace && root.minimizeToplevel(win.address))
+      if (!root.isWinParkedLive(win) && root.minimizeToplevel(win.address))
         parked = true
     }
     return parked
@@ -2258,7 +2346,7 @@ Item {
     if (!target) target = root.recentWindow(entry ? entry.appId : "", windows)
     if (!target) {
       for (var j = 0; j < windows.length; j++) {
-        if (windows[j] && !windows[j].isMinimized && windows[j].workspaceName !== root.minimizedWorkspace) {
+        if (windows[j] && !root.isWinParkedLive(windows[j])) {
           target = windows[j]
           break
         }
@@ -2285,8 +2373,37 @@ Item {
     }
 
     root.minimizedOrigins = root.keepLive(root.minimizedOrigins, live, false)
+    root.parkedAt = root.keepLive(root.parkedAt, live, false)
     root.appRecentWindow = root.keepLive(root.appRecentWindow, live, true)
-    root.urgentMap = root.keepLive(root.urgentMap, live, false)
+    root.urgentMap = root.keepUrgentLive(root.urgentMap, live)
+
+    // recentOpenedWindowAddrs entries carry their own expiry; drop the stale ones.
+    var now = Date.now()
+    var roa = root.recentOpenedWindowAddrs || {}
+    var nextRoa = {}
+    var roaChanged = false
+    for (var rkey in roa) {
+      if (roa[rkey] < now) roaChanged = true
+      else nextRoa[rkey] = roa[rkey]
+    }
+    if (roaChanged) root.recentOpenedWindowAddrs = nextRoa
+  }
+
+  // urgentMap mixes two key shapes: "0x…" per-window addresses and bare appIds
+  // set by the notification service. Address keys die with their window; appId
+  // keys are not addresses and must survive the prune until the user clicks.
+  function keepUrgentLive(map, live) {
+    var keys = Object.keys(map)
+    if (keys.length === 0) return map
+
+    var next = {}
+    var dropped = false
+    for (var i = 0; i < keys.length; i++) {
+      var key = keys[i]
+      if (key.slice(0, 2) === "0x" && !live[key]) dropped = true
+      else next[key] = map[key]
+    }
+    return dropped ? next : map
   }
 
   // byValue: the map holds addresses as values (app -> window) rather than keys.
@@ -2369,6 +2486,7 @@ Item {
     conf.intelligentAutohide = root.intelligentAutohide
     conf.showAppsButton = root.showAppsButton
     conf.showTooltips = root.showTooltips
+    conf.showMinimizedTiles = root.showMinimizedTiles
     conf.hoverEffect = root.hoverEffect
     delete conf.magnification
     conf.launchBounce = root.launchBounce
@@ -2429,6 +2547,7 @@ Item {
     var parked = root.parkedWindows(windows)
     var focusedIdx = root.focusedIndex(visible)
 
+
     // Check if this application has any urgent windows or is currently bouncing
     var hadUrgency = false
     var urgentWin = null
@@ -2475,41 +2594,23 @@ Item {
     // If this app was urgent and not yet focused on screen, focus or restore directly without minimizing
     if (hadUrgency && focusedIdx < 0) {
       if (urgentWin && urgentWin.address) {
-        root.focusWindowByAddress(urgentWin.address)
+        root.focusWindowByAddress(urgentWin.address, appId)
         return
       }
       if (parked.length > 0) {
-        root.restoreWindow(parked[parked.length - 1], appId)
+        root.restoreWindow(root.oldestParked(parked), appId)
         return
       }
       var target = root.windowHere(visible) || root.recentWindow(appId, visible) || visible[0]
-      if (target && target.address) root.focusWindowByAddress(target.address)
+      if (target && target.address) root.focusWindowByAddress(target.address, appId)
       return
     }
 
-    var now = Date.now()
-    var justRestored = (root._lastRestoredTime[appId] && (now - root._lastRestoredTime[appId] < 3000))
 
     // 1. If an active window of this application is currently focused
     if (focusedIdx >= 0) {
       if (hadUrgency) {
         // Attention Priority Rule: Clicking an urgent app acknowledges attention and keeps the app in front without minimizing.
-        return
-      }
-
-      // If we just restored a window and other parked windows still exist,
-      // subsequent clicks continue sequentially restoring the remaining parked windows!
-      if (justRestored && parked.length > 0) {
-        var currentWsTarget = root.workspaceTarget(Hyprland.focusedWorkspace)
-        var parkedOnCurrentWs = null
-        for (var p = 0; p < parked.length; p++) {
-          var pAddr = parked[p] ? parked[p].address : ""
-          if (pAddr && root.minimizedOrigins[pAddr] === currentWsTarget) {
-            parkedOnCurrentWs = parked[p]
-            break
-          }
-        }
-        root.restoreWindow(parkedOnCurrentWs || parked[0], appId)
         return
       }
 
@@ -2528,53 +2629,29 @@ Item {
       // If minimize is disabled ("off"), cycle through visible windows
       if (visible.length > 1) {
         var next = root.stepWindow(visible, 1)
-        if (next && next.address) root.focusWindowByAddress(next.address)
+        if (next && next.address) root.focusWindowByAddress(next.address, appId)
         return
       }
       return
     }
 
-    // 2. If no window of this app is currently focused
-    // Check if there are parked windows to restore
-    if (parked.length > 0) {
-      var currentWsTarget = root.workspaceTarget(Hyprland.focusedWorkspace)
-      var parkedOnCurrentWs = null
-      for (var p = 0; p < parked.length; p++) {
-        var pAddr = parked[p] ? parked[p].address : ""
-        if (pAddr && root.minimizedOrigins[pAddr] === currentWsTarget) {
-          parkedOnCurrentWs = parked[p]
-          break
-        }
-      }
-
-      // Sequential restore: restore one parked window at a time (FIFO chronological order)
-      if (root.minimizeMode === "all") {
-        for (var i = 0; i < parked.length; i++) root.restoreWindow(parked[i], appId)
-        return
-      }
-
-      root.restoreWindow(parkedOnCurrentWs || parked[0], appId)
-      return
-    }
-
-    // 3. Focus a visible window (preferring current workspace, then recent, then first)
+    // 2. Nothing focused: bring a visible window of this app forward
+    // (preferring current workspace, then recent, then first). Restoring
+    // minimized windows is the preview tiles' job — icon clicks never do it.
     if (visible.length > 0) {
       var target = root.windowHere(visible) || root.recentWindow(appId, visible) || visible[0]
-      if (target && target.address) root.focusWindowByAddress(target.address)
-      return
+      if (target && target.address) root.focusWindowByAddress(target.address, appId)
     }
 
-    // 4. Fallback if only parked windows exist
-    if (parked.length > 0) {
-      root.restoreWindow(parked[parked.length - 1], appId)
-    }
+    // All windows parked (or none): intentionally nothing. The dock's preview
+    // tiles are the restore surface; a plain click must not surprise anyone.
   }
 
   // Menu rows name the workspace a window sits on, including the parked ones.
   function windowRowLabel(window) {
     var title = String((window && window.title) || "Window")
-    var wsName = window ? String(window.workspaceName || "") : ""
-    var isMin = window ? (typeof window.isMinimized === "boolean" ? window.isMinimized : (wsName === root.minimizedWorkspace)) : false
+    var wsName = root.liveWsNameOf(window)
+    var isMin = wsName === root.minimizedWorkspace
     var label = isMin ? "minimized" : (wsName !== "" ? wsName : "")
     return label !== "" ? "[" + label + "] " + title : title
   }
@@ -2625,8 +2702,7 @@ Item {
 
   function isWindowParked(win) {
     if (!win) return false
-    if (typeof win.isMinimized === "boolean") return win.isMinimized
-    return win.workspaceName === root.minimizedWorkspace
+    return root.isWinParkedLive(win)
   }
 
   function syncContextWindows() {
@@ -3069,6 +3145,150 @@ Item {
             }
             onMenuRequested: function(fpath, fname, cx, cy) {
               root.openFolderContext(fpath, fname, cx, cy)
+            }
+          }
+        }
+
+        // ------------------------------------------ minimized window tiles
+        // macOS-style section: every parked window shows up as a small live
+        // preview tile. Click a tile to bring that exact window back.
+        Rectangle {
+          id: tileSeparator
+          visible: root.hasTileSeparator
+          anchors.verticalCenter: parent.verticalCenter
+          width: Style.space(1)
+          height: root.iconSize * 0.7
+          color: Util.alpha(root.dockForeground, 0.25)
+        }
+
+        Repeater {
+          id: minimizedTilesRepeater
+          model: root.minimizedWindows
+
+          delegate: Item {
+            id: tile
+            readonly property var win: modelData
+            readonly property bool tileHovered: tileArea.containsMouse
+
+            width: root.tileWidth
+            height: root.tileHeight
+            anchors.verticalCenter: parent ? parent.verticalCenter : undefined
+            opacity: root.dockVisible ? 1 : 0
+
+            Behavior on width { NumberAnimation { duration: 120 } }
+
+            Rectangle {
+              anchors.fill: parent
+              radius: Math.max(3, Style.space(4))
+              color: tileArea.containsMouse ? Color.menu.selectedBackground : Util.alpha(root.dockForeground, 0.10)
+              border.width: 1
+              border.color: Util.alpha(root.dockForeground, tileArea.containsMouse ? 0.55 : 0.22)
+            }
+
+            ScreencopyView {
+              id: tilePreview
+              anchors.fill: parent
+              anchors.margins: 1
+              visible: hasContent
+              clip: true
+              live: false
+              captureSource: tile.win && tile.win.waylandToplevel ? tile.win.waylandToplevel : null
+
+              // The capture context negotiates asynchronously over Wayland,
+              // so the first captureFrame() calls can land too early. A short
+              // event-driven retry (never a polling loop) gets every tile its
+              // frame exactly once.
+              function requestFrame() {
+                if (hasContent || !captureSource) return
+                captureRetry.retry()
+              }
+              onCaptureSourceChanged: { captureRetry.restart(); captureFrame() }
+              Component.onCompleted: captureFrame()
+
+              Timer {
+                id: captureRetry
+                interval: 140
+                property int attempts: 0
+                repeat: attempts < 6
+                onTriggered: {
+                  attempts++
+                  if (!tilePreview.hasContent) tilePreview.captureFrame()
+                }
+              }
+            }
+
+            // App-icon badge in the corner so the tile is identifiable even
+            // before the preview frame arrives (or when capture is refused).
+            Rectangle {
+              visible: !tilePreview.hasContent && tile.win && tile.win.appId !== ""
+              anchors.right: parent.right
+              anchors.bottom: parent.bottom
+              anchors.margins: 1
+              width: Style.space(14)
+              height: Style.space(14)
+              radius: Style.space(3)
+              color: Util.alpha(Color.bar.background, 0.85)
+
+              Text {
+                anchors.centerIn: parent
+                text: tile.win && tile.win.appId ? tile.win.appId.substring(0, 1).toUpperCase() : "?"
+                textFormat: Text.PlainText
+                color: Color.bar.text
+                font.family: Style.font.family
+                font.pixelSize: Style.font.caption
+                font.bold: true
+              }
+            }
+
+            // Title bubble above the hovered tile.
+            BorderSurface {
+              id: tileTooltip
+              visible: tile.tileHovered && tile.win && tile.win.title !== ""
+              z: 300
+              color: Color.tooltip.background
+              borderSpec: Border.surfaceSpec("tooltip", "border", Color.tooltip.border, 1)
+              radius: Style.cornerRadius > 0 ? Style.cornerRadius : 6
+              padding: Style.space(4)
+              x: Math.max(0, Math.min(parent.width - width, (parent.width - width) / 2))
+              y: -height - Style.space(6)
+              width: tileTooltipLabel.implicitWidth + contentLeftInset + contentRightInset
+              height: tooltipImplicitHeight()
+
+              function tooltipImplicitHeight() {
+                return tileTooltipLabel.implicitHeight + contentTopInset + contentBottomInset
+              }
+
+              Text {
+                id: tileTooltipLabel
+                x: parent.contentLeftInset
+                y: parent.contentTopInset
+                text: tile.win ? tile.win.title : ""
+                textFormat: Text.PlainText
+                color: Color.tooltip.text
+                font.family: Style.font.family
+                font.pixelSize: Style.font.caption
+                elide: Text.ElideRight
+                maximumLineCount: 1
+              }
+            }
+
+            MouseArea {
+              id: tileArea
+              anchors.fill: parent
+              hoverEnabled: true
+              acceptedButtons: Qt.LeftButton | Qt.RightButton
+              cursorShape: Qt.PointingHandCursor
+              onClicked: function(mouse) {
+                if (!tile.win || !tile.win.address) return
+                if (mouse.button === Qt.RightButton) {
+                  // Right-click offers a quick close without restoring first.
+                  root.hyprDispatch(
+                    'hl.dsp.window.close({ window = "address:' + tile.win.address + '" })',
+                    "closewindow address:" + tile.win.address)
+                } else {
+                  root.restoreWindow(tile.win.address, tile.win.appId || "")
+                }
+              }
             }
           }
         }
@@ -3545,6 +3765,15 @@ Item {
               checked: root.showTooltips
               onTriggered: {
                 root.showTooltips = !root.showTooltips
+                root.saveConfig()
+              }
+            }
+
+            ContextRow {
+              text: "Minimized Window Previews"
+              checked: root.showMinimizedTiles
+              onTriggered: {
+                root.showMinimizedTiles = !root.showMinimizedTiles
                 root.saveConfig()
               }
             }
@@ -4097,7 +4326,7 @@ Item {
 
                   onTriggered: {
                     if (modelData && modelData.address) {
-                      root.focusWindowByAddress(modelData.address)
+                      root.focusWindowByAddress(modelData.address, root.contextAppId)
                     }
                     root.closeContext()
                   }

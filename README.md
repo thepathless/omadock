@@ -101,11 +101,11 @@ Clicking the dock icon of an application you are currently using can minimize an
 ```
 
 1. **🛡️ Active Window (Sequential FIFO — *Default*)**:
-   - **Minimizing**: Clicking the focused app minimizes *only that single active window*, immediately passing focus to the next window. You can minimize Window 1, then Window 2, one by one.
-   - **Restoring**: Clicking the icon restores your minimized windows chronologically (*Window 1 first, then Window 2*).
+   - **Minimizing**: Clicking the focused app minimizes *only that single active window*, immediately passing focus to the next window. You can minimize Window 1, then Window 2, one by one — each landing as a live preview tile on the dock.
+   - **Restoring**: Click the window's **preview tile** on the dock to bring back exactly that window (see 4b below).
 2. **📦 All Windows (Group Batch / Workplace Clear)**:
-   - Clicking minimizes **all open windows of that app simultaneously in 1 click**, clearing your workspace.
-   - Clicking again restores all windows together to their exact previous tiling positions.
+   - Clicking minimizes **all open windows of that app simultaneously in 1 click**, clearing your workspace — each window becomes its own preview tile.
+   - Bring any of them back individually by clicking its tile, or right-click the app icon for per-window controls.
 3. **🚫 Disabled (`off`)**:
    - Clicking an active application never minimizes; it simply cycles focus to the next instance.
 
@@ -114,10 +114,19 @@ Clicking the dock icon of an application you are currently using can minimize an
 ---
 
 ### 📜 4. Interactive Tooltips & Mouse-Wheel Selection
-When an app has multiple windows open (or some are minimized):
-1. **Hover your mouse** over the dock icon: A rich tooltip appears listing all active and minimized windows (`[1] Main — GitHub`, `[2] Settings [minimized]`).
+When an app has multiple windows on screen:
+1. **Hover your mouse** over the dock icon: A rich tooltip appears listing all its windows (minimized ones live as preview tiles instead — see 4b).
 2. **Scroll your mouse wheel up or down**: A glowing cursor (`›`) cycles through the window list live!
-3. **Left-click the dock icon**: Omadock will **directly un-minimize and focus that exact chosen window**!
+3. **Left-click the dock icon**: Omadock will **directly focus that exact chosen window**!
+
+---
+
+### 🪟 4b. Live Minimized-Window Preview Tiles
+Minimized windows appear as **live preview tiles** in a dedicated section on the dock's right side, just like macOS:
+- Each tile shows a **real snapshot of the window**, with an app badge and full title tooltip on hover.
+- **Click a tile** to restore that exact window to its original workspace — no hunting through window lists.
+- **Right-click a tile** to close that window instantly.
+- Toggle via Settings → **Minimized Window Previews** (or `showMinimizedTiles` in `~/.config/omarchy/omadock.json`).
 
 ---
 
@@ -252,9 +261,14 @@ All settings can be adjusted graphically via the right-click menu or edited dire
 | `iconSize` | `number` | `0` | Icon size in pixels (`28`, `36`, `44`, `52` or `0` for auto). |
 | `showAppsButton` | `boolean` | `true` | Show or hide the Omarchy apps launcher button on the left edge. |
 | `showTooltips` | `boolean` | `true` | Show app name tooltips on mouse hover. |
+| `showMinimizedTiles` | `boolean` | `true` | Show minimized windows as live preview tiles in a dedicated dock section; click a tile to restore that exact window. |
 | `screen` | `string` | `""` | Optional monitor name to pin the dock to (defaults to primary monitor). |
 | `hoverEffect` | `string` | `"zoom"` | Hover effect: `"zoom"` (single peak), `"wave"` (raised-cosine falloff), or `"off"`. |
-| `clickToMinimize` | `boolean` | `false` | Quick toggle for single-window minimization to `special:minimized`. |
+| `clickToMinimize` | `boolean` | legacy | Legacy alias kept for compatibility — derived from `minimizeMode`. Configure `minimizeMode` instead. |
+| `minimizeMode` | `string` | `"active"` | Master minimize control: `"active"` (Sequential FIFO), `"all"` (Group Batch), or `"off"` (Disabled). |
+| `launchBounce` | `boolean` | `true` | Animate the icon with a launch bounce while an app starts. |
+| `advancedTooltips` | `boolean` | `true` | Rich tooltips listing up to 8 windows; scroll to cycle, click to open. |
+| `urgentOnNotification` | `boolean` | `true` | Trigger dock urgency when a desktop notification arrives for the app. |
 | `showUrgentHint` | `boolean` | `true` | Pulse indicator and icon bounce when an app demands attention. |
 | `urgentSound` | `boolean` | `true` | Enable or disable urgency audio chimes (automatically silenced in DND mode). |
 | `urgentSoundName` | `string` | `"bell"` | System sound name (`"bell"`, `"message-new-instant"`, `"complete"`, `"dialog-information"`, etc.). |
@@ -283,7 +297,7 @@ All settings can be adjusted graphically via the right-click menu or edited dire
 **A:** Open the app, right-click its icon on the dock, and click **Pin to Dock** (or **Unpin from Dock**). You can also drag pinned icons to reorder them!
 
 ### Q: Where do minimized windows go?
-**A:** Hyprland doesn't have a traditional desktop taskbar, so Omadock parks minimized windows on a dedicated hidden workspace (`special:minimized`). When you click the dock icon, Omadock brings the window back to your active workspace in its exact original dimensions.
+**A:** Hyprland doesn't have a traditional desktop taskbar, so Omadock parks minimized windows on a dedicated hidden workspace (`special:minimized`). Each parked window shows up as a **live preview tile** on the dock's right side — click the tile to restore that exact window to its original workspace. Right-click a tile to close it, or right-click the app icon for its full window list.
 
 ### Q: How do I make the dock completely transparent?
 **A:** Right-click the Omarchy icon → **Appearance** → **Background Opacity** → Select **Transparent (0%)**. Omadock will render a clean, floating specular glass border around your icons.
