@@ -406,93 +406,6 @@ function closeApp(toplevels, appId) {
   return closed
 }
 
-function cleanExecCommand(execStr) {
-  if (!execStr) return ""
-  return String(execStr).replace(/%[fFuUdDnNickvm]/g, "").trim()
-}
-
-function parseDesktopActions(desktopContent, fallbackTargetId) {
-  if (!desktopContent) return []
-  var lines = String(desktopContent).split(/\r?\n/)
-  var actionNames = []
-  var actionBlocks = {}
-  var currentSection = ""
-  var mainExec = ""
-
-  for (var i = 0; i < lines.length; i++) {
-    var line = lines[i].trim()
-    if (!line || line.charAt(0) === "#") continue
-
-    var sectionMatch = line.match(/^\[(.*)\]$/)
-    if (sectionMatch) {
-      currentSection = sectionMatch[1].trim()
-      continue
-    }
-
-    var eqIdx = line.indexOf("=")
-    if (eqIdx <= 0) continue
-    var key = line.slice(0, eqIdx).trim()
-    var val = line.slice(eqIdx + 1).trim()
-
-    if (currentSection === "Desktop Entry") {
-      if (key === "Actions") {
-        var acts = val.split(";")
-        for (var a = 0; a < acts.length; a++) {
-          var act = acts[a].trim()
-          if (act && actionNames.indexOf(act) < 0) {
-            actionNames.push(act)
-          }
-        }
-      } else if (key === "Exec") {
-        mainExec = val
-      }
-    } else if (currentSection.indexOf("Desktop Action ") === 0) {
-      var actionId = currentSection.slice(15).trim()
-      if (!actionBlocks[actionId]) actionBlocks[actionId] = {}
-      if (key === "Name") {
-        actionBlocks[actionId].name = val
-      } else if (key.indexOf("Name[") === 0 && !actionBlocks[actionId].name) {
-        actionBlocks[actionId].name = val
-      } else if (key === "Exec") {
-        actionBlocks[actionId].exec = val
-      } else if (key === "Icon") {
-        actionBlocks[actionId].icon = val
-      }
-    }
-  }
-
-  var result = []
-  for (var k = 0; k < actionNames.length; k++) {
-    var actId = actionNames[k]
-    var block = actionBlocks[actId]
-    if (block && block.name) {
-      result.push({
-        id: actId,
-        name: block.name,
-        exec: cleanExecCommand(block.exec || mainExec),
-        icon: block.icon || "",
-        targetId: fallbackTargetId || ""
-      })
-    }
-  }
-
-  if (result.length === 0 && mainExec) {
-    var webAppMatch = mainExec.match(/omarchy-launch-webapp\s+([^\s]+)/i)
-    if (webAppMatch && webAppMatch[1]) {
-      var url = webAppMatch[1]
-      result.push({
-        id: "open-browser",
-        name: "Open in Browser",
-        exec: "xdg-open " + url,
-        icon: "internet-web-browser",
-        targetId: fallbackTargetId || ""
-      })
-    }
-  }
-
-  return result
-}
-
 function folderIconFor(path, explicitIcon) {
   if (explicitIcon) return explicitIcon
   var norm = String(path || "").toLowerCase()
@@ -503,6 +416,61 @@ function folderIconFor(path, explicitIcon) {
   if (norm.indexOf("video") >= 0) return "folder-videos"
   if (norm === "~" || (norm.indexOf("/home/") === 0 && norm.split("/").length <= 3)) return "user-home"
   return "folder"
+}
+
+function resolveThemedFolderIcon(iconName, themeName, folderColorMode) {
+  var name = String(iconName || "folder").trim()
+  if (name.indexOf("/") === 0 || name.indexOf("file://") === 0) return name
+
+  // Explicit white, black, or symbolic mode:
+  if (folderColorMode === "white" || folderColorMode === "black" || folderColorMode === "symbolic") {
+    return "file:///usr/share/icons/Adwaita/symbolic/places/" + name + "-symbolic.svg"
+  }
+
+  // Explicit custom Yaru color preset:
+  if (folderColorMode && folderColorMode !== "theme" && folderColorMode !== "auto") {
+    var customTheme = folderColorMode
+    if (customTheme.indexOf("Yaru") === 0) {
+      return "file:///usr/share/icons/" + customTheme + "/256x256/places/" + name + ".png"
+    }
+  }
+
+  // Automatic theme mode:
+  var theme = String(themeName || "").trim()
+
+  // 1. If valid Yaru variant theme (e.g. Yaru-sage, Yaru-olive, Yaru-magenta, Yaru-purple, Yaru-blue, Yaru-red, Yaru-yellow, Yaru)
+  if (theme.indexOf("Yaru-") === 0 && theme !== "Yaru-gray" && theme !== "Yaru-grey") {
+    return "file:///usr/share/icons/" + theme + "/256x256/places/" + name + ".png"
+  }
+  if (theme === "Yaru") {
+    return "file:///usr/share/icons/Yaru/256x256/places/" + name + ".png"
+  }
+
+  // 2. For Vantablack / minimal themes (Yaru-gray / unstyled):
+  // Nautilus displays the clean monochrome symbolic outline icon!
+  return "file:///usr/share/icons/Adwaita/symbolic/places/" + name + "-symbolic.svg"
+}
+
+function resolveFileItemIcon(iconName, themeName, folderColorMode) {
+  var name = String(iconName || "text-x-generic").trim()
+  if (name.indexOf("/") === 0 || name.indexOf("file://") === 0) return name
+
+  // If it is a folder / place icon:
+  if (name === "folder" || name.indexOf("folder-") === 0 || name === "user-home") {
+    return resolveThemedFolderIcon(name, themeName, folderColorMode)
+  }
+
+  // Known mimetypes
+  var knownMimetypes = [
+    "image-x-generic", "video-x-generic", "audio-x-generic",
+    "package-x-generic", "application-pdf", "text-x-generic",
+    "application-x-executable"
+  ]
+  if (knownMimetypes.indexOf(name) >= 0) {
+    return "file:///usr/share/icons/Yaru/256x256/mimetypes/" + name + ".png"
+  }
+
+  return "file:///usr/share/icons/Yaru/256x256/mimetypes/text-x-generic.png"
 }
 
 
