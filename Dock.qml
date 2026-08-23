@@ -201,26 +201,6 @@ Item {
     // The icon carries every state on its own: it grows on hover, dips on
     // press, bounces while starting. No plate, no frame — the only chrome in
     // the slot is the running indicator underneath.
-
-    // Inline window-preview: for UNPINNED apps, when every window is on the
-    // minimized workspace the icon slot converts to a live snapshot thumbnail.
-    // We resolve the waylandToplevel through root.minimizedWindows (which does
-    // carry the live handle) keyed by window address from windowList.
-    readonly property bool showInlinePreview: !item.pinned && item.minimized && item.running
-    readonly property var inlinePreviewSource: {
-      if (!item.showInlinePreview) return null
-      var list = item.windowList || []
-      if (list.length === 0) return null
-      var addr = list[0] ? list[0].address : ""
-      if (!addr) return null
-      var mins = root.minimizedWindows
-      for (var i = 0; i < mins.length; i++) {
-        if (mins[i] && mins[i].address === addr && mins[i].waylandToplevel)
-          return mins[i].waylandToplevel
-      }
-      return null
-    }
-
     Item {
       id: iconBox
       anchors.fill: parent
@@ -249,78 +229,10 @@ Item {
           return Quickshell.iconPath("application-x-executable", true)
         }
         sourceSize: Qt.size(width * Screen.devicePixelRatio, height * Screen.devicePixelRatio)
-        visible: source !== "" && !item.showInlinePreview
+        visible: source !== ""
         opacity: item.starting ? (0.4 + 0.6 * item.pulse) : 1.0
         mipmap: true
         smooth: true
-      }
-
-      // Inline thumbnail — replaces the icon when an unpinned app is fully minimized.
-      Item {
-        id: inlinePreviewSlot
-        visible: item.showInlinePreview
-        anchors.horizontalCenter: parent.horizontalCenter
-        anchors.bottom: parent.bottom
-        anchors.bottomMargin: Math.round((iconBox.height - root.baseIconArt) / 2)
-        width: root.baseIconArt * item.magnifyScale
-        height: width
-
-        Rectangle {
-          anchors.fill: parent
-          radius: Math.max(3, Style.space(4))
-          color: area.containsMouse ? Color.menu.selectedBackground : Util.alpha(root.dockForeground, 0.10)
-          border.width: 1
-          border.color: Util.alpha(root.dockForeground, area.containsMouse ? 0.55 : 0.22)
-        }
-
-        ScreencopyView {
-          id: inlinePreview
-          anchors.fill: parent
-          anchors.margins: 1
-          visible: hasContent
-          clip: true
-          live: false
-          captureSource: item.inlinePreviewSource
-
-          onCaptureSourceChanged: {
-            inlineRetry.attempts = 0
-            inlineRetry.restart()
-          }
-
-          Timer {
-            id: inlineRetry
-            interval: 140
-            property int attempts: 0
-            repeat: attempts < 6
-            onTriggered: {
-              attempts++
-              if (!inlinePreview.hasContent && inlinePreview.captureSource)
-                inlinePreview.captureFrame()
-            }
-          }
-        }
-
-        // App-icon badge in the corner (visible until preview frame arrives).
-        Rectangle {
-          visible: !inlinePreview.hasContent && item.appId !== ""
-          anchors.right: parent.right
-          anchors.bottom: parent.bottom
-          anchors.margins: 1
-          width: Style.space(14)
-          height: Style.space(14)
-          radius: Style.space(3)
-          color: Util.alpha(Color.bar.background, 0.85)
-
-          Text {
-            anchors.centerIn: parent
-            text: item.appId ? item.appId.substring(0, 1).toUpperCase() : "?"
-            textFormat: Text.PlainText
-            color: Color.bar.text
-            font.family: Style.font.family
-            font.pixelSize: Style.font.caption
-            font.bold: true
-          }
-        }
       }
     }
 
@@ -3327,7 +3239,7 @@ Item {
             }
 
             width: root.tileWidth * (root.waveHover ? tile.magnifyScale : 1)
-            height: root.tileHeight * (root.waveHover ? tile.magnifyScale : 1)
+            height: root.tileHeight
             anchors.verticalCenter: parent ? parent.verticalCenter : undefined
             opacity: root.dockVisible ? 1 : 0
 
