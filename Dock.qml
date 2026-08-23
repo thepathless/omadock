@@ -563,6 +563,8 @@ Item {
     property color glyphColor: root.dockForeground
     property real glyphSize: root.iconSize * 0.42
     signal pressed()
+    signal middleClicked()
+    signal wheelScrolled(int dir)
     signal menuRequested(real x, real y)
 
     property real homeCenter: 0
@@ -595,15 +597,20 @@ Item {
       anchors.fill: parent
       hoverEnabled: true
       cursorShape: Qt.PointingHandCursor
-      acceptedButtons: Qt.LeftButton | Qt.RightButton
+      acceptedButtons: Qt.LeftButton | Qt.RightButton | Qt.MiddleButton
       onClicked: function(mouse) {
         if (mouse.button === Qt.RightButton) {
           var pt = btn.mapToItem(dockCard, btn.width / 2, 0)
           var gx = dockCard.x + (pt ? pt.x : (btn.x + btn.width / 2))
           btn.menuRequested(gx, 0)
+        } else if (mouse.button === Qt.MiddleButton) {
+          btn.middleClicked()
         } else {
           btn.pressed()
         }
+      }
+      onWheel: function(wheel) {
+        if (wheel.angleDelta.y !== 0) btn.wheelScrolled(wheel.angleDelta.y > 0 ? -1 : 1)
       }
     }
 
@@ -1068,7 +1075,38 @@ Item {
   readonly property bool hasFolderSeparator: root.folderSlots > 0 && (root.pinnedSection.length > 0 || root.runningSection.length > 0)
 
   // Minimized-window preview tiles (macOS-style section on the dock's right).
-  readonly property int tileCount: root.showMinimizedTiles ? root.minimizedWindows.length : 0
+  // In minimizeMode "all", a parked app's windows compress into ONE stacked
+  // group tile; in "active" mode every window keeps its own tile.
+  readonly property var tileModel: {
+    if (!root.showMinimizedTiles) return []
+    var list = root.minimizedWindows
+    if (root.minimizeMode !== "all") {
+      var singles = []
+      for (var s = 0; s < list.length; s++) singles.push({ type: "single", win: list[s] })
+      return singles
+    }
+    var groups = {}
+    var order = []
+    for (var i = 0; i < list.length; i++) {
+      var w = list[i]
+      var key = w.appId || w.address
+      if (!groups[key]) {
+        groups[key] = { type: "group", appId: key, title: w.title, windows: [] }
+        order.push(key)
+      }
+      groups[key].windows.push(w)
+    }
+    // Oldest member parks the group's slot in line.
+    order.sort(function (a, b) {
+      var ta = root.parkedAt[groups[a].windows[0].address] !== undefined ? root.parkedAt[groups[a].windows[0].address] : 0
+      var tb = root.parkedAt[groups[b].windows[0].address] !== undefined ? root.parkedAt[groups[b].windows[0].address] : 0
+      return ta - tb
+    })
+    var out = []
+    for (var g = 0; g < order.length; g++) out.push(groups[order[g]])
+    return out
+  }
+  readonly property int tileCount: root.tileModel.length
   readonly property real tileWidth: Math.round(root.iconSlot * 1.5)
   readonly property real tileHeight: Math.round(root.iconSlot * 0.95)
   readonly property bool hasTileSeparator: root.tileCount > 0 && root.slotTotal > 0
@@ -1091,14 +1129,21 @@ Item {
     - (root.baseRowWidth + dockCard.contentLeftInset + dockCard.contentRightInset)) / 2
     + dockCard.contentLeftInset
 
-  function slotHomeCenter(elementIndex, slotsBefore, sepCount) {
+  function slotHomeCenter(elementIndex, slotsBefore, sepCount, extraLeftWidth) {
     var seps = (typeof sepCount === "number") ? sepCount : (sepCount ? 1 : 0)
     return root.baseRowLeft
       + elementIndex * root.gapWidth
       + slotsBefore * root.iconSlot
       + seps * root.separatorWidth
+      + (extraLeftWidth || 0)
       + root.iconSlot / 2
   }
+
+  // Width the tile section consumes ahead of elements that follow it.
+  readonly property real tilesFixedWidth: root.hasTileSeparator
+    ? root.separatorWidth + root.tileCount * root.tileWidth
+    : 0
+  readonly property int tileElements: root.hasTileSeparator ? 1 + root.tileCount : 0
 
   function magnifyAt(homeCenter) {
     if (!root.waveHover) return 0
@@ -1163,6 +1208,7 @@ Item {
   // off Hyprland's own toplevel list, so it cannot go stale the way cached
   // model primitives can.
   property var minimizedWindows: []
+  property string _minimizedSig: ""
   readonly property var pinnedSection: root.dockModel.pinned || []
   readonly property var runningSection: root.dockModel.running || []
 
@@ -1200,7 +1246,15 @@ Item {
       var tb = root.parkedAt[b.address] !== undefined ? root.parkedAt[b.address] : 0
       return ta - tb
     })
-    root.minimizedWindows = mins
+    // Assign only on real change: a fresh array per rebuild would recreate
+    // every tile delegate on unrelated events, eating clicks and forcing
+    // pointless capture re-negotiations.
+    var sig = ""
+    for (var s = 0; s < mins.length; s++) sig += mins[s].address + ","
+    if (sig !== root._minimizedSig) {
+      root._minimizedSig = sig
+      root.minimizedWindows = mins
+    }
   }
 
   readonly property string activeId: {
@@ -2075,6 +2129,14 @@ Item {
     Hyprland.dispatch(Hyprland.usingLua ? lua : legacy)
   }
 
+  // Wheel over the Omarchy logo walks workspaces in order. "e+1"/"e-1" are
+  // standard Hyprland workspace selectors (nearest existing, relative).
+  function cycleWorkspace(dir) {
+    var sel = dir > 0 ? "e+1" : "e-1"
+    root.hyprDispatch('hl.dsp.focus({ workspace = "' + sel + '" })',
+                      "workspace " + sel)
+  }
+
   function workspaceTarget(workspace) {
     if (!workspace) return ""
     var name = String(workspace.name || "")
@@ -2419,6 +2481,30 @@ Item {
       else dropped = true
     }
     return dropped ? next : map
+  }
+
+  // ------------------------------------------------- external keybind hooks
+  // Hyprland plugins cannot register compositor binds directly, but these IPC
+  // targets expose dock actions to `qs ipc call omadock <fn>` so users can
+  // bind them in ~/.config/hypr/bindings.lua, e.g.:
+  //   o.bind("SUPER + M", "Minimize focused", "exec qs ipc call omadock minimizeActive")
+  IpcHandler {
+    target: "omadock"
+
+    function minimizeActive(): void {
+      var addr = root.activeWindowAddress
+      if (addr !== "") root.minimizeToplevel(addr)
+    }
+
+    function restoreLast(): void {
+      var parked = []
+      var all = root.pinnedSection.concat(root.runningSection)
+      for (var i = 0; i < all.length; i++) {
+        if (!all[i]) continue
+        parked = parked.concat(root.parkedWindows(all[i].windowList || []))
+      }
+      if (parked.length > 0) root.restoreWindow(root.oldestParked(parked), "")
+    }
   }
 
   // ------------------------------------------------- launch feedback
@@ -3021,8 +3107,10 @@ Item {
           homeCenter: root.slotHomeCenter(0, 0, false)
           glyph: "\ue900"
           glyphColor: root.dockForeground
-          tooltip: "Apps"
-          onPressed: root.toggleAppsMenu()
+          tooltip: "Omarchy"
+          onPressed: Quickshell.execDetached(["omarchy-menu", "toggle", "root"])
+          onMiddleClicked: Quickshell.execDetached(["omarchy-launch-terminal"])
+          onWheelScrolled: function(dir) { root.cycleWorkspace(dir) }
           onMenuRequested: function(cx, cy) {
             root.openDockSettingsMenu(cx, cy)
           }
@@ -3089,6 +3177,279 @@ Item {
           }
         }
 
+        // ------------------------------------------ minimized window tiles
+        // macOS-style section: every parked window shows up as a small live
+        // preview tile. Click a tile to bring that exact window back.
+        Rectangle {
+          id: tileSeparator
+          visible: root.hasTileSeparator
+          anchors.verticalCenter: parent.verticalCenter
+          width: Style.space(1)
+          height: root.iconSize * 0.7
+          color: Util.alpha(root.dockForeground, 0.25)
+        }
+
+        Repeater {
+          id: minimizedTilesRepeater
+          model: root.tileModel
+
+          delegate: Item {
+            id: tile
+            readonly property bool isGroup: modelData.type === "group"
+            readonly property var win: isGroup ? modelData.windows[0] : modelData.win
+            readonly property var groupWins: isGroup ? modelData.windows : [modelData.win]
+            readonly property int groupCount: isGroup ? modelData.windows.length : 1
+            readonly property string tileTitle: {
+              if (isGroup) return groupCount + " windows — " + (modelData.title || "")
+              return (win && win.title !== undefined) ? String(win.title) : ""
+            }
+            readonly property bool tileHovered: tileArea.containsMouse
+            property bool menuOpen: false
+
+            function doRestore() {
+              for (var i = 0; i < groupWins.length; i++) {
+                var w = groupWins[i]
+                if (w && w.address) root.restoreWindow(w.address, w.appId || "")
+              }
+              menuOpen = false
+            }
+
+            function doClose() {
+              for (var i = 0; i < groupWins.length; i++) {
+                var w = groupWins[i]
+                if (w && w.address) root.hyprDispatch(
+                  'hl.dsp.window.close({ window = "address:' + w.address + '" })',
+                  "closewindow address:" + w.address)
+              }
+              menuOpen = false
+            }
+
+            width: root.tileWidth
+            height: root.tileHeight
+            anchors.verticalCenter: parent ? parent.verticalCenter : undefined
+            opacity: root.dockVisible ? 1 : 0
+
+            Behavior on width { NumberAnimation { duration: 120 } }
+
+            // Stacked-card layers behind grouped tiles hint at the count.
+            Rectangle {
+              visible: tile.isGroup && tile.groupCount > 1
+              anchors.fill: parent
+              anchors.leftMargin: -Style.space(3)
+              anchors.bottomMargin: -Style.space(2)
+              radius: Math.max(3, Style.space(4))
+              color: Util.alpha(root.dockForeground, 0.06)
+              border.width: 1
+              border.color: Util.alpha(root.dockForeground, 0.14)
+            }
+            Rectangle {
+              visible: tile.isGroup && tile.groupCount > 2
+              anchors.fill: parent
+              anchors.leftMargin: -Style.space(6)
+              anchors.bottomMargin: -Style.space(4)
+              radius: Math.max(3, Style.space(4))
+              color: Util.alpha(root.dockForeground, 0.04)
+              border.width: 1
+              border.color: Util.alpha(root.dockForeground, 0.10)
+            }
+
+            Rectangle {
+              anchors.fill: parent
+              radius: Math.max(3, Style.space(4))
+              color: tileArea.containsMouse ? Color.menu.selectedBackground : Util.alpha(root.dockForeground, 0.10)
+              border.width: 1
+              border.color: Util.alpha(root.dockForeground, tileArea.containsMouse ? 0.55 : 0.22)
+            }
+
+            ScreencopyView {
+              id: tilePreview
+              anchors.fill: parent
+              anchors.margins: 1
+              visible: hasContent
+              clip: true
+              live: false
+              captureSource: tile.win && tile.win.waylandToplevel ? tile.win.waylandToplevel : null
+
+              // The capture context negotiates asynchronously over Wayland,
+              // so an immediate captureFrame() warns "no recording context".
+              // A short event-driven retry (never a polling loop) gets every
+              // tile its frame exactly once, after the session is ready.
+              function requestFrame() {
+                if (hasContent || !captureSource) return
+                captureRetry.restart()
+              }
+              onCaptureSourceChanged: {
+                captureRetry.attempts = 0
+                captureRetry.restart()
+              }
+
+              Timer {
+                id: captureRetry
+                interval: 140
+                property int attempts: 0
+                repeat: attempts < 6
+                onTriggered: {
+                  attempts++
+                  if (!tilePreview.hasContent && tilePreview.captureSource) tilePreview.captureFrame()
+                }
+              }
+            }
+
+            // App-icon badge in the corner so the tile is identifiable even
+            // before the preview frame arrives (or when capture is refused).
+            Rectangle {
+              visible: (!tilePreview.hasContent || tile.isGroup) && tile.win && tile.win.appId !== ""
+              anchors.right: parent.right
+              anchors.bottom: parent.bottom
+              anchors.margins: 1
+              width: Style.space(tile.isGroup ? 18 : 14)
+              height: Style.space(tile.isGroup ? 18 : 14)
+              radius: Style.space(3)
+              color: Util.alpha(Color.bar.background, 0.85)
+
+              Text {
+                anchors.centerIn: parent
+                text: {
+                  if (!tile.win || !tile.win.appId) return "?"
+                  return tile.isGroup ? String(tile.groupCount) : tile.win.appId.substring(0, 1).toUpperCase()
+                }
+                textFormat: Text.PlainText
+                color: Color.bar.text
+                font.family: Style.font.family
+                font.pixelSize: Style.font.caption
+                font.bold: true
+              }
+            }
+
+            // Title bubble above the hovered tile (hidden while the menu is open).
+            BorderSurface {
+              id: tileTooltip
+              visible: tile.tileHovered && !tile.menuOpen && tile.tileTitle !== ""
+              z: 300
+              color: Color.tooltip.background
+              borderSpec: Border.surfaceSpec("tooltip", "border", Color.tooltip.border, 1)
+              radius: Style.cornerRadius > 0 ? Style.cornerRadius : 6
+              padding: Style.space(4)
+              x: Math.max(0, Math.min(parent.width - width, (parent.width - width) / 2))
+              y: -height - Style.space(6)
+              width: tileTooltipLabel.implicitWidth + contentLeftInset + contentRightInset
+              height: tooltipImplicitHeight()
+
+              function tooltipImplicitHeight() {
+                return tileTooltipLabel.implicitHeight + contentTopInset + contentBottomInset
+              }
+
+              Text {
+                id: tileTooltipLabel
+                x: parent.contentLeftInset
+                y: parent.contentTopInset
+                text: {
+                  if (!tile.isGroup) return tile.tileTitle
+                  var lines = []
+                  var max = Math.min(tile.groupWins.length, 6)
+                  for (var i = 0; i < max; i++) lines.push("• " + (tile.groupWins[i] ? tile.groupWins[i].title : ""))
+                  if (tile.groupWins.length > 6) lines.push("+" + (tile.groupWins.length - 6) + " more")
+                  return lines.join("\n")
+                }
+                textFormat: Text.PlainText
+                color: Color.tooltip.text
+                font.family: Style.font.family
+                font.pixelSize: Style.font.caption
+                elide: Text.ElideRight
+                maximumLineCount: tile.isGroup ? 8 : 1
+              }
+            }
+
+            // Right-click action menu, rendered over the tile itself so the
+            // pointer never leaves the hover area while choosing.
+            Rectangle {
+              id: tileMenu
+              visible: tile.menuOpen
+              anchors.fill: parent
+              radius: Math.max(3, Style.space(4))
+              color: Util.alpha(Color.bar.background, 0.96)
+              border.width: 1
+              border.color: Util.alpha(root.dockForeground, 0.4)
+              z: 10
+
+              Column {
+                anchors.centerIn: parent
+                spacing: Style.space(1)
+
+                Item {
+                  width: tile.width - Style.space(8)
+                  height: Style.space(20)
+                  anchors.horizontalCenter: parent.horizontalCenter
+                  Rectangle {
+                    anchors.fill: parent
+                    radius: Style.space(3)
+                    color: restoreRowMa.containsMouse ? Color.menu.selectedBackground : "transparent"
+                  }
+                  Text {
+                    anchors.centerIn: parent
+                    text: tile.isGroup ? "Restore all" : "Restore"
+                    textFormat: Text.PlainText
+                    color: Color.menu.text
+                    font.family: Style.font.family
+                    font.pixelSize: Style.font.caption
+                  }
+                  MouseArea {
+                    id: restoreRowMa
+                    anchors.fill: parent
+                    hoverEnabled: true
+                    cursorShape: Qt.PointingHandCursor
+                    onClicked: tile.doRestore()
+                  }
+                }
+
+                Item {
+                  width: tile.width - Style.space(8)
+                  height: Style.space(20)
+                  anchors.horizontalCenter: parent.horizontalCenter
+                  Rectangle {
+                    anchors.fill: parent
+                    radius: Style.space(3)
+                    color: closeRowMa.containsMouse ? Color.menu.selectedBackground : "transparent"
+                  }
+                  Text {
+                    anchors.centerIn: parent
+                    text: tile.isGroup ? "Close all" : "Close"
+                    textFormat: Text.PlainText
+                    color: Color.danger ?? "#e5567a"
+                    font.family: Style.font.family
+                    font.pixelSize: Style.font.caption
+                  }
+                  MouseArea {
+                    id: closeRowMa
+                    anchors.fill: parent
+                    hoverEnabled: true
+                    cursorShape: Qt.PointingHandCursor
+                    onClicked: tile.doClose()
+                  }
+                }
+              }
+            }
+
+            MouseArea {
+              id: tileArea
+              anchors.fill: parent
+              hoverEnabled: true
+              acceptedButtons: Qt.LeftButton | Qt.RightButton
+              cursorShape: Qt.PointingHandCursor
+              onClicked: function(mouse) {
+                if (!tile.win || !tile.win.address) return
+                if (mouse.button === Qt.RightButton) {
+                  tile.menuOpen = !tile.menuOpen
+                } else if (tile.menuOpen) {
+                  tile.menuOpen = false
+                } else {
+                  tile.doRestore()
+                }
+              }
+            }
+          }
+        }
+
         Rectangle {
           id: separator
           visible: root.pinnedSection.length > 0 && root.runningSection.length > 0
@@ -3108,9 +3469,10 @@ Item {
             windows: modelData.windows
             windowList: modelData.windowList
             homeCenter: root.slotHomeCenter(
-              root.appsSlots + root.pinnedSection.length + (root.hasSeparator ? 1 : 0) + index,
+              root.appsSlots + root.pinnedSection.length + (root.hasSeparator ? 1 : 0) + root.tileElements + index,
               root.appsSlots + root.pinnedSection.length + index,
-              root.hasSeparator)
+              root.hasSeparator,
+              root.tilesFixedWidth)
             pinned: false
             active: modelData.appId === root.activeId
             onActivateRequested: function(aid) { root.activate(aid) }
@@ -3137,158 +3499,15 @@ Item {
             name: modelData.name || "Folder"
             icon: modelData.icon || DockModel.folderIconFor(modelData.path, "")
             homeCenter: root.slotHomeCenter(
-              root.appsSlots + root.pinnedSection.length + (root.hasSeparator ? 1 : 0) + root.runningSection.length + (root.hasFolderSeparator ? 1 : 0) + index,
+              root.appsSlots + root.pinnedSection.length + (root.hasSeparator ? 1 : 0) + root.tileElements + root.runningSection.length + (root.hasFolderSeparator ? 1 : 0) + index,
               root.appsSlots + root.pinnedSection.length + root.runningSection.length + index,
-              (root.hasSeparator ? 1 : 0) + (root.hasFolderSeparator ? 1 : 0))
+              (root.hasSeparator ? 1 : 0) + (root.hasFolderSeparator ? 1 : 0),
+              root.tilesFixedWidth)
             onOpenStackRequested: function(fpath, fname, cx, cy) {
               root.openFolderStack(fpath, fname, cx)
             }
             onMenuRequested: function(fpath, fname, cx, cy) {
               root.openFolderContext(fpath, fname, cx, cy)
-            }
-          }
-        }
-
-        // ------------------------------------------ minimized window tiles
-        // macOS-style section: every parked window shows up as a small live
-        // preview tile. Click a tile to bring that exact window back.
-        Rectangle {
-          id: tileSeparator
-          visible: root.hasTileSeparator
-          anchors.verticalCenter: parent.verticalCenter
-          width: Style.space(1)
-          height: root.iconSize * 0.7
-          color: Util.alpha(root.dockForeground, 0.25)
-        }
-
-        Repeater {
-          id: minimizedTilesRepeater
-          model: root.minimizedWindows
-
-          delegate: Item {
-            id: tile
-            readonly property var win: modelData
-            readonly property bool tileHovered: tileArea.containsMouse
-
-            width: root.tileWidth
-            height: root.tileHeight
-            anchors.verticalCenter: parent ? parent.verticalCenter : undefined
-            opacity: root.dockVisible ? 1 : 0
-
-            Behavior on width { NumberAnimation { duration: 120 } }
-
-            Rectangle {
-              anchors.fill: parent
-              radius: Math.max(3, Style.space(4))
-              color: tileArea.containsMouse ? Color.menu.selectedBackground : Util.alpha(root.dockForeground, 0.10)
-              border.width: 1
-              border.color: Util.alpha(root.dockForeground, tileArea.containsMouse ? 0.55 : 0.22)
-            }
-
-            ScreencopyView {
-              id: tilePreview
-              anchors.fill: parent
-              anchors.margins: 1
-              visible: hasContent
-              clip: true
-              live: false
-              captureSource: tile.win && tile.win.waylandToplevel ? tile.win.waylandToplevel : null
-
-              // The capture context negotiates asynchronously over Wayland,
-              // so the first captureFrame() calls can land too early. A short
-              // event-driven retry (never a polling loop) gets every tile its
-              // frame exactly once.
-              function requestFrame() {
-                if (hasContent || !captureSource) return
-                captureRetry.retry()
-              }
-              onCaptureSourceChanged: { captureRetry.restart(); captureFrame() }
-              Component.onCompleted: captureFrame()
-
-              Timer {
-                id: captureRetry
-                interval: 140
-                property int attempts: 0
-                repeat: attempts < 6
-                onTriggered: {
-                  attempts++
-                  if (!tilePreview.hasContent) tilePreview.captureFrame()
-                }
-              }
-            }
-
-            // App-icon badge in the corner so the tile is identifiable even
-            // before the preview frame arrives (or when capture is refused).
-            Rectangle {
-              visible: !tilePreview.hasContent && tile.win && tile.win.appId !== ""
-              anchors.right: parent.right
-              anchors.bottom: parent.bottom
-              anchors.margins: 1
-              width: Style.space(14)
-              height: Style.space(14)
-              radius: Style.space(3)
-              color: Util.alpha(Color.bar.background, 0.85)
-
-              Text {
-                anchors.centerIn: parent
-                text: tile.win && tile.win.appId ? tile.win.appId.substring(0, 1).toUpperCase() : "?"
-                textFormat: Text.PlainText
-                color: Color.bar.text
-                font.family: Style.font.family
-                font.pixelSize: Style.font.caption
-                font.bold: true
-              }
-            }
-
-            // Title bubble above the hovered tile.
-            BorderSurface {
-              id: tileTooltip
-              visible: tile.tileHovered && tile.win && tile.win.title !== ""
-              z: 300
-              color: Color.tooltip.background
-              borderSpec: Border.surfaceSpec("tooltip", "border", Color.tooltip.border, 1)
-              radius: Style.cornerRadius > 0 ? Style.cornerRadius : 6
-              padding: Style.space(4)
-              x: Math.max(0, Math.min(parent.width - width, (parent.width - width) / 2))
-              y: -height - Style.space(6)
-              width: tileTooltipLabel.implicitWidth + contentLeftInset + contentRightInset
-              height: tooltipImplicitHeight()
-
-              function tooltipImplicitHeight() {
-                return tileTooltipLabel.implicitHeight + contentTopInset + contentBottomInset
-              }
-
-              Text {
-                id: tileTooltipLabel
-                x: parent.contentLeftInset
-                y: parent.contentTopInset
-                text: tile.win ? tile.win.title : ""
-                textFormat: Text.PlainText
-                color: Color.tooltip.text
-                font.family: Style.font.family
-                font.pixelSize: Style.font.caption
-                elide: Text.ElideRight
-                maximumLineCount: 1
-              }
-            }
-
-            MouseArea {
-              id: tileArea
-              anchors.fill: parent
-              hoverEnabled: true
-              acceptedButtons: Qt.LeftButton | Qt.RightButton
-              cursorShape: Qt.PointingHandCursor
-              onClicked: function(mouse) {
-                if (!tile.win || !tile.win.address) return
-                if (mouse.button === Qt.RightButton) {
-                  // Right-click offers a quick close without restoring first.
-                  root.hyprDispatch(
-                    'hl.dsp.window.close({ window = "address:' + tile.win.address + '" })',
-                    "closewindow address:" + tile.win.address)
-                } else {
-                  root.restoreWindow(tile.win.address, tile.win.appId || "")
-                }
-              }
             }
           }
         }

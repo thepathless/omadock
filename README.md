@@ -122,11 +122,12 @@ When an app has multiple windows on screen:
 ---
 
 ### 🪟 4b. Live Minimized-Window Preview Tiles
-Minimized windows appear as **live preview tiles** in a dedicated section on the dock's right side, just like macOS:
+Minimized windows appear as **live preview tiles** in a dedicated dock section — pinned apps on the left, running unpinned apps on the right, just like macOS:
 - Each tile shows a **real snapshot of the window**, with an app badge and full title tooltip on hover.
-- **Click a tile** to restore that exact window to its original workspace — no hunting through window lists.
-- **Right-click a tile** to close that window instantly.
-- Toggle via Settings → **Minimized Window Previews** (or `showMinimizedTiles` in `~/.config/omarchy/omadock.json`).
+- **Click a tile** to restore that exact window to its original workspace.
+- **Right-click a tile** for **Restore / Close** actions.
+- In **All Windows** minimize mode, each app's windows compress into a single stacked group tile (badge shows the count; click restores the whole set).
+- Toggle via Settings → **Minimized Window Previews** (or `showMinimizedTiles`).
 
 ---
 
@@ -259,9 +260,9 @@ All settings can be adjusted graphically via the right-click menu or edited dire
 | `folderColor` | `string` | `"theme"` | Folder icon color mode (`"theme"`, `"symbolic"`, `"white"`, `"black"`, `"Yaru-sage"`, `"Yaru-blue"`, etc.). |
 | `itemSpacing` | `number` | `4` | Spacing in pixels between icons (`2`, `4`, `8`). |
 | `iconSize` | `number` | `0` | Icon size in pixels (`28`, `36`, `44`, `52` or `0` for auto). |
-| `showAppsButton` | `boolean` | `true` | Show or hide the Omarchy apps launcher button on the left edge. |
+| `showAppsButton` | `boolean` | `true` | Show or hide the Omarchy button on the left edge: left-click opens the Omarchy menu, scroll switches workspaces, middle-click opens a terminal, right-click opens dock settings. |
 | `showTooltips` | `boolean` | `true` | Show app name tooltips on mouse hover. |
-| `showMinimizedTiles` | `boolean` | `true` | Show minimized windows as live preview tiles in a dedicated dock section; click a tile to restore that exact window. |
+| `showMinimizedTiles` | `boolean` | `true` | Show minimized windows as live preview tiles between pinned and running apps; click restores that exact window, right-click offers Restore/Close. |
 | `screen` | `string` | `""` | Optional monitor name to pin the dock to (defaults to primary monitor). |
 | `hoverEffect` | `string` | `"zoom"` | Hover effect: `"zoom"` (single peak), `"wave"` (raised-cosine falloff), or `"off"`. |
 | `clickToMinimize` | `boolean` | legacy | Legacy alias kept for compatibility — derived from `minimizeMode`. Configure `minimizeMode` instead. |
@@ -275,6 +276,16 @@ All settings can be adjusted graphically via the right-click menu or edited dire
 | `revealDelay` | `number` | `160` | Edge dwell time in ms before autohidden dock reveals. |
 | `tooltipDelay` | `number` | `450` | Hover dwell time in ms before rich window tooltips appear. |
 | `pinnedFolders` | `array` | `[...]` | List of pinned folder objects (`path`, `name`, `icon`). |
+
+### Keyboard Bindings via IPC
+Omadock exposes dock actions to Quickshell's IPC bus, so you can bind them anywhere in `~/.config/hypr/bindings.lua`:
+
+```lua
+o.bind("SUPER + M", "Minimize focused window", "exec qs ipc call omadock minimizeActive")
+o.bind("SUPER + SHIFT + M", "Restore oldest minimized", "exec qs ipc call omadock restoreLast")
+```
+
+Available targets: `minimizeActive` (park the focused window), `restoreLast` (bring back the longest-parked window).
 
 ### Pinned Applications (`~/.config/omarchy/dock.json`)
 
@@ -297,7 +308,7 @@ All settings can be adjusted graphically via the right-click menu or edited dire
 **A:** Open the app, right-click its icon on the dock, and click **Pin to Dock** (or **Unpin from Dock**). You can also drag pinned icons to reorder them!
 
 ### Q: Where do minimized windows go?
-**A:** Hyprland doesn't have a traditional desktop taskbar, so Omadock parks minimized windows on a dedicated hidden workspace (`special:minimized`). Each parked window shows up as a **live preview tile** on the dock's right side — click the tile to restore that exact window to its original workspace. Right-click a tile to close it, or right-click the app icon for its full window list.
+**A:** Hyprland doesn't have a traditional desktop taskbar, so Omadock parks minimized windows on a dedicated hidden workspace (`special:minimized`). Each parked window shows up as a **live preview tile** in the dock's center-right section — click the tile to restore that exact window to its original workspace. Right-click a tile to close it, or right-click the app icon for its full window list.
 
 ### Q: How do I make the dock completely transparent?
 **A:** Right-click the Omarchy icon → **Appearance** → **Background Opacity** → Select **Transparent (0%)**. Omadock will render a clean, floating specular glass border around your icons.
