@@ -150,11 +150,7 @@ Item {
     // Where a left click would take you, when that is somewhere else.
     readonly property string workspaceHint: {
       if (!item.running || item.minimized || item.onFocusedWorkspace) return ""
-      var targetWin = (root.appRecentWindow && item.windowList)
-        ? root.recentWindow(item.appId, item.windowList)
-        : null
-      if (!targetWin && item.windowList && item.windowList.length > 0) targetWin = item.windowList[0]
-      var handle = targetWin ? targetWin.hypr : null
+      var handle = item.windowList.length > 0 ? item.windowList[0].hypr : null
       var ws = handle ? handle.workspace : null
       return ws ? DockModel.workspaceShort(ws.id, ws.name) : ""
     }
@@ -164,8 +160,7 @@ Item {
     // Live, unlike a flag copied into the model: only one window is focused, and
     // the manager always knows which.
     function windowFocused(window) {
-      return !!window && !!ToplevelManager.activeToplevel
-        && window.toplevel === ToplevelManager.activeToplevel
+      return root.isWindowFocused(window)
     }
 
     readonly property string tooltipText: {
@@ -230,7 +225,11 @@ Item {
         anchors.bottomMargin: Math.round((iconBox.height - root.baseIconArt) / 2)
         width: root.baseIconArt * item.magnifyScale
         height: width
-        source: item.icon !== "" ? item.icon : Quickshell.iconPath("application-x-executable", true)
+        source: {
+          var _tv = root.themeVersion
+          if (item.icon !== "") return item.icon
+          return Quickshell.iconPath("application-x-executable", true)
+        }
         sourceSize: Qt.size(width * Screen.devicePixelRatio, height * Screen.devicePixelRatio)
         visible: source !== ""
         opacity: item.starting ? (0.4 + 0.6 * item.pulse) : 1.0
@@ -240,12 +239,16 @@ Item {
     }
 
     readonly property bool isFocused: {
-      if (!ToplevelManager.activeToplevel) return false
-      var top = ToplevelManager.activeToplevel
-      if (item.appId && DockModel.isAppMatch(item.appId, top.appId)) return true
-      var list = item.windowList || []
-      for (var i = 0; i < list.length; i++) {
-        if (list[i] && list[i].toplevel === top) return true
+      try {
+        if (!ToplevelManager.activeToplevel) return false
+        var top = ToplevelManager.activeToplevel
+        if (item.appId && top.appId && DockModel.isAppMatch(item.appId, top.appId)) return true
+        var list = item.windowList || []
+        for (var i = 0; i < list.length; i++) {
+          if (list[i] && list[i].toplevel && list[i].toplevel === top) return true
+        }
+      } catch (e) {
+        return false
       }
       return false
     }
@@ -253,15 +256,23 @@ Item {
     property int selectedWindowIdx: -1
 
     function isWinMinimized(w) {
-      if (!w) return false
-      var h = w.hypr || null
-      var ws = h ? h.workspace : null
-      return !!ws && ws.name === root.minimizedWorkspace
+      try {
+        if (!w) return false
+        var h = w.hypr || null
+        var ws = h ? h.workspace : null
+        return !!ws && ws.name === root.minimizedWorkspace
+      } catch (e) {
+        return false
+      }
     }
 
     function isWinActive(w) {
-      if (!w || !ToplevelManager.activeToplevel) return false
-      return w.toplevel === ToplevelManager.activeToplevel
+      try {
+        if (!w || !w.toplevel || !ToplevelManager.activeToplevel) return false
+        return w.toplevel === ToplevelManager.activeToplevel
+      } catch (e) {
+        return false
+      }
     }
 
     readonly property int totalWindowCount: (item.windowList && item.windowList.length > 0) ? item.windowList.length : (item.running ? 1 : 0)
@@ -353,16 +364,22 @@ Item {
           var dir = wheel.angleDelta.y > 0 ? -1 : 1
           var wins = item.windowList || []
           if (wins.length > 1) {
-            // Scroll over tooltip cycles window selection
+            var cur = 0
             if (item.selectedWindowIdx < 0) {
-              var cur = 0
               for (var c = 0; c < wins.length; c++) {
-                if (item.windowFocused(wins[c])) { cur = c; break; }
+                if (root.isWindowFocused(wins[c])) { cur = c; break; }
               }
               item.selectedWindowIdx = (cur + dir + wins.length) % wins.length
             } else {
               item.selectedWindowIdx = (item.selectedWindowIdx + dir + wins.length) % wins.length
             }
+
+            // If context menu is open for this app, synchronize its selection
+            if (root.contextAppId === item.appId) {
+              try { appContextMenuColumn.selectedWindowIdx = item.selectedWindowIdx } catch (e) {}
+              return
+            }
+
             itemTooltip.shown = true
           } else {
             item.wheelScrolled(item.appId, dir)
@@ -420,6 +437,32 @@ Item {
         } else if (mouse.button === Qt.MiddleButton) {
           item.newWindowRequested(item.appId)
         } else if (mouse.button === Qt.LeftButton) {
+          // If context menu is open for this app:
+          if (root.contextAppId === item.appId) {
+            var chosenIdx = item.selectedWindowIdx
+            try {
+              if (appContextMenuColumn && appContextMenuColumn.selectedWindowIdx >= 0) {
+                chosenIdx = appContextMenuColumn.selectedWindowIdx
+              }
+            } catch (e) {}
+
+            if (chosenIdx >= 0 && item.windowList && chosenIdx < item.windowList.length) {
+              var chosenWin = item.windowList[chosenIdx]
+              var chosenHypr = chosenWin ? chosenWin.hypr : null
+              var chosenWs = chosenHypr ? chosenHypr.workspace : null
+              var isParked = chosenWs && chosenWs.name === root.minimizedWorkspace
+              if (isParked) {
+                root.restoreWindow(chosenHypr || chosenWin, item.appId)
+              } else if (chosenWin && chosenWin.toplevel) {
+                root.focusToplevel(chosenWin.toplevel)
+              }
+            }
+            item.selectedWindowIdx = -1
+            try { appContextMenuColumn.selectedWindowIdx = -1 } catch (e2) {}
+            root.closeContext()
+            return
+          }
+
           // If a specific window was selected via scroll wheel in tooltip:
           if (item.selectedWindowIdx >= 0 && item.windowList && item.selectedWindowIdx < item.windowList.length) {
             var chosenWin = item.windowList[item.selectedWindowIdx]
@@ -450,13 +493,7 @@ Item {
       borderSpec: Border.surfaceSpec("tooltip", "border", Color.tooltip.border, 1)
       radius: Style.cornerRadius > 0 ? Style.cornerRadius : 8
       padding: Style.space(6)
-      x: {
-        var idealX = (item.width - width) / 2
-        var itemGlobalX = dockCard.x + row.x + item.x
-        var minX = Style.gapsOut - itemGlobalX
-        var maxX = (dockWindow.width - Style.gapsOut - width) - itemGlobalX
-        return Math.max(minX, Math.min(maxX, idealX))
-      }
+      x: (item.width - width) / 2
       y: -height - Style.space(10)
       width: tooltipContent.implicitWidth + contentLeftInset + contentRightInset
       height: tooltipContent.implicitHeight + contentTopInset + contentBottomInset
@@ -466,7 +503,9 @@ Item {
         else {
           tooltipDwell.stop()
           itemTooltip.shown = false
-          item.selectedWindowIdx = -1
+          if (root.contextAppId !== item.appId) {
+            item.selectedWindowIdx = -1
+          }
         }
       }
 
@@ -605,13 +644,7 @@ Item {
     HoverTooltip {
       text: btn.tooltip
       hovered: area.containsMouse
-      x: {
-        var idealX = (btn.width - width) / 2
-        var btnGlobalX = dockCard.x + row.x + btn.x
-        var minX = Style.gapsOut - btnGlobalX
-        var maxX = (dockWindow.width - Style.gapsOut - width) - btnGlobalX
-        return Math.max(minX, Math.min(maxX, idealX))
-      }
+      x: (btn.width - width) / 2
       y: -height - Style.space(8)
     }
   }
@@ -625,6 +658,9 @@ Item {
     property color textColor: Color.menu.text
     property bool danger: false
     property bool isHeader: false
+    property bool isWindowRow: false
+    property bool winFocused: false
+    property bool winParked: false
     signal triggered()
 
     // Rows ask for what they need, then all get drawn at the menu's width, so
@@ -633,8 +669,8 @@ Item {
     readonly property bool isMenuContent: true
     readonly property real markWidth: Style.space(14)
 
-    implicitWidth: Math.max(220, Style.space(8) + crow.markWidth + Style.space(6)
-      + label.implicitWidth + Style.space(8))
+    implicitWidth: Math.min(Style.space(260), Math.max(220, Style.space(8) + crow.markWidth + Style.space(6)
+      + label.implicitWidth + Style.space(8)))
     width: contextMenu.rowWidth > 0 ? contextMenu.rowWidth : crow.implicitWidth
     height: crow.isHeader ? Math.max(22, Style.space(22)) : Math.max(28, Style.space(28))
 
@@ -658,31 +694,59 @@ Item {
 
       // The mark column is always reserved, so labels stay on one left edge and
       // a row keeps its width when it gets checked.
-      Text {
-        id: mark
+      Item {
+        id: markContainer
         width: crow.markWidth
+        height: crow.markWidth
         anchors.verticalCenter: parent.verticalCenter
-        horizontalAlignment: Text.AlignHCenter
-        textFormat: Text.PlainText
-        opacity: (crow.glyph !== "" || crow.checked) ? 1 : 0
-        text: crow.glyph !== "" ? crow.glyph : "\ue92b"
-        font.family: "omarchy"
-        font.pixelSize: Style.font.caption
-        color: crow.checked ? Color.bar.active : (crow.isHeader ? Util.alpha(Color.menu.text, 0.5) : crow.textColor)
+
+        // Window Dot (if isWindowRow)
+        Rectangle {
+          visible: crow.isWindowRow
+          width: Style.space(6)
+          height: Style.space(6)
+          radius: width / 2
+          anchors.centerIn: parent
+          color: crow.winFocused
+            ? Color.bar.active
+            : (crow.winParked ? "transparent" : (crow.checked ? Color.bar.active : Util.alpha(Color.menu.text, 0.45)))
+          border.color: crow.winFocused
+            ? Color.bar.active
+            : (crow.winParked ? Util.alpha(Color.menu.text, 0.4) : (crow.checked ? Color.bar.active : "transparent"))
+          border.width: 1
+        }
+
+        // Standard Glyph / Checkmark (if not isWindowRow)
+        Text {
+          visible: !crow.isWindowRow
+          anchors.fill: parent
+          horizontalAlignment: Text.AlignHCenter
+          verticalAlignment: Text.AlignVCenter
+          textFormat: Text.PlainText
+          opacity: (crow.glyph !== "" || crow.checked) ? 1 : 0
+          text: crow.glyph !== "" ? crow.glyph : "\ue92b"
+          font.family: "omarchy"
+          font.pixelSize: Style.font.caption
+          color: crow.checked ? Color.bar.active : (crow.isHeader ? Util.alpha(Color.menu.text, 0.5) : crow.textColor)
+        }
       }
 
       Text {
         id: label
         anchors.verticalCenter: parent.verticalCenter
-        width: content.width - mark.width - content.spacing
-        text: crow.text
+        width: content.width - markContainer.width - content.spacing
+        text: (crow.checked && crow.isWindowRow ? "› " : "") + crow.text
         textFormat: Text.PlainText
         color: crow.isHeader
           ? Util.alpha(Color.menu.text, 0.5)
-          : (crow.checked ? Color.bar.active : (area.containsMouse && crow.danger ? Color.urgent : crow.textColor))
+          : (crow.checked || crow.winFocused
+              ? Color.bar.active
+              : (crow.winParked
+                  ? Util.alpha(Color.menu.text, 0.50)
+                  : (area.containsMouse && crow.danger ? Color.urgent : crow.textColor)))
         font.family: Style.font.family
         font.pixelSize: crow.isHeader ? Style.font.caption : Style.font.body
-        font.weight: (crow.isHeader || crow.checked) ? Font.DemiBold : Font.Normal
+        font.weight: (crow.isHeader || crow.checked || crow.winFocused) ? Font.DemiBold : Font.Normal
         elide: Text.ElideRight
       }
     }
@@ -694,6 +758,284 @@ Item {
       hoverEnabled: true
       cursorShape: Qt.PointingHandCursor
       onClicked: crow.triggered()
+    }
+  }
+
+  component MenuDivider: Item {
+    id: mdiv
+    readonly property bool isMenuContent: false
+    implicitWidth: contextMenu.rowWidth > 0 ? contextMenu.rowWidth : Style.space(160)
+    width: contextMenu.rowWidth > 0 ? contextMenu.rowWidth : implicitWidth
+    implicitHeight: Math.max(7, Style.space(7))
+    height: Math.max(7, Style.space(7))
+
+    Rectangle {
+      anchors.left: parent.left
+      anchors.right: parent.right
+      anchors.leftMargin: Style.space(6)
+      anchors.rightMargin: Style.space(6)
+      anchors.verticalCenter: parent.verticalCenter
+      height: 1
+      color: Util.alpha(Color.menu.border, 0.45)
+    }
+  }
+
+  component FileStackRow: Item {
+    id: frow
+
+    property string name: ""
+    property string path: ""
+    property string icon: "folder"
+    property string subtext: ""
+    signal triggered()
+
+    readonly property bool isMenuContent: true
+    readonly property real rowWidth: (folderStackPopover && folderStackPopover.rowWidth > 0)
+      ? folderStackPopover.rowWidth
+      : ((contextMenu && contextMenu.rowWidth > 0) ? contextMenu.rowWidth : frow.implicitWidth)
+
+    implicitWidth: Math.max(240, Style.space(8) + Style.space(16) + Style.space(8)
+      + label.implicitWidth + (sublabel.text !== "" ? (sublabel.implicitWidth + Style.space(8)) : 0) + Style.space(8))
+    width: frow.rowWidth
+    height: Math.max(28, Style.space(28))
+
+    readonly property string resolvedIconSource: {
+      var _tv = root.themeVersion
+      return DockModel.resolveFileItemIcon(frow.icon, root.currentIconThemeName, root.folderColor)
+    }
+    readonly property bool isIconSymbolic: resolvedIconSource.indexOf("-symbolic.svg") >= 0 || resolvedIconSource.indexOf("symbolic") >= 0
+    readonly property color symbolicColor: {
+      if (root.folderColor === "white") return "#ffffff"
+      if (root.folderColor === "black") return "#111111"
+      return (Color.bar.background.hslLightness < 0.5 || Color.background.hslLightness < 0.5) ? "#ffffff" : "#111111"
+    }
+
+    Rectangle {
+      anchors.fill: parent
+      radius: Style.cornerRadius
+      color: area.containsMouse ? Color.menu.selectedBackground : "transparent"
+    }
+
+    Item {
+      id: content
+      anchors.left: parent.left
+      anchors.leftMargin: Style.space(8)
+      anchors.right: parent.right
+      anchors.rightMargin: Style.space(8)
+      anchors.verticalCenter: parent.verticalCenter
+      height: Math.max(16, label.implicitHeight)
+
+      Item {
+        id: iconHolder
+        width: Style.space(16)
+        height: Style.space(16)
+        anchors.left: parent.left
+        anchors.verticalCenter: parent.verticalCenter
+
+        Image {
+          id: stackRowImg
+          anchors.fill: parent
+          source: frow.resolvedIconSource
+          sourceSize: Qt.size(48, 48)
+          fillMode: Image.PreserveAspectFit
+          asynchronous: true
+          smooth: true
+          mipmap: true
+          visible: !frow.isIconSymbolic
+        }
+
+        Item {
+          anchors.fill: parent
+          visible: frow.isIconSymbolic
+
+          Image {
+            id: symStackImg
+            anchors.fill: parent
+            source: frow.resolvedIconSource
+            sourceSize: Qt.size(48, 48)
+            fillMode: Image.PreserveAspectFit
+            asynchronous: true
+            smooth: true
+            mipmap: true
+            visible: false
+          }
+
+          MultiEffect {
+            anchors.fill: symStackImg
+            source: symStackImg
+            colorization: 1.0
+            colorizationColor: frow.symbolicColor
+          }
+        }
+      }
+
+      Text {
+        id: sublabel
+        visible: frow.subtext !== ""
+        anchors.right: parent.right
+        anchors.verticalCenter: parent.verticalCenter
+        text: frow.subtext
+        textFormat: Text.PlainText
+        color: Util.alpha(Color.menu.text, 0.45)
+        font.family: Style.font.family
+        font.pixelSize: Style.font.caption
+      }
+
+      Text {
+        id: label
+        anchors.left: iconHolder.right
+        anchors.leftMargin: Style.space(8)
+        anchors.right: sublabel.visible ? sublabel.left : parent.right
+        anchors.rightMargin: sublabel.visible ? Style.space(8) : 0
+        anchors.verticalCenter: parent.verticalCenter
+        text: frow.name
+        textFormat: Text.PlainText
+        color: Color.menu.text
+        font.family: Style.font.family
+        font.pixelSize: Style.font.body
+        elide: Text.ElideMiddle
+      }
+    }
+
+    MouseArea {
+      id: area
+      anchors.fill: parent
+      hoverEnabled: true
+      cursorShape: Qt.PointingHandCursor
+      onClicked: frow.triggered()
+    }
+  }
+
+  component DockFolderItem: Item {
+    id: fitem
+
+    property string folderPath: ""
+    property string name: ""
+    property string icon: "folder"
+    property real homeCenter: 0
+
+    signal openStackRequested(string path, string name, real cx, real cy)
+    signal menuRequested(string path, string name, real cx, real cy)
+
+    width: root.iconSlot * (root.waveHover ? fitem.magnifyScale : 1)
+    height: root.iconSlot
+
+    readonly property bool isOpen: root.activeStackFolder === fitem.folderPath
+
+    property real magnifyScale: {
+      if (root.waveHover) return root.magnifyScaleAt(fitem.homeCenter)
+      if (root.hoverEffect === "off") return 1
+      return area.containsMouse ? root.zoomPeak : 1
+    }
+
+    readonly property string resolvedSource: {
+      var _tv = root.themeVersion
+      return DockModel.resolveThemedFolderIcon(fitem.icon, root.currentIconThemeName, root.folderColor)
+    }
+    readonly property bool isSymbolic: resolvedSource.indexOf("-symbolic.svg") >= 0 || resolvedSource.indexOf("symbolic") >= 0
+    readonly property color symbolicColor: {
+      if (root.folderColor === "white") return "#ffffff"
+      if (root.folderColor === "black") return "#111111"
+      return (Color.bar.background.hslLightness < 0.5 || Color.background.hslLightness < 0.5) ? "#ffffff" : "#111111"
+    }
+
+    Behavior on magnifyScale {
+      NumberAnimation { duration: 110; easing.type: Easing.OutQuad }
+    }
+
+    Item {
+      id: iconSlot
+      width: root.iconSlot
+      height: root.iconSlot
+      anchors.horizontalCenter: parent.horizontalCenter
+      anchors.verticalCenter: parent.verticalCenter
+
+      Item {
+        id: iconContainer
+        width: root.iconSize
+        height: root.iconSize
+        anchors.centerIn: parent
+        scale: fitem.magnifyScale
+
+        Image {
+          id: folderIconImg
+          anchors.fill: parent
+          source: fitem.resolvedSource
+          sourceSize: Qt.size(root.iconSize * 4, root.iconSize * 4)
+          fillMode: Image.PreserveAspectFit
+          asynchronous: true
+          smooth: true
+          mipmap: true
+          visible: !fitem.isSymbolic
+        }
+
+        Item {
+          anchors.fill: parent
+          visible: fitem.isSymbolic
+
+          Image {
+            id: symbolicImg
+            anchors.fill: parent
+            source: fitem.resolvedSource
+            sourceSize: Qt.size(root.iconSize * 4, root.iconSize * 4)
+            fillMode: Image.PreserveAspectFit
+            asynchronous: true
+            smooth: true
+            mipmap: true
+            visible: false
+          }
+
+          MultiEffect {
+            anchors.fill: symbolicImg
+            source: symbolicImg
+            colorization: 1.0
+            colorizationColor: fitem.symbolicColor
+          }
+        }
+      }
+    }
+
+    // Active stack open indicator dot
+    Rectangle {
+      visible: fitem.isOpen
+      anchors.bottom: parent.bottom
+      anchors.bottomMargin: Style.space(1)
+      anchors.horizontalCenter: parent.horizontalCenter
+      width: Style.space(4)
+      height: Style.space(4)
+      radius: width / 2
+      color: Color.bar.active
+    }
+
+    MouseArea {
+      id: area
+      anchors.fill: parent
+      hoverEnabled: true
+      acceptedButtons: Qt.LeftButton | Qt.RightButton
+      cursorShape: Qt.PointingHandCursor
+
+      onClicked: function(mouse) {
+        if (mouse.button === Qt.RightButton) {
+          var mappedPos = fitem.mapToItem(dockWindow.contentItem, mouse.x, mouse.y)
+          fitem.menuRequested(fitem.folderPath, fitem.name, mappedPos.x, mappedPos.y)
+        } else {
+          var centerPos = fitem.mapToItem(dockWindow.contentItem, fitem.width / 2, 0)
+          fitem.openStackRequested(fitem.folderPath, fitem.name, centerPos.x, centerPos.y)
+        }
+      }
+    }
+
+    // Hover Tooltip
+    Item {
+      id: tooltipAnchor
+      anchors.horizontalCenter: parent.horizontalCenter
+      anchors.top: parent.top
+      anchors.topMargin: -Style.space(4)
+
+      PanelToolTip {
+        visible: area.containsMouse && root.showTooltips && root.contextAppId === "" && root.activeStackFolder === ""
+        text: fitem.name + " (Folder)"
+      }
     }
   }
 
@@ -756,11 +1098,14 @@ Item {
   readonly property bool hasSeparator: root.pinnedSection.length > 0 && root.runningSection.length > 0
   readonly property real gapWidth: Style.space(root.itemSpacing)
   readonly property real separatorWidth: Style.space(1)
-  readonly property int slotTotal: root.appsSlots + root.pinnedSection.length + root.runningSection.length
-  readonly property int elementTotal: root.slotTotal + (root.hasSeparator ? 1 : 0)
+  readonly property int folderSlots: root.pinnedFolders ? root.pinnedFolders.length : 0
+  readonly property bool hasFolderSeparator: root.folderSlots > 0 && (root.pinnedSection.length > 0 || root.runningSection.length > 0)
+  readonly property int slotTotal: root.appsSlots + root.pinnedSection.length + root.runningSection.length + root.folderSlots
+  readonly property int elementTotal: root.slotTotal + (root.hasSeparator ? 1 : 0) + (root.hasFolderSeparator ? 1 : 0)
 
   readonly property real baseRowWidth: root.slotTotal * root.iconSlot
     + (root.hasSeparator ? root.separatorWidth : 0)
+    + (root.hasFolderSeparator ? root.separatorWidth : 0)
     + Math.max(0, root.elementTotal - 1) * root.gapWidth
 
   // Where the row would start if nothing were magnified. The card is centred,
@@ -769,11 +1114,12 @@ Item {
     - (root.baseRowWidth + dockCard.contentLeftInset + dockCard.contentRightInset)) / 2
     + dockCard.contentLeftInset
 
-  function slotHomeCenter(elementIndex, slotsBefore, sepBefore) {
+  function slotHomeCenter(elementIndex, slotsBefore, sepCount) {
+    var seps = (typeof sepCount === "number") ? sepCount : (sepCount ? 1 : 0)
     return root.baseRowLeft
       + elementIndex * root.gapWidth
       + slotsBefore * root.iconSlot
-      + (sepBefore ? root.separatorWidth : 0)
+      + seps * root.separatorWidth
       + root.iconSlot / 2
   }
 
@@ -848,9 +1194,14 @@ Item {
     root.pruneWindowState()
   }
 
-  readonly property string activeId: ToplevelManager.activeToplevel
-    ? DockModel.normalizeId(ToplevelManager.activeToplevel.appId)
-    : ""
+  readonly property string activeId: {
+    try {
+      var top = ToplevelManager.activeToplevel
+      return top && top.appId ? DockModel.normalizeId(top.appId) : ""
+    } catch (e) {
+      return ""
+    }
+  }
 
   readonly property int focusedWorkspaceId: Hyprland.focusedWorkspace
     ? Hyprland.focusedWorkspace.id
@@ -891,8 +1242,21 @@ Item {
   property bool contextPinned: false
   property int contextWindows: 0
   property var contextWindowList: []
+  property var contextDesktopActions: []
   property real contextX: 0
   property real contextY: 0
+
+  // ------------------------------------------------- folder stacks state
+
+  property var pinnedFolders: []
+  property string activeStackFolder: ""
+  property string activeStackName: ""
+  property var activeStackEntries: []
+  property int activeStackTotalCount: 0
+  property real activeStackX: 0
+  property string activeStackViewMode: "grid"
+  property string contextFolderPath: ""
+  property string contextFolderName: ""
 
   // ------------------------------------------------- configuration options
 
@@ -918,6 +1282,9 @@ Item {
   }
   property string dockShape: "rounded"
   property string dockBgColor: "theme"
+  property int themeVersion: 0
+  property string currentIconThemeName: "Yaru"
+  property string folderColor: "theme"
   property int itemSpacing: 4
   property string minimizeMode: "off"
   readonly property bool clickToMinimize: root.minimizeMode !== "off"
@@ -1000,38 +1367,32 @@ Item {
           return
         }
 
-        // Logical monitor dimensions accounting for fractional scaling & multi-monitor offsets
-        var targetMon = (root.dockScreen && typeof Hyprland.monitorFor === "function")
-          ? Hyprland.monitorFor(root.dockScreen)
-          : Hyprland.focusedMonitor
-        var monX = (targetMon && typeof targetMon.x === "number") ? targetMon.x : 0
-        var monY = (targetMon && typeof targetMon.y === "number") ? targetMon.y : 0
-        var scale = (targetMon && targetMon.scale > 0)
-          ? targetMon.scale
+        // Logical monitor dimensions accounting for fractional scaling
+        var mon = Hyprland.focusedMonitor
+        var scale = (mon && mon.scale > 0)
+          ? mon.scale
           : (dockScreen && dockScreen.devicePixelRatio ? dockScreen.devicePixelRatio : 1.0)
-        var screenLogicalW = (targetMon && targetMon.width > 0)
-          ? (targetMon.width / scale)
+        var screenLogicalW = (mon && mon.width > 0)
+          ? (mon.width / scale)
           : (dockScreen ? dockScreen.width : 1920)
-        var screenLogicalH = (targetMon && targetMon.height > 0)
-          ? (targetMon.height / scale)
+        var screenLogicalH = (mon && mon.height > 0)
+          ? (mon.height / scale)
           : (dockScreen ? dockScreen.height : 1080)
 
         var cardW = dockCard.width > 0 ? (dockCard.width + Style.gapsOut * 2) : 320
         var cardH = dockCard.height > 0 ? (dockCard.height + Style.gapsOut * 2) : 60
-        var dockLeft = monX + (screenLogicalW - cardW) / 2
-        var dockRight = monX + (screenLogicalW + cardW) / 2
-        var dockTop = monY + screenLogicalH - cardH - 12
-        var dockBottom = monY + screenLogicalH
+        var dockLeft = (screenLogicalW - cardW) / 2
+        var dockRight = (screenLogicalW + cardW) / 2
+        var dockTop = screenLogicalH - cardH - 12
+        var dockBottom = screenLogicalH
 
         var overlap = false
-        var activeWsId = (targetMon && targetMon.activeWorkspace)
-          ? targetMon.activeWorkspace.id
-          : (Hyprland.focusedWorkspace ? Hyprland.focusedWorkspace.id : -1)
+        var focusedWsId = Hyprland.focusedWorkspace ? Hyprland.focusedWorkspace.id : -1
 
         for (var i = 0; i < clients.length; i++) {
           var c = clients[i]
           if (!c.mapped || c.hidden) continue
-          if (!c.workspace || c.workspace.id !== activeWsId) continue
+          if (!c.workspace || c.workspace.id !== focusedWsId) continue
 
           var at = c.at
           var sz = c.size
@@ -1057,6 +1418,42 @@ Item {
     }
   }
 
+  Process {
+    id: folderStackScanner
+    property string targetFolder: ""
+    command: ["python3", "-c", "import os, json, time, sys\nfolder = os.path.expanduser(sys.argv[1]) if len(sys.argv) > 1 else ''\nif not folder or not os.path.exists(folder):\n    print('{\"count\":0,\"items\":[]}')\n    sys.exit(0)\nentries = []\ntry:\n    for entry in os.scandir(folder):\n        try:\n            if entry.name.startswith('.'):\n                continue\n            stat = entry.stat()\n            is_dir = entry.is_dir()\n            size_bytes = stat.st_size if not is_dir else 0\n            if size_bytes < 1024:\n                size_str = f'{size_bytes} B'\n            elif size_bytes < 1024 * 1024:\n                size_str = f'{size_bytes / 1024:.1f} KB'\n            elif size_bytes < 1024 * 1024 * 1024:\n                size_str = f'{size_bytes / (1024 * 1024):.1f} MB'\n            else:\n                size_str = f'{size_bytes / (1024 * 1024 * 1024):.1f} GB'\n            diff = time.time() - stat.st_mtime\n            if diff < 60:\n                time_str = 'Just now'\n            elif diff < 3600:\n                time_str = f'{int(diff // 60)}m ago'\n            elif diff < 86400:\n                time_str = f'{int(diff // 3600)}h ago'\n            else:\n                time_str = f'{int(diff // 86400)}d ago'\n            ext = os.path.splitext(entry.name)[1].lower()\n            is_img = ext in ['.png', '.jpg', '.jpeg', '.webp', '.svg', '.gif']\n            if is_dir:\n                icon = 'folder'\n            elif is_img:\n                icon = 'image-x-generic'\n            elif ext in ['.mp4', '.mkv', '.webm', '.mov', '.avi']:\n                icon = 'video-x-generic'\n            elif ext in ['.mp3', '.flac', '.wav', '.ogg', '.m4a']:\n                icon = 'audio-x-generic'\n            elif ext in ['.zip', '.tar', '.gz', '.xz', '.7z', '.rar']:\n                icon = 'package-x-generic'\n            elif ext in ['.pdf']:\n                icon = 'application-pdf'\n            elif ext in ['.txt', '.md', '.json', '.qml', '.py', '.cpp', '.js', '.lua', '.rs', '.go', '.html', '.css']:\n                icon = 'text-x-generic'\n            else:\n                icon = 'application-x-executable'\n            entries.append({'name': entry.name, 'path': entry.path, 'isDir': is_dir, 'isImage': is_img, 'size': size_str, 'time': time_str, 'mtime': stat.st_mtime, 'icon': icon})\n        except Exception:\n            pass\nexcept Exception:\n    pass\nentries.sort(key=lambda x: x['mtime'], reverse=True)\nprint(json.dumps({'count': len(entries), 'items': entries[:16]}))\n", folderStackScanner.targetFolder]
+    running: false
+    stdout: StdioCollector {
+      onStreamFinished: {
+        try {
+          var parsed = JSON.parse(this.text) || { count: 0, items: [] }
+          root.activeStackTotalCount = parsed.count || 0
+          root.activeStackEntries = parsed.items || []
+        } catch (e) {
+          root.activeStackTotalCount = 0
+          root.activeStackEntries = []
+        }
+      }
+    }
+  }
+
+  Process {
+    id: customFolderPickerProc
+    command: ["python3", "-c", "import gi\ngi.require_version('Gtk', '3.0')\nfrom gi.repository import Gtk\ndialog = Gtk.FileChooserDialog(title='Select Folder to Pin to Dock', action=Gtk.FileChooserAction.SELECT_FOLDER)\ndialog.add_buttons(Gtk.STOCK_CANCEL, Gtk.ResponseType.CANCEL, Gtk.STOCK_OPEN, Gtk.ResponseType.OK)\nres = dialog.run()\nif res == Gtk.ResponseType.OK:\n    print(dialog.get_filename())\ndialog.destroy()\n"]
+    running: false
+    stdout: StdioCollector {
+      onStreamFinished: {
+        var chosen = String(this.text || "").trim()
+        if (chosen.length > 0) {
+          var baseName = chosen.split("/").pop() || "Folder"
+          var home = Quickshell.env("HOME")
+          var relPath = (chosen.indexOf(home) === 0) ? chosen.replace(home, "~") : chosen
+          root.toggleFolderPin(relPath, baseName, DockModel.folderIconFor(relPath, ""))
+        }
+      }
+    }
+  }
+
   function syncVisibility() {
     // Mode 1: Always Show
     if (!root.autohide) {
@@ -1066,7 +1463,7 @@ Item {
       return
     }
 
-    var isHovered = (cardHover && cardHover.hovered) || (revealHover && revealHover.hovered) || root.contextAppId !== "" || root.dragAppId !== ""
+    var isHovered = (cardHover && cardHover.hovered) || (revealHover && revealHover.hovered) || root.contextAppId !== "" || root.dragAppId !== "" || root.activeStackFolder !== ""
 
     // Hovered, Context Menu Open, or Dragging: keep visible
     if (isHovered) {
@@ -1092,6 +1489,7 @@ Item {
   }
 
   onContextAppIdChanged: root.syncVisibility()
+  onActiveStackFolderChanged: root.syncVisibility()
   onDragAppIdChanged: root.syncVisibility()
   onAutohideChanged: root.syncVisibility()
   onIntelligentAutohideChanged: {
@@ -1099,6 +1497,12 @@ Item {
     root.syncVisibility()
   }
   onWindowsOverlapDockChanged: root.syncVisibility()
+  onDockVisibleChanged: {
+    if (!root.dockVisible) {
+      root.closeContext()
+      root.closeFolderStack()
+    }
+  }
 
   // ------------------------------------------------- file views
 
@@ -1120,7 +1524,74 @@ Item {
     onFileChanged: dockFile.reload()
   }
 
+  FileView {
+    id: themeIconsFile
+    path: Quickshell.env("HOME") + "/.local/state/omarchy/current/theme/icons.theme"
+    watchChanges: true
+    printErrors: false
+    onLoaded: {
+      try {
+        var t = String(themeIconsFile.text() || "").trim()
+        if (t) root.currentIconThemeName = t
+      } catch (e) {}
+      root.handleThemeChanged()
+    }
+    onFileChanged: {
+      themeIconsFile.reload()
+      try {
+        var t = String(themeIconsFile.text() || "").trim()
+        if (t) root.currentIconThemeName = t
+      } catch (e) {}
+      root.handleThemeChanged()
+    }
+  }
+
+  FileView {
+    id: themeColorsFile
+    path: Quickshell.env("HOME") + "/.local/state/omarchy/current/theme/colors.toml"
+    watchChanges: true
+    onLoaded: root.handleThemeChanged()
+    onFileChanged: {
+      themeColorsFile.reload()
+      root.handleThemeChanged()
+    }
+  }
+
+  FileView {
+    id: dndConfigFile
+    path: Quickshell.env("HOME") + "/.local/state/omarchy/notifications.json"
+    watchChanges: true
+    printErrors: false
+    onFileChanged: dndConfigFile.reload()
+  }
+
+  readonly property bool isDndActive: {
+    if (root.notifService && typeof root.notifService.doNotDisturb === "boolean") {
+      return root.notifService.doNotDisturb
+    }
+    try {
+      var txt = String(dndConfigFile.text() || "").trim()
+      if (txt) {
+        var parsed = JSON.parse(txt)
+        if (parsed && typeof parsed.dnd === "boolean") return parsed.dnd
+      }
+    } catch (e) {}
+    return false
+  }
+
   // ------------------------------------------------- reactive event connections
+
+  Connections {
+    target: Color
+    function onShellValuesChanged() { root.handleThemeChanged() }
+    function onForegroundChanged() { root.handleThemeChanged() }
+    function onAccentChanged() { root.handleThemeChanged() }
+  }
+
+  Connections {
+    target: Style
+    function onFontFamilyChanged() { root.handleThemeChanged() }
+  }
 
   Connections {
     target: root.appLibrary
@@ -1133,6 +1604,7 @@ Item {
     function onValuesChanged() {
       modelTimer.restart()
       debounceOverlapTimer.restart()
+      root.syncContextWindows()
     }
   }
 
@@ -1140,23 +1612,28 @@ Item {
   // Wayland announcement; rebuilding on both is what keeps the handles attached.
   Connections {
     target: Hyprland.toplevels
-    function onValuesChanged() { modelTimer.restart() }
+    function onValuesChanged() {
+      modelTimer.restart()
+    }
   }
 
   Connections {
     target: ToplevelManager
     function onActiveToplevelChanged() {
-      var top = ToplevelManager.activeToplevel
-      if (top) {
-        var aid = DockModel.normalizeId(top.appId)
-        var address = root.windowAddress(root.hyprToplevelFor(top))
-        if (aid && address) {
-          var recent = DockModel.copyMap(root.appRecentWindow)
-          recent[aid] = address
-          root.appRecentWindow = recent
+      try {
+        var top = ToplevelManager.activeToplevel
+        if (top && top.appId) {
+          var aid = DockModel.normalizeId(top.appId)
+          var address = root.windowAddress(root.hyprToplevelFor(top))
+          if (aid && address) {
+            var recent = DockModel.copyMap(root.appRecentWindow)
+            recent[aid] = address
+            root.appRecentWindow = recent
+          }
         }
-      }
+      } catch (e) {}
       debounceOverlapTimer.restart()
+      root.syncContextWindows()
     }
   }
 
@@ -1266,41 +1743,46 @@ Item {
     if (ts && ts === root._lastProcessedNotifTimestamp) return
     root._lastProcessedNotifTimestamp = ts
 
-    var allEntries = root.pinnedSection.concat(root.runningSection)
-    var matchedEntries = DockModel.findNotificationTargets(allEntries, root.appRows, row)
-    if (!matchedEntries || matchedEntries.length === 0) return
+    var appName = String(row.app || "")
+    var appIcon = String(row.appIcon || "")
+    var summary = String(row.summary || "")
 
     var activeHandle = root.hyprToplevelFor(ToplevelManager.activeToplevel)
     var activeAddr = root.windowAddress(activeHandle)
 
+    var allEntries = root.pinnedSection.concat(root.runningSection)
     var map = DockModel.copyMap(root.urgentMap)
     var found = false
 
-    for (var e = 0; e < matchedEntries.length; e++) {
-      var entry = matchedEntries[e]
+    for (var e = 0; e < allEntries.length; e++) {
+      var entry = allEntries[e]
       if (!entry) continue
       var appId = entry.appId || entry.id
-      var wins = entry.windowList || []
-      var isFocused = false
+      var match = (appName !== "" && DockModel.isAppMatch(appId, appName))
+               || (appIcon !== "" && DockModel.isAppMatch(appId, appIcon))
+               || (summary !== "" && DockModel.isAppMatch(appId, summary))
+               || (entry.name && appName && String(entry.name).toLowerCase() === appName.toLowerCase())
 
-      for (var w = 0; w < wins.length; w++) {
-        var h = wins[w] ? wins[w].hypr : null
-        var addr = root.windowAddress(h)
-        if (addr && addr === activeAddr) {
-          isFocused = true
-          break
-        }
-      }
-
-      // Foreground Suppression Rule: An app currently focused in the foreground suppresses urgency bounce
-      if (!isFocused) {
-        map[appId] = true
+      if (match) {
+        var wins = entry.windowList || []
+        var isFocused = false
         for (var w = 0; w < wins.length; w++) {
           var h = wins[w] ? wins[w].hypr : null
           var addr = root.windowAddress(h)
-          if (addr) map[addr] = true
+          if (addr && addr === activeAddr) {
+            isFocused = true
+            break
+          }
         }
-        found = true
+        if (!isFocused) {
+          map[appId] = true
+          for (var w = 0; w < wins.length; w++) {
+            var h = wins[w] ? wins[w].hypr : null
+            var addr = root.windowAddress(h)
+            if (addr) map[addr] = true
+          }
+          found = true
+        }
       }
     }
 
@@ -1309,8 +1791,8 @@ Item {
       modelTimer.restart()
     }
 
-    // Play notification alert sound if enabled
-    if (root.urgentSound && root.urgentSoundName !== "none") {
+    // Play notification alert sound (suppressed if DND is active)
+    if (root.urgentSound && root.urgentSoundName !== "none" && !root.isDndActive) {
       Quickshell.execDetached(["canberra-gtk-play", "-i", root.urgentSoundName])
     }
   }
@@ -1376,6 +1858,7 @@ Item {
     }
     root.dockShape = parsed && typeof parsed.shape === "string" ? parsed.shape : "rounded"
     root.dockBgColor = parsed && typeof parsed.bgColor === "string" ? parsed.bgColor : "theme"
+    root.folderColor = parsed && typeof parsed.folderColor === "string" ? parsed.folderColor : "theme"
     root.itemSpacing = parsed && typeof parsed.itemSpacing === "number" ? parsed.itemSpacing : 4
     if (parsed && typeof parsed.minimizeMode === "string") {
       root.minimizeMode = parsed.minimizeMode
@@ -1394,11 +1877,56 @@ Item {
     root.tooltipDelay = parsed && typeof parsed.tooltipDelay === "number"
       ? Math.max(0, Math.min(5000, Math.round(parsed.tooltipDelay)))
       : 450
+    if (parsed && Array.isArray(parsed.pinnedFolders)) {
+      root.pinnedFolders = parsed.pinnedFolders
+    } else {
+      root.pinnedFolders = [
+        { path: "~/Downloads", name: "Downloads", icon: "folder-download" }
+      ]
+    }
   }
 
   function rescanApps() {
     root.appRows = root.shell && root.shell.appLibrary ? root.shell.appLibrary.sortedEntries("") : []
     root.refreshDock()
+  }
+
+  function handleThemeChanged() {
+    try {
+      var t = String(themeIconsFile.text() || "").trim()
+      if (t) root.currentIconThemeName = t
+    } catch (e) {}
+    root.themeVersion++
+    if (root.shell && root.shell.appLibrary) {
+      try { root.shell.appLibrary.refreshIcons() } catch (e) {}
+    }
+    root.rescanApps()
+    root.refreshDock()
+  }
+
+  function folderColorLabel(colorId) {
+    if (!colorId || colorId === "theme" || colorId === "auto") return "Auto (Theme)"
+    if (colorId === "white") return "White"
+    if (colorId === "black") return "Black"
+    var map = {
+      "Yaru-sage": "Sage Green",
+      "Yaru-olive": "Olive",
+      "Yaru-blue": "Blue",
+      "Yaru-purple": "Purple",
+      "Yaru-magenta": "Magenta",
+      "Yaru-red": "Red",
+      "Yaru-yellow": "Yellow",
+      "Yaru-wartybrown": "Brown",
+      "Yaru-prussiangreen": "Teal",
+      "Yaru-dark": "Charcoal"
+    }
+    return map[colorId] || colorId
+  }
+
+  function setFolderColor(color) {
+    root.folderColor = color
+    root.themeVersion++
+    root.saveConfig()
   }
 
   function toggleAppsMenu() {
@@ -1464,7 +1992,7 @@ Item {
   function setUrgentSoundName(name) {
     root.urgentSoundName = name
     root.urgentSound = name !== "none"
-    if (name !== "none") {
+    if (name !== "none" && !root.isDndActive) {
       Quickshell.execDetached(["canberra-gtk-play", "-i", name])
     }
     root.saveConfig()
@@ -1515,10 +2043,6 @@ Item {
     return name !== "" ? name : String(workspace.id)
   }
 
-  // Brings a window forward for real. The Wayland activate request only hands
-  // over keyboard focus, which leaves scrolling layouts parked where they were,
-  // so the compositor's own focus dispatcher does the work whenever we know the
-  // window's address. It switches the workspace on its way, so nothing else has
   // Brings a window forward cleanly. Native Wayland activation hands over focus
   // and brings the window forward without warping the mouse pointer away from the dock
   // or desynchronizing layer-shell input state. Switches workspace when target is on another workspace.
@@ -1584,10 +2108,11 @@ Item {
       'hl.dsp.window.move({ window = "address:' + address + '", workspace = "'
         + root.luaString(target) + '", follow = true })',
       "movetoworkspace " + target + ",address:" + address)
-    root.hyprDispatch('hl.dsp.workspace({ workspace = "' + root.luaString(target) + '" })',
+    root.hyprDispatch('hl.dsp.workspace({ name = "' + root.luaString(target) + '" })',
                       "workspace " + target)
-    root.hyprDispatch('hl.dsp.focus({ window = "address:' + address + '" })',
-                      "focuswindow address:" + address)
+    if (handle && (handle.wayland || handle.toplevel)) {
+      DockModel.focusWindow(handle.wayland || handle.toplevel)
+    }
     return true
   }
 
@@ -1755,8 +2280,8 @@ Item {
     if (deskEntry && deskEntry.id) {
       root.shell.appLibrary.launch(deskEntry.id, targetName)
     } else {
-      var webAppMatch = String(appId).match(/^(?:chrome|chromium|brave|edge|microsoft-edge|helium|helium-browser|opera|vivaldi)-(.*?)__?-(?:default|profile.*)$/i)
-                     || String(appId).match(/^(?:chrome|chromium|brave|edge|microsoft-edge|helium|helium-browser|opera|vivaldi)-(.*?)$/i)
+      var webAppMatch = String(appId).match(/^(?:chrome|chromium|brave|edge|microsoft-edge)-(.*?)__?-(?:default|profile.*)$/i)
+                     || String(appId).match(/^(?:chrome|chromium|brave|edge|microsoft-edge)-(.*?)$/i)
       if (webAppMatch) {
         var webDomain = webAppMatch[1].replace(/^https?___?/i, "").replace(/__.*$/, "")
         Quickshell.execDetached(["omarchy-launch-webapp", "https://" + webDomain])
@@ -1819,6 +2344,7 @@ Item {
     conf.opacity = root.dockOpacity < 0 ? "theme" : root.dockOpacity
     conf.shape = root.dockShape
     conf.bgColor = root.dockBgColor
+    conf.folderColor = root.folderColor
     conf.itemSpacing = root.itemSpacing
     conf.minimizeMode = root.minimizeMode
     conf.clickToMinimize = root.minimizeMode !== "off"
@@ -1828,6 +2354,7 @@ Item {
     conf.urgentSoundName = root.urgentSoundName
     conf.revealDelay = root.revealDelay
     conf.tooltipDelay = root.tooltipDelay
+    conf.pinnedFolders = root.pinnedFolders
     configFile.setText(JSON.stringify(conf, null, 2))
   }
 
@@ -2021,10 +2548,14 @@ Item {
 
   function entryForId(appId) {
     var i
-    for (i = 0; i < root.pinnedSection.length; i++)
-      if (root.pinnedSection[i].appId === appId) return root.pinnedSection[i]
-    for (i = 0; i < root.runningSection.length; i++)
-      if (root.runningSection[i].appId === appId) return root.runningSection[i]
+    for (i = 0; i < root.pinnedSection.length; i++) {
+      if (root.pinnedSection[i].appId === appId || DockModel.isAppMatch(root.pinnedSection[i].appId, appId))
+        return root.pinnedSection[i]
+    }
+    for (i = 0; i < root.runningSection.length; i++) {
+      if (root.runningSection[i].appId === appId || DockModel.isAppMatch(root.runningSection[i].appId, appId))
+        return root.runningSection[i]
+    }
     return null
   }
 
@@ -2037,21 +2568,160 @@ Item {
     root.setPinned(DockModel.togglePinned(root.pinnedIds, appId))
   }
 
+  function launchDesktopAction(action, appName) {
+    if (!action) return
+    root.beginLaunchFeedback(appName || action.name)
+    try {
+      if (typeof action.execute === "function") {
+        action.execute()
+        return
+      }
+    } catch (e) {}
+
+    try {
+      if (action.command && action.command.length > 0) {
+        Quickshell.execDetached(action.command)
+      }
+    } catch (e2) {}
+  }
+
+  function isWindowFocused(win) {
+    if (!win) return false
+    try {
+      var activeTop = ToplevelManager.activeToplevel
+      if (!activeTop) return false
+      if (win.toplevel && win.toplevel === activeTop) return true
+      if (win.toplevel && win.toplevel.appId && activeTop.appId) {
+        if (win.toplevel.appId === activeTop.appId && win.title && activeTop.title && win.title === activeTop.title) {
+          return true
+        }
+      }
+    } catch (e) {
+      return false
+    }
+    return false
+  }
+
+  function isWindowParked(win) {
+    try {
+      if (!win) return false
+      var h = win.hypr || null
+      var ws = h ? h.workspace : null
+      return !!ws && ws.name === root.minimizedWorkspace
+    } catch (e) {
+      return false
+    }
+  }
+
+  function syncContextWindows() {
+    if (!root.contextAppId || root.contextAppId === "__dock_settings__" || root.contextAppId === "__folder_context__") return
+    var entry = root.entryForId(root.contextAppId)
+    var wins = entry && entry.windowList ? entry.windowList : []
+    if (wins.length === 0) {
+      var allTops = ToplevelManager.toplevels.values || []
+      for (var w = 0; w < allTops.length; w++) {
+        var top = allTops[w]
+        if (top && (top.appId === root.contextAppId || DockModel.isAppMatch(top.appId, root.contextAppId))) {
+          wins.push({
+            title: String(top.title || "Window"),
+            toplevel: top,
+            hypr: root.hyprToplevelFor ? root.hyprToplevelFor(top) : null
+          })
+        }
+      }
+    }
+    root.contextWindowList = wins
+    root.contextWindows = wins.length
+    try {
+      if (appContextMenuColumn && appContextMenuColumn.selectedWindowIdx >= wins.length) {
+        appContextMenuColumn.selectedWindowIdx = -1
+      }
+    } catch (e) {}
+  }
+
   function openContext(appId, x, y) {
+    root.contextAppId = appId
     var entry = root.entryForId(appId)
     root.contextName = entry ? entry.name : appId
-    root.contextWindows = entry ? entry.windows : 0
-    root.contextWindowList = entry && entry.windowList ? entry.windowList : []
+    root.syncContextWindows()
+
     var deskEntry = DockModel.entryFor(root.appRows, appId)
+    if (!deskEntry && typeof DesktopEntries !== "undefined" && DesktopEntries) {
+      deskEntry = DesktopEntries.heuristicLookup(appId) || DesktopEntries.byId(appId)
+    }
     var canonicalId = (deskEntry && deskEntry.id) ? deskEntry.id : appId
     root.contextPinned = DockModel.isPinned(root.pinnedIds, appId) || (canonicalId !== appId && DockModel.isPinned(root.pinnedIds, canonicalId))
+    root.contextDesktopActions = (deskEntry && deskEntry.actions) ? deskEntry.actions : []
+    try { appContextMenuColumn.selectedWindowIdx = -1 } catch (e) {}
     root.contextX = x
     root.contextY = y
-    root.contextAppId = appId
   }
 
   function closeContext() {
     root.contextAppId = ""
+  }
+
+  function openFolderStack(path, name, cx) {
+    if (root.activeStackFolder === path) {
+      root.closeFolderStack()
+      return
+    }
+    root.closeContext()
+    root.activeStackFolder = path
+    root.activeStackName = name || "Folder"
+    root.activeStackX = cx
+    root.activeStackEntries = []
+    folderStackScanner.targetFolder = (path || "").replace(/^~/, Quickshell.env("HOME"))
+    folderStackScanner.running = true
+    root.syncVisibility()
+  }
+
+  function closeFolderStack() {
+    root.activeStackFolder = ""
+    root.activeStackName = ""
+    root.activeStackEntries = []
+    root.syncVisibility()
+  }
+
+  function openFolderContext(path, name, cx, cy) {
+    root.closeFolderStack()
+    root.contextFolderPath = path
+    root.contextFolderName = name || "Folder"
+    root.contextX = cx
+    root.contextY = cy
+    root.contextAppId = "__folder_context__"
+    root.syncVisibility()
+  }
+
+  function isFolderPinned(path) {
+    var norm = (path || "").replace(/^~/, Quickshell.env("HOME"))
+    var list = root.pinnedFolders || []
+    for (var i = 0; i < list.length; i++) {
+      var p = (list[i].path || "").replace(/^~/, Quickshell.env("HOME"))
+      if (p === norm) return true
+    }
+    return false
+  }
+
+  function toggleFolderPin(path, name, icon) {
+    var next = []
+    var found = false
+    var norm = (path || "").replace(/^~/, Quickshell.env("HOME"))
+    var list = root.pinnedFolders || []
+    for (var i = 0; i < list.length; i++) {
+      var f = list[i]
+      var p = (f.path || "").replace(/^~/, Quickshell.env("HOME"))
+      if (p === norm) {
+        found = true
+      } else {
+        next.push(f)
+      }
+    }
+    if (!found) {
+      next.push({ path: path, name: name || "Folder", icon: icon || DockModel.folderIconFor(path, "") })
+    }
+    root.pinnedFolders = next
+    root.saveConfig()
   }
 
   // Widest piece of content in the open menu. Only implicit widths are read, so
@@ -2068,7 +2738,7 @@ Item {
       var nested = root.menuContentWidth(kid)
       if (nested > widest) widest = nested
     }
-    return widest
+    return Math.min(Math.max(widest, 220), Style.space(280))
   }
 
   // ------------------------------------------------- panel window
@@ -2091,6 +2761,7 @@ Item {
       item: dockCard
       regions: [
         Region { item: contextMenu },
+        Region { item: folderStackPopover },
         Region { item: revealStrip },
         Region { item: globalDismiss }
       ]
@@ -2121,11 +2792,11 @@ Item {
       }
     }
 
-    // Global dismiss area - catches clicks outside context menu
+    // Global dismiss area - catches clicks outside context menu or folder stack
     Item {
       id: globalDismiss
-      width: root.contextAppId !== "" ? dockWindow.width : 0
-      height: root.contextAppId !== "" ? dockWindow.height : 0
+      width: (root.contextAppId !== "" || root.activeStackFolder !== "") ? dockWindow.width : 0
+      height: (root.contextAppId !== "" || root.activeStackFolder !== "") ? dockWindow.height : 0
       MouseArea {
         anchors.fill: parent
         z: -1
@@ -2133,6 +2804,9 @@ Item {
         onClicked: function(mouse) {
           if (root.contextAppId !== "") {
             root.closeContext()
+          }
+          if (root.activeStackFolder !== "") {
+            root.closeFolderStack()
           }
         }
         onReleased: function(mouse) {
@@ -2347,6 +3021,35 @@ Item {
             onWheelScrolled: function(aid, dir) { root.cycleApp(aid, dir) }
           }
         }
+
+        Rectangle {
+          id: folderSeparator
+          visible: root.hasFolderSeparator
+          anchors.verticalCenter: parent.verticalCenter
+          width: Style.space(1)
+          height: root.iconSize * 0.7
+          color: Util.alpha(root.dockForeground, 0.25)
+        }
+
+        Repeater {
+          id: foldersRepeater
+          model: root.pinnedFolders
+          delegate: DockFolderItem {
+            folderPath: modelData.path
+            name: modelData.name || "Folder"
+            icon: modelData.icon || DockModel.folderIconFor(modelData.path, "")
+            homeCenter: root.slotHomeCenter(
+              root.appsSlots + root.pinnedSection.length + (root.hasSeparator ? 1 : 0) + root.runningSection.length + (root.hasFolderSeparator ? 1 : 0) + index,
+              root.appsSlots + root.pinnedSection.length + root.runningSection.length + index,
+              (root.hasSeparator ? 1 : 0) + (root.hasFolderSeparator ? 1 : 0))
+            onOpenStackRequested: function(fpath, fname, cx, cy) {
+              root.openFolderStack(fpath, fname, cx)
+            }
+            onMenuRequested: function(fpath, fname, cx, cy) {
+              root.openFolderContext(fpath, fname, cx, cy)
+            }
+          }
+        }
       }
 
       // Drop indicator line
@@ -2359,6 +3062,90 @@ Item {
         radius: 1
         color: Color.bar.active
         z: 10
+      }
+    }
+
+    // ------------------------------------------------------------ Folder Stack Popover
+    BorderSurface {
+      id: folderStackPopover
+      visible: root.activeStackFolder !== "" && root.dockVisible
+      opacity: (root.activeStackFolder !== "" && root.dockVisible) ? 1 : 0
+      Behavior on opacity { NumberAnimation { duration: 120 } }
+
+      z: 100
+      color: Color.menu.background
+      borderSpec: Border.surfaceSpec("menu", "border", Color.menu.border, 1)
+      radius: Style.cornerRadius
+      padding: Style.space(4)
+
+      readonly property real rowWidth: root.activeStackFolder !== ""
+        ? root.menuContentWidth(stackColumn)
+        : 0
+
+      width: root.activeStackFolder !== ""
+        ? rowWidth + contentLeftInset + contentRightInset
+        : 0
+      height: root.activeStackFolder !== ""
+        ? stackColumn.implicitHeight + contentTopInset + contentBottomInset
+        : 0
+
+      anchors.bottom: dockCard.top
+      anchors.bottomMargin: Style.space(6)
+      x: Math.max(Style.gapsOut, Math.min(dockWindow.width - width - Style.gapsOut, root.activeStackX - width / 2))
+
+      Column {
+        id: stackColumn
+        spacing: Style.space(2)
+
+        anchors.left: parent.left
+        anchors.leftMargin: folderStackPopover.contentLeftInset
+        anchors.right: parent.right
+        anchors.rightMargin: folderStackPopover.contentRightInset
+        anchors.top: parent.top
+        anchors.topMargin: folderStackPopover.contentTopInset
+        anchors.bottom: parent.bottom
+        anchors.bottomMargin: folderStackPopover.contentBottomInset
+
+        ContextRow {
+          text: (root.activeStackName || "Folder") + (root.activeStackTotalCount > 0 ? (" (" + root.activeStackTotalCount + ")") : "")
+          isHeader: true
+        }
+
+        Text {
+          visible: root.activeStackEntries.length === 0
+          width: parent.width
+          horizontalAlignment: Text.AlignHCenter
+          text: "Folder is empty"
+          textFormat: Text.PlainText
+          color: Util.alpha(Color.menu.text, 0.45)
+          font.family: Style.font.family
+          font.pixelSize: Style.font.body
+          padding: Style.space(8)
+        }
+
+        Repeater {
+          model: root.activeStackEntries.slice(0, 10)
+          delegate: FileStackRow {
+            name: modelData.name
+            path: modelData.path
+            icon: modelData.icon
+            subtext: modelData.size
+            onTriggered: {
+              Util.execDetached("uwsm-app -- xdg-open " + Util.shellQuote(modelData.path))
+              root.closeFolderStack()
+            }
+          }
+        }
+
+        MenuDivider {}
+
+        ContextRow {
+          text: "Open in File Manager"
+          onTriggered: {
+            Util.execDetached("uwsm-app -- xdg-open " + Util.shellQuote(root.activeStackFolder.replace(/^~/, Quickshell.env("HOME"))))
+            root.closeFolderStack()
+          }
+        }
       }
     }
 
@@ -2434,6 +3221,179 @@ Item {
             ContextRow {
               text: "Size & Spacing ›"
               onTriggered: root.settingsSubmenu = "size_spacing"
+            }
+
+            ContextRow {
+              text: "Folders & Stacks ›"
+              onTriggered: root.settingsSubmenu = "folders"
+            }
+          }
+
+          // Folders & Stacks Category Page
+          Column {
+            spacing: Style.space(1)
+            visible: root.settingsSubmenu === "folders"
+
+            ContextRow {
+              text: "‹ Back"
+              textColor: Color.bar.active
+              onTriggered: root.settingsSubmenu = ""
+            }
+
+            ContextRow {
+              text: "Folder Color: " + root.folderColorLabel(root.folderColor) + " ›"
+              onTriggered: root.settingsSubmenu = "folder_color"
+            }
+
+            MenuDivider {}
+
+            ContextRow {
+              text: "Pinned Folder Stacks"
+              isHeader: true
+            }
+
+            ContextRow {
+              text: "+ Add Custom Folder..."
+              textColor: Color.bar.active
+              onTriggered: {
+                customFolderPickerProc.running = true
+                root.closeContext()
+              }
+            }
+
+            MenuDivider {}
+
+            ContextRow {
+              text: "Downloads (~/Downloads)"
+              checked: root.isFolderPinned("~/Downloads")
+              onTriggered: root.toggleFolderPin("~/Downloads", "Downloads", "folder-download")
+            }
+
+            ContextRow {
+              text: "Documents (~/Documents)"
+              checked: root.isFolderPinned("~/Documents")
+              onTriggered: root.toggleFolderPin("~/Documents", "Documents", "folder-documents")
+            }
+
+            ContextRow {
+              text: "Pictures (~/Pictures)"
+              checked: root.isFolderPinned("~/Pictures")
+              onTriggered: root.toggleFolderPin("~/Pictures", "Pictures", "folder-pictures")
+            }
+
+            ContextRow {
+              text: "Projects (~/Projects)"
+              checked: root.isFolderPinned("~/Projects")
+              onTriggered: root.toggleFolderPin("~/Projects", "Projects", "folder-development")
+            }
+
+            ContextRow {
+              text: "Music (~/Music)"
+              checked: root.isFolderPinned("~/Music")
+              onTriggered: root.toggleFolderPin("~/Music", "Music", "folder-music")
+            }
+
+            ContextRow {
+              text: "Videos (~/Videos)"
+              checked: root.isFolderPinned("~/Videos")
+              onTriggered: root.toggleFolderPin("~/Videos", "Videos", "folder-videos")
+            }
+
+            ContextRow {
+              text: "Home (~/)"
+              checked: root.isFolderPinned("~")
+              onTriggered: root.toggleFolderPin("~", "Home", "user-home")
+            }
+          }
+
+          // Folders & Stacks > Folder Color Page
+          Column {
+            spacing: Style.space(1)
+            visible: root.settingsSubmenu === "folder_color"
+
+            ContextRow {
+              text: "‹ Back"
+              textColor: Color.bar.active
+              onTriggered: root.settingsSubmenu = "folders"
+            }
+
+            ContextRow {
+              text: "Folder Color & Style"
+              isHeader: true
+            }
+
+            ContextRow {
+              text: "Auto (Match Theme)"
+              checked: root.folderColor === "theme" || !root.folderColor
+              onTriggered: root.setFolderColor("theme")
+            }
+
+            MenuDivider {}
+
+            ContextRow {
+              text: "Color Presets"
+              isHeader: true
+            }
+
+            Item {
+              readonly property bool isMenuContent: true
+              implicitWidth: Math.max(220, 6 * Style.space(24) + 5 * Style.space(4) + Style.space(16))
+              implicitHeight: 2 * Style.space(24) + Style.space(4) + Style.space(8)
+              width: contextMenu.rowWidth > 0 ? contextMenu.rowWidth : implicitWidth
+              height: implicitHeight
+
+              Grid {
+                anchors.centerIn: parent
+                columns: 6
+                spacing: Style.space(4)
+
+                readonly property var colorPresets: [
+                  { id: "white", name: "White", color: "#ffffff" },
+                  { id: "black", name: "Black", color: "#111111" },
+                  { id: "Yaru-sage", name: "Sage Green", color: "#61895a" },
+                  { id: "Yaru-olive", name: "Olive", color: "#878846" },
+                  { id: "Yaru-blue", name: "Blue", color: "#3d7ab8" },
+                  { id: "Yaru-purple", name: "Purple", color: "#775aa6" },
+                  { id: "Yaru-magenta", name: "Magenta", color: "#b3497d" },
+                  { id: "Yaru-red", name: "Red", color: "#c73838" },
+                  { id: "Yaru-yellow", name: "Yellow", color: "#d9a13b" },
+                  { id: "Yaru-wartybrown", name: "Brown", color: "#8a583e" },
+                  { id: "Yaru-prussiangreen", name: "Teal", color: "#2d7f7b" },
+                  { id: "Yaru-dark", name: "Charcoal", color: "#3c3b37" }
+                ]
+
+                Repeater {
+                  model: parent.colorPresets
+                  delegate: Rectangle {
+                    id: fColorSwatch
+                    required property var modelData
+                    width: Style.space(24)
+                    height: Style.space(24)
+                    radius: Style.space(4)
+                    color: modelData.color
+                    border.color: root.folderColor === modelData.id
+                      ? Color.bar.active
+                      : Util.alpha(Color.menu.border, 0.8)
+                    border.width: root.folderColor === modelData.id ? 2 : 1
+
+                    Rectangle {
+                      visible: root.folderColor === fColorSwatch.modelData.id
+                      anchors.centerIn: parent
+                      width: Style.space(8)
+                      height: Style.space(8)
+                      radius: Style.space(4)
+                      color: fColorSwatch.modelData.id === "white" ? "#111111" : "#ffffff"
+                    }
+
+                    MouseArea {
+                      anchors.fill: parent
+                      hoverEnabled: true
+                      cursorShape: Qt.PointingHandCursor
+                      onClicked: root.setFolderColor(fColorSwatch.modelData.id)
+                    }
+                  }
+                }
+              }
             }
           }
 
@@ -3037,81 +3997,182 @@ Item {
           }
         }
 
-        // Regular App Context Menu
+        // Folder Context Menu
         Column {
           spacing: Style.space(2)
-          visible: root.contextAppId !== "" && root.contextAppId !== "__dock_settings__"
+          visible: root.contextAppId === "__folder_context__"
 
-          // Multi-window instance list
+          ContextRow {
+            text: root.contextFolderName || "Folder"
+            isHeader: true
+          }
+
+          ContextRow {
+            text: "Open in File Manager"
+            onTriggered: {
+              Util.execDetached("uwsm-app -- xdg-open " + Util.shellQuote(root.contextFolderPath.replace(/^~/, Quickshell.env("HOME"))))
+              root.closeContext()
+            }
+          }
+
+          ContextRow {
+            text: "Open in Terminal"
+            onTriggered: {
+              Util.execDetached("uwsm-app -- xdg-terminal-exec --dir=" + Util.shellQuote(root.contextFolderPath.replace(/^~/, Quickshell.env("HOME"))))
+              root.closeContext()
+            }
+          }
+
+          MenuDivider {}
+
+          ContextRow {
+            text: "Unpin from Dock"
+            danger: true
+            onTriggered: {
+              root.toggleFolderPin(root.contextFolderPath, root.contextFolderName, "")
+              root.closeContext()
+            }
+          }
+        }
+
+        // Regular App Context Menu
+        Item {
+          id: appContextMenuWrapper
+          visible: root.contextAppId !== "" && root.contextAppId !== "__dock_settings__" && root.contextAppId !== "__folder_context__"
+          implicitWidth: appContextMenuColumn.implicitWidth
+          implicitHeight: appContextMenuColumn.implicitHeight
+          width: contextMenu.rowWidth > 0 ? contextMenu.rowWidth : implicitWidth
+          height: appContextMenuColumn.implicitHeight
+
           Column {
-            spacing: Style.space(1)
-            visible: root.contextWindowList.length > 1
+            id: appContextMenuColumn
+            spacing: Style.space(2)
+            width: contextMenu.rowWidth > 0 ? contextMenu.rowWidth : implicitWidth
 
-            ContextRow {
-              text: "Windows (" + root.contextWindowList.length + ")"
-              isHeader: true
+            property int selectedWindowIdx: -1
+
+            // 1. Multi-window / Active Window instance list
+            Column {
+              id: windowListSection
+              spacing: Style.space(1)
+              visible: root.contextWindowList.length > 0
+
+              ContextRow {
+                text: root.contextWindowList.length > 1
+                  ? ("Windows (" + root.contextWindowList.length + ")")
+                  : "Active Window"
+                isHeader: true
+              }
+
+              Repeater {
+                model: root.contextWindowList
+                delegate: ContextRow {
+                  text: root.windowRowLabel(modelData)
+                  isWindowRow: true
+                  winFocused: root.isWindowFocused(modelData)
+                  winParked: root.isWindowParked(modelData)
+                  checked: appContextMenuColumn.selectedWindowIdx === index
+
+                  onTriggered: {
+                    try {
+                      var h = modelData ? modelData.hypr : null
+                      var ws = h ? h.workspace : null
+                      var isParked = ws && ws.name === root.minimizedWorkspace
+                      if (isParked) {
+                        root.restoreWindow(h || modelData, root.contextAppId)
+                      } else if (modelData && modelData.toplevel) {
+                        root.focusToplevel(modelData.toplevel)
+                      }
+                    } catch (e) {}
+                    root.closeContext()
+                  }
+                }
+              }
+
+              MenuDivider {}
             }
 
-            Repeater {
-              model: (root.contextWindowList && root.contextWindowList.length > 10)
-                ? root.contextWindowList.slice(0, 10)
-                : root.contextWindowList
-              delegate: ContextRow {
-                text: root.windowRowLabel(modelData)
-                onTriggered: {
-                  root.focusToplevel(modelData.toplevel)
-                  root.closeContext()
+            // 2. Native Desktop Actions / Jump List
+            Column {
+              spacing: Style.space(1)
+              visible: root.contextDesktopActions.length > 0
+
+              Repeater {
+                model: root.contextDesktopActions
+                delegate: ContextRow {
+                  text: modelData.name || modelData.id
+                  onTriggered: {
+                    root.launchDesktopAction(modelData, root.contextName)
+                    root.closeContext()
+                  }
                 }
+              }
+
+              MenuDivider {}
+            }
+
+            // Fallback Default Action Row when no custom desktop actions exist
+            ContextRow {
+              text: root.contextWindows > 0 ? "New Window" : "Launch"
+              visible: root.contextDesktopActions.length === 0
+              onTriggered: {
+                root.launchApp(root.contextAppId, null)
+                root.closeContext()
+              }
+            }
+
+            // 3. Window & Dock Management
+            ContextRow {
+              text: "Minimize Window"
+              visible: root.minimizeMode !== "off" && root.contextWindows > 1
+              onTriggered: {
+                root.minimizeOneWindow(root.entryForId(root.contextAppId))
+                root.closeContext()
               }
             }
 
             ContextRow {
-              visible: root.contextWindowList && root.contextWindowList.length > 10
-              text: "+" + (root.contextWindowList.length - 10) + " more windows"
-              isHeader: true
+              text: root.contextPinned ? "Unpin from Dock" : "Pin to Dock"
+              onTriggered: {
+                var deskEntry = DockModel.entryFor(root.appRows, root.contextAppId)
+                if (!deskEntry && typeof DesktopEntries !== "undefined" && DesktopEntries) {
+                  deskEntry = DesktopEntries.heuristicLookup(root.contextAppId) || DesktopEntries.byId(root.contextAppId)
+                }
+                var canonicalId = (deskEntry && deskEntry.id) ? deskEntry.id : root.contextAppId
+                root.togglePin(canonicalId)
+                root.closeContext()
+              }
             }
 
-            Rectangle {
-              width: parent.width
-              height: 1
-              color: Util.alpha(Color.menu.border, 0.5)
-            }
-          }
-
-          ContextRow {
-            text: root.contextWindows > 0 ? "New Window" : "Launch"
-            onTriggered: {
-              root.launchApp(root.contextAppId, null)
-              root.closeContext()
-            }
-          }
-
-          ContextRow {
-            text: "Minimize Window"
-            visible: root.minimizeMode !== "off" && root.contextWindows > 1
-            onTriggered: {
-              root.minimizeOneWindow(root.entryForId(root.contextAppId))
-              root.closeContext()
+            ContextRow {
+              text: root.contextWindows > 1 ? "Close All Windows" : "Close Window"
+              visible: root.contextWindows > 0
+              danger: true
+              onTriggered: {
+                DockModel.closeApp(ToplevelManager.toplevels.values, root.contextAppId)
+                root.closeContext()
+              }
             }
           }
 
-          ContextRow {
-            text: root.contextPinned ? "Unpin from Dock" : "Pin to Dock"
-            onTriggered: {
-              var deskEntry = DockModel.entryFor(root.appRows, root.contextAppId)
-              var canonicalId = (deskEntry && deskEntry.id) ? deskEntry.id : root.contextAppId
-              root.togglePin(canonicalId)
-              root.closeContext()
-            }
-          }
-
-          ContextRow {
-            text: root.contextWindows > 1 ? "Close All Windows" : "Close Window"
-            visible: root.contextWindows > 0
-            danger: true
-            onTriggered: {
-              DockModel.closeApp(ToplevelManager.toplevels.values, root.contextAppId)
-              root.closeContext()
+          // Wheel-scroll overlay to cycle window selection
+          MouseArea {
+            anchors.fill: parent
+            z: 10
+            acceptedButtons: Qt.NoButton
+            onWheel: function(wheel) {
+              if (wheel.angleDelta.y === 0 || root.contextWindowList.length <= 1) return
+              var dir = wheel.angleDelta.y > 0 ? -1 : 1
+              var len = root.contextWindowList.length
+              if (appContextMenuColumn.selectedWindowIdx < 0) {
+                var cur = 0
+                for (var c = 0; c < len; c++) {
+                  if (root.isWindowFocused(root.contextWindowList[c])) { cur = c; break }
+                }
+                appContextMenuColumn.selectedWindowIdx = (cur + dir + len) % len
+              } else {
+                appContextMenuColumn.selectedWindowIdx = (appContextMenuColumn.selectedWindowIdx + dir + len) % len
+              }
             }
           }
         }

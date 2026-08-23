@@ -551,3 +551,72 @@ function closeApp(toplevels, appId) {
   }
   return closed
 }
+
+function folderIconFor(path, explicitIcon) {
+  if (explicitIcon) return explicitIcon
+  var norm = String(path || "").toLowerCase()
+  if (norm.indexOf("download") >= 0) return "folder-download"
+  if (norm.indexOf("document") >= 0) return "folder-documents"
+  if (norm.indexOf("picture") >= 0) return "folder-pictures"
+  if (norm.indexOf("music") >= 0) return "folder-music"
+  if (norm.indexOf("video") >= 0) return "folder-videos"
+  if (norm === "~" || (norm.indexOf("/home/") === 0 && norm.split("/").length <= 3)) return "user-home"
+  return "folder"
+}
+
+function resolveThemedFolderIcon(iconName, themeName, folderColorMode) {
+  var name = String(iconName || "folder").trim()
+  if (name.indexOf("/") === 0 || name.indexOf("file://") === 0) return name
+
+  // Explicit white, black, or symbolic mode:
+  if (folderColorMode === "white" || folderColorMode === "black" || folderColorMode === "symbolic") {
+    return "file:///usr/share/icons/Adwaita/symbolic/places/" + name + "-symbolic.svg"
+  }
+
+  // Explicit custom Yaru color preset:
+  if (folderColorMode && folderColorMode !== "theme" && folderColorMode !== "auto") {
+    var customTheme = folderColorMode
+    if (customTheme.indexOf("Yaru") === 0) {
+      return "file:///usr/share/icons/" + customTheme + "/256x256/places/" + name + ".png"
+    }
+  }
+
+  // Automatic theme mode:
+  var theme = String(themeName || "").trim()
+
+  // 1. If valid Yaru variant theme (e.g. Yaru-sage, Yaru-olive, Yaru-magenta, Yaru-purple, Yaru-blue, Yaru-red, Yaru-yellow, Yaru)
+  if (theme.indexOf("Yaru-") === 0 && theme !== "Yaru-gray" && theme !== "Yaru-grey") {
+    return "file:///usr/share/icons/" + theme + "/256x256/places/" + name + ".png"
+  }
+  if (theme === "Yaru") {
+    return "file:///usr/share/icons/Yaru/256x256/places/" + name + ".png"
+  }
+
+  // 2. For Vantablack / minimal themes (Yaru-gray / unstyled):
+  // Nautilus displays the clean monochrome symbolic outline icon!
+  return "file:///usr/share/icons/Adwaita/symbolic/places/" + name + "-symbolic.svg"
+}
+
+function resolveFileItemIcon(iconName, themeName, folderColorMode) {
+  var name = String(iconName || "text-x-generic").trim()
+  if (name.indexOf("/") === 0 || name.indexOf("file://") === 0) return name
+
+  // If it is a folder / place icon:
+  if (name === "folder" || name.indexOf("folder-") === 0 || name === "user-home") {
+    return resolveThemedFolderIcon(name, themeName, folderColorMode)
+  }
+
+  // Known mimetypes
+  var knownMimetypes = [
+    "image-x-generic", "video-x-generic", "audio-x-generic",
+    "package-x-generic", "application-pdf", "text-x-generic",
+    "application-x-executable"
+  ]
+  if (knownMimetypes.indexOf(name) >= 0) {
+    return "file:///usr/share/icons/Yaru/256x256/mimetypes/" + name + ".png"
+  }
+
+  return "file:///usr/share/icons/Yaru/256x256/mimetypes/text-x-generic.png"
+}
+
+
