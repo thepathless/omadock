@@ -201,6 +201,26 @@ Item {
     // The icon carries every state on its own: it grows on hover, dips on
     // press, bounces while starting. No plate, no frame — the only chrome in
     // the slot is the running indicator underneath.
+
+    // Inline window-preview: for UNPINNED apps, when every window is on the
+    // minimized workspace the icon slot converts to a live snapshot thumbnail.
+    // We resolve the waylandToplevel through root.minimizedWindows (which does
+    // carry the live handle) keyed by window address from windowList.
+    readonly property bool showInlinePreview: !item.pinned && item.minimized && item.running
+    readonly property var inlinePreviewSource: {
+      if (!item.showInlinePreview) return null
+      var list = item.windowList || []
+      if (list.length === 0) return null
+      var addr = list[0] ? list[0].address : ""
+      if (!addr) return null
+      var mins = root.minimizedWindows
+      for (var i = 0; i < mins.length; i++) {
+        if (mins[i] && mins[i].address === addr && mins[i].waylandToplevel)
+          return mins[i].waylandToplevel
+      }
+      return null
+    }
+
     Item {
       id: iconBox
       anchors.fill: parent
@@ -229,10 +249,78 @@ Item {
           return Quickshell.iconPath("application-x-executable", true)
         }
         sourceSize: Qt.size(width * Screen.devicePixelRatio, height * Screen.devicePixelRatio)
-        visible: source !== ""
+        visible: source !== "" && !item.showInlinePreview
         opacity: item.starting ? (0.4 + 0.6 * item.pulse) : 1.0
         mipmap: true
         smooth: true
+      }
+
+      // Inline thumbnail — replaces the icon when an unpinned app is fully minimized.
+      Item {
+        id: inlinePreviewSlot
+        visible: item.showInlinePreview
+        anchors.horizontalCenter: parent.horizontalCenter
+        anchors.bottom: parent.bottom
+        anchors.bottomMargin: Math.round((iconBox.height - root.baseIconArt) / 2)
+        width: root.baseIconArt * item.magnifyScale
+        height: width
+
+        Rectangle {
+          anchors.fill: parent
+          radius: Math.max(3, Style.space(4))
+          color: area.containsMouse ? Color.menu.selectedBackground : Util.alpha(root.dockForeground, 0.10)
+          border.width: 1
+          border.color: Util.alpha(root.dockForeground, area.containsMouse ? 0.55 : 0.22)
+        }
+
+        ScreencopyView {
+          id: inlinePreview
+          anchors.fill: parent
+          anchors.margins: 1
+          visible: hasContent
+          clip: true
+          live: false
+          captureSource: item.inlinePreviewSource
+
+          onCaptureSourceChanged: {
+            inlineRetry.attempts = 0
+            inlineRetry.restart()
+          }
+
+          Timer {
+            id: inlineRetry
+            interval: 140
+            property int attempts: 0
+            repeat: attempts < 6
+            onTriggered: {
+              attempts++
+              if (!inlinePreview.hasContent && inlinePreview.captureSource)
+                inlinePreview.captureFrame()
+            }
+          }
+        }
+
+        // App-icon badge in the corner (visible until preview frame arrives).
+        Rectangle {
+          visible: !inlinePreview.hasContent && item.appId !== ""
+          anchors.right: parent.right
+          anchors.bottom: parent.bottom
+          anchors.margins: 1
+          width: Style.space(14)
+          height: Style.space(14)
+          radius: Style.space(3)
+          color: Util.alpha(Color.bar.background, 0.85)
+
+          Text {
+            anchors.centerIn: parent
+            text: item.appId ? item.appId.substring(0, 1).toUpperCase() : "?"
+            textFormat: Text.PlainText
+            color: Color.bar.text
+            font.family: Style.font.family
+            font.pixelSize: Style.font.caption
+            font.bold: true
+          }
+        }
       }
     }
 
@@ -3204,7 +3292,7 @@ Item {
               return (win && win.title !== undefined) ? String(win.title) : ""
             }
             readonly property bool tileHovered: tileArea.containsMouse
-            property bool menuOpen: false
+            readonly property bool tileMenuOpen: root.contextAppId === "__tile_context__"
 
             // Same magnify contract as DockItem/DockFolderItem: wave grows the
             // layout slot; zoom scales the visual stack in place (tileVisual).
@@ -3216,7 +3304,7 @@ Item {
             property real magnifyScale: {
               if (root.waveHover) return root.magnifyScaleAt(tile.homeCenter)
               if (root.hoverEffect === "off") return 1
-              return (tileArea.containsMouse && !tile.menuOpen) ? root.zoomPeak : 1
+              return (tileArea.containsMouse && !tile.tileMenuOpen) ? root.zoomPeak : 1
             }
             Behavior on magnifyScale {
               NumberAnimation { duration: 110; easing.type: Easing.OutQuad }
@@ -3227,7 +3315,6 @@ Item {
                 var w = groupWins[i]
                 if (w && w.address) root.restoreWindow(w.address, w.appId || "")
               }
-              menuOpen = false
             }
 
             function doClose() {
@@ -3237,7 +3324,6 @@ Item {
                   'hl.dsp.window.close({ window = "address:' + w.address + '" })',
                   "closewindow address:" + w.address)
               }
-              menuOpen = false
             }
 
             width: root.tileWidth * (root.waveHover ? tile.magnifyScale : 1)
@@ -3347,7 +3433,7 @@ Item {
             // Title bubble above the hovered tile (hidden while the menu is open).
             BorderSurface {
               id: tileTooltip
-              visible: tile.tileHovered && !tile.menuOpen && tile.tileTitle !== ""
+              visible: tile.tileHovered && !tile.tileMenuOpen && tile.tileTitle !== ""
               z: 300
               color: Color.tooltip.background
               borderSpec: Border.surfaceSpec("tooltip", "border", Color.tooltip.border, 1)
@@ -3383,76 +3469,6 @@ Item {
               }
             }
 
-            // Right-click action menu, rendered over the tile itself so the
-            // pointer never leaves the hover area while choosing.
-            Rectangle {
-              id: tileMenu
-              visible: tile.menuOpen
-              anchors.fill: parent
-              radius: Math.max(3, Style.space(4))
-              color: Util.alpha(Color.bar.background, 0.96)
-              border.width: 1
-              border.color: Util.alpha(root.dockForeground, 0.4)
-              z: 10
-
-              Column {
-                anchors.centerIn: parent
-                spacing: Style.space(1)
-
-                Item {
-                  width: tile.width - Style.space(8)
-                  height: Style.space(20)
-                  anchors.horizontalCenter: parent.horizontalCenter
-                  Rectangle {
-                    anchors.fill: parent
-                    radius: Style.space(3)
-                    color: restoreRowMa.containsMouse ? Color.menu.selectedBackground : "transparent"
-                  }
-                  Text {
-                    anchors.centerIn: parent
-                    text: tile.isGroup ? "Restore all" : "Restore"
-                    textFormat: Text.PlainText
-                    color: Color.menu.text
-                    font.family: Style.font.family
-                    font.pixelSize: Style.font.caption
-                  }
-                  MouseArea {
-                    id: restoreRowMa
-                    anchors.fill: parent
-                    hoverEnabled: true
-                    cursorShape: Qt.PointingHandCursor
-                    onClicked: tile.doRestore()
-                  }
-                }
-
-                Item {
-                  width: tile.width - Style.space(8)
-                  height: Style.space(20)
-                  anchors.horizontalCenter: parent.horizontalCenter
-                  Rectangle {
-                    anchors.fill: parent
-                    radius: Style.space(3)
-                    color: closeRowMa.containsMouse ? Color.menu.selectedBackground : "transparent"
-                  }
-                  Text {
-                    anchors.centerIn: parent
-                    text: tile.isGroup ? "Close all" : "Close"
-                    textFormat: Text.PlainText
-                    color: Color.danger ?? "#e5567a"
-                    font.family: Style.font.family
-                    font.pixelSize: Style.font.caption
-                  }
-                  MouseArea {
-                    id: closeRowMa
-                    anchors.fill: parent
-                    hoverEnabled: true
-                    cursorShape: Qt.PointingHandCursor
-                    onClicked: tile.doClose()
-                  }
-                }
-              }
-            }
-
             MouseArea {
               id: tileArea
               anchors.fill: parent
@@ -3462,9 +3478,11 @@ Item {
               onClicked: function(mouse) {
                 if (!tile.win || !tile.win.address) return
                 if (mouse.button === Qt.RightButton) {
-                  tile.menuOpen = !tile.menuOpen
-                } else if (tile.menuOpen) {
-                  tile.menuOpen = false
+                  var pt = tile.mapToItem(dockCard, tile.width / 2, 0)
+                  var gx = dockCard.x + (pt ? pt.x : (tile.x + tile.width / 2))
+                  root.openTileContext(tile.groupWins, tile.win.appId || "", gx)
+                } else if (root.contextAppId === "__tile_context__") {
+                  root.closeContext()
                 } else {
                   tile.doRestore()
                 }
@@ -4528,10 +4546,40 @@ Item {
           }
         }
 
+        // Minimized Window Tile Context Menu
+        Column {
+          spacing: Style.space(2)
+          visible: root.contextAppId === "__tile_context__"
+
+          ContextRow {
+            text: root.contextTileAppId !== "" ? root.contextTileAppId : "Window"
+            isHeader: true
+          }
+
+          ContextRow {
+            text: root.contextTileWins.length > 1 ? "Restore All" : "Restore"
+            onTriggered: {
+              root.restoreContextTile()
+              root.closeContext()
+            }
+          }
+
+          MenuDivider {}
+
+          ContextRow {
+            text: root.contextTileWins.length > 1 ? "Close All" : "Close"
+            danger: true
+            onTriggered: {
+              root.closeContextTile()
+              root.closeContext()
+            }
+          }
+        }
+
         // Regular App Context Menu
         Item {
           id: appContextMenuWrapper
-          visible: root.contextAppId !== "" && root.contextAppId !== "__dock_settings__" && root.contextAppId !== "__folder_context__"
+          visible: root.contextAppId !== "" && root.contextAppId !== "__dock_settings__" && root.contextAppId !== "__folder_context__" && root.contextAppId !== "__tile_context__"
           implicitWidth: appContextMenuColumn.implicitWidth
           implicitHeight: appContextMenuColumn.implicitHeight
           width: contextMenu.rowWidth > 0 ? contextMenu.rowWidth : implicitWidth
