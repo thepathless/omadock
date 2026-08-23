@@ -3206,6 +3206,22 @@ Item {
             readonly property bool tileHovered: tileArea.containsMouse
             property bool menuOpen: false
 
+            // Same magnify contract as DockItem/DockFolderItem: wave grows the
+            // layout slot; zoom scales the visual stack in place (tileVisual).
+            readonly property real homeCenter: root.slotHomeCenter(
+              root.appsSlots + root.pinnedSection.length + 1 + index,
+              root.appsSlots + root.pinnedSection.length + index,
+              0,
+              root.separatorWidth + index * root.tileWidth + (root.tileWidth - root.iconSlot) / 2)
+            property real magnifyScale: {
+              if (root.waveHover) return root.magnifyScaleAt(tile.homeCenter)
+              if (root.hoverEffect === "off") return 1
+              return (tileArea.containsMouse && !tile.menuOpen) ? root.zoomPeak : 1
+            }
+            Behavior on magnifyScale {
+              NumberAnimation { duration: 110; easing.type: Easing.OutQuad }
+            }
+
             function doRestore() {
               for (var i = 0; i < groupWins.length; i++) {
                 var w = groupWins[i]
@@ -3224,100 +3240,107 @@ Item {
               menuOpen = false
             }
 
-            width: root.tileWidth
-            height: root.tileHeight
+            width: root.tileWidth * (root.waveHover ? tile.magnifyScale : 1)
+            height: root.tileHeight * (root.waveHover ? tile.magnifyScale : 1)
             anchors.verticalCenter: parent ? parent.verticalCenter : undefined
             opacity: root.dockVisible ? 1 : 0
 
-            Behavior on width { NumberAnimation { duration: 120 } }
-
-            // Stacked-card layers behind grouped tiles hint at the count.
-            Rectangle {
-              visible: tile.isGroup && tile.groupCount > 1
+            // Zoom mode scales this visual stack in place (the preview overlaps
+            // neighbors exactly like magnified app icons); wave mode grows the
+            // tile itself, so the wrapper stays at scale 1 there.
+            Item {
+              id: tileVisual
               anchors.fill: parent
-              anchors.leftMargin: -Style.space(3)
-              anchors.bottomMargin: -Style.space(2)
-              radius: Math.max(3, Style.space(4))
-              color: Util.alpha(root.dockForeground, 0.06)
-              border.width: 1
-              border.color: Util.alpha(root.dockForeground, 0.14)
-            }
-            Rectangle {
-              visible: tile.isGroup && tile.groupCount > 2
-              anchors.fill: parent
-              anchors.leftMargin: -Style.space(6)
-              anchors.bottomMargin: -Style.space(4)
-              radius: Math.max(3, Style.space(4))
-              color: Util.alpha(root.dockForeground, 0.04)
-              border.width: 1
-              border.color: Util.alpha(root.dockForeground, 0.10)
-            }
+              scale: root.waveHover ? 1 : tile.magnifyScale
 
-            Rectangle {
-              anchors.fill: parent
-              radius: Math.max(3, Style.space(4))
-              color: tileArea.containsMouse ? Color.menu.selectedBackground : Util.alpha(root.dockForeground, 0.10)
-              border.width: 1
-              border.color: Util.alpha(root.dockForeground, tileArea.containsMouse ? 0.55 : 0.22)
-            }
-
-            ScreencopyView {
-              id: tilePreview
-              anchors.fill: parent
-              anchors.margins: 1
-              visible: hasContent
-              clip: true
-              live: false
-              captureSource: tile.win && tile.win.waylandToplevel ? tile.win.waylandToplevel : null
-
-              // The capture context negotiates asynchronously over Wayland,
-              // so an immediate captureFrame() warns "no recording context".
-              // A short event-driven retry (never a polling loop) gets every
-              // tile its frame exactly once, after the session is ready.
-              function requestFrame() {
-                if (hasContent || !captureSource) return
-                captureRetry.restart()
+              // Stacked-card layers behind grouped tiles hint at the count.
+              Rectangle {
+                visible: tile.isGroup && tile.groupCount > 1
+                anchors.fill: parent
+                anchors.leftMargin: -Style.space(3)
+                anchors.bottomMargin: -Style.space(2)
+                radius: Math.max(3, Style.space(4))
+                color: Util.alpha(root.dockForeground, 0.06)
+                border.width: 1
+                border.color: Util.alpha(root.dockForeground, 0.14)
               }
-              onCaptureSourceChanged: {
-                captureRetry.attempts = 0
-                captureRetry.restart()
+              Rectangle {
+                visible: tile.isGroup && tile.groupCount > 2
+                anchors.fill: parent
+                anchors.leftMargin: -Style.space(6)
+                anchors.bottomMargin: -Style.space(4)
+                radius: Math.max(3, Style.space(4))
+                color: Util.alpha(root.dockForeground, 0.04)
+                border.width: 1
+                border.color: Util.alpha(root.dockForeground, 0.10)
               }
 
-              Timer {
-                id: captureRetry
-                interval: 140
-                property int attempts: 0
-                repeat: attempts < 6
-                onTriggered: {
-                  attempts++
-                  if (!tilePreview.hasContent && tilePreview.captureSource) tilePreview.captureFrame()
+              Rectangle {
+                anchors.fill: parent
+                radius: Math.max(3, Style.space(4))
+                color: tileArea.containsMouse ? Color.menu.selectedBackground : Util.alpha(root.dockForeground, 0.10)
+                border.width: 1
+                border.color: Util.alpha(root.dockForeground, tileArea.containsMouse ? 0.55 : 0.22)
+              }
+
+              ScreencopyView {
+                id: tilePreview
+                anchors.fill: parent
+                anchors.margins: 1
+                visible: hasContent
+                clip: true
+                live: false
+                captureSource: tile.win && tile.win.waylandToplevel ? tile.win.waylandToplevel : null
+
+                // The capture context negotiates asynchronously over Wayland,
+                // so an immediate captureFrame() warns "no recording context".
+                // A short event-driven retry (never a polling loop) gets every
+                // tile its frame exactly once, after the session is ready.
+                function requestFrame() {
+                  if (hasContent || !captureSource) return
+                  captureRetry.restart()
+                }
+                onCaptureSourceChanged: {
+                  captureRetry.attempts = 0
+                  captureRetry.restart()
+                }
+
+                Timer {
+                  id: captureRetry
+                  interval: 140
+                  property int attempts: 0
+                  repeat: attempts < 6
+                  onTriggered: {
+                    attempts++
+                    if (!tilePreview.hasContent && tilePreview.captureSource) tilePreview.captureFrame()
+                  }
                 }
               }
-            }
 
-            // App-icon badge in the corner so the tile is identifiable even
-            // before the preview frame arrives (or when capture is refused).
-            Rectangle {
-              visible: (!tilePreview.hasContent || tile.isGroup) && tile.win && tile.win.appId !== ""
-              anchors.right: parent.right
-              anchors.bottom: parent.bottom
-              anchors.margins: 1
-              width: Style.space(tile.isGroup ? 18 : 14)
-              height: Style.space(tile.isGroup ? 18 : 14)
-              radius: Style.space(3)
-              color: Util.alpha(Color.bar.background, 0.85)
+              // App-icon badge in the corner so the tile is identifiable even
+              // before the preview frame arrives (or when capture is refused).
+              Rectangle {
+                visible: (!tilePreview.hasContent || tile.isGroup) && tile.win && tile.win.appId !== ""
+                anchors.right: parent.right
+                anchors.bottom: parent.bottom
+                anchors.margins: 1
+                width: Style.space(tile.isGroup ? 18 : 14)
+                height: Style.space(tile.isGroup ? 18 : 14)
+                radius: Style.space(3)
+                color: Util.alpha(Color.bar.background, 0.85)
 
-              Text {
-                anchors.centerIn: parent
-                text: {
-                  if (!tile.win || !tile.win.appId) return "?"
-                  return tile.isGroup ? String(tile.groupCount) : tile.win.appId.substring(0, 1).toUpperCase()
+                Text {
+                  anchors.centerIn: parent
+                  text: {
+                    if (!tile.win || !tile.win.appId) return "?"
+                    return tile.isGroup ? String(tile.groupCount) : tile.win.appId.substring(0, 1).toUpperCase()
+                  }
+                  textFormat: Text.PlainText
+                  color: Color.bar.text
+                  font.family: Style.font.family
+                  font.pixelSize: Style.font.caption
+                  font.bold: true
                 }
-                textFormat: Text.PlainText
-                color: Color.bar.text
-                font.family: Style.font.family
-                font.pixelSize: Style.font.caption
-                font.bold: true
               }
             }
 
