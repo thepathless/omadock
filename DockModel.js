@@ -630,5 +630,3 @@ function resolveFileItemIcon(iconName, themeName, folderColorMode) {
 
   return "file:///usr/share/icons/Yaru/256x256/mimetypes/text-x-generic.png"
 }
-
-
