@@ -130,14 +130,8 @@ Item {
       return false
     }
 
-    readonly property bool minimized: {
-      var list = item.windowList || []
-      if (list.length === 0) return false
-      for (var i = 0; i < list.length; i++) {
-        if (list[i] && !list[i].isMinimized && list[i].workspaceName !== root.minimizedWorkspace) return false
-      }
-      return true
-    }
+    readonly property bool minimized: item.running
+      && DockModel.allWindowsMinimized(item.windowList, root.liveWsNameOf, root.minimizedWorkspace)
 
     readonly property bool onFocusedWorkspace: {
       var list = item.windowList || []
@@ -1073,7 +1067,9 @@ Item {
     var n = 0
     for (var i = 0; i < root.runningSection.length; i++) {
       var item = root.runningSection[i]
-      if (root.showMinimizedTiles && item && DockModel.allWindowsMinimized(item.windowList)) continue
+      // Live resolver: the cached isMinimized flag can be stale right after a
+      // park (Hyprland handle lag), which would keep a dead divider alive.
+      if (root.showMinimizedTiles && item && DockModel.allWindowsMinimized(item.windowList, root.liveWsNameOf, root.minimizedWorkspace)) continue
       n++
     }
     return n
@@ -1428,6 +1424,14 @@ Item {
   Timer {
     id: modelTimer
     interval: 40
+    onTriggered: root.refreshDock()
+  }
+
+  // One-shot deferred rebuild after park/restore moves, so model state is
+  // re-frozen once the Hyprland handle has caught up (see rawEvent handler).
+  Timer {
+    id: modelSettleTimer
+    interval: 300
     onTriggered: root.refreshDock()
   }
 
@@ -1861,6 +1865,11 @@ Item {
       if (n === "openwindow" || n === "closewindow" || n === "urgent"
           || n === "movewindow" || n === "movewindowv2"
           || n === "workspace" || n === "workspacev2") modelTimer.restart()
+      // Park/restore moves get one deferred rebuild: the 40ms rebuild can land
+      // inside Quickshell's Hyprland-handle lag and freeze pre-move state into
+      // the model (stale isMinimized kept the running icon beside its tile).
+      // Event-driven single shot — self-terminating, no polling.
+      if (n === "movewindow" || n === "movewindowv2") modelSettleTimer.restart()
     }
   }
 
@@ -3617,8 +3626,10 @@ Item {
             // When an unpinned app has ALL its windows minimized and tiles are
             // showing, the tile section already represents it — hide the icon
             // slot entirely so only the tile (with hollow dot) is visible.
+            // Live resolver: same source as the running-dot indicator, so the
+            // icon can never outlive its own tile after a lagged park.
             readonly property bool isFullyTiled: root.showMinimizedTiles
-              && DockModel.allWindowsMinimized(modelData.windowList)
+              && DockModel.allWindowsMinimized(modelData.windowList, root.liveWsNameOf, root.minimizedWorkspace)
             visible: !isFullyTiled
 
             // Row preserves space for invisible items that have explicit width.

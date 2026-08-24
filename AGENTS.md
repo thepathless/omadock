@@ -112,6 +112,7 @@ These rules are enforced by the Omarchy marketplace CI and the `omarchy-plugin-d
 - Minimized windows are parked on `special:minimized`; the origin workspace is stored in `minimizedOrigins[address]` at park time. **Default restore targets the user's currently active workspace**; "Restore to Original" (tile context menu) passes `useOrigin=true` to send windows back via `minimizedOrigins`.
 - **No running-indicator dot under tile delegates** — removed by design decision 2026-08-24. Do not re-add.
 - **Unpinned + fully-minimized apps hide their running icon** (`isFullyTiled` → width 0); the tile is the single representation. Divider gating uses `visibleRunningCount` for the same reason — keep both derived from `DockModel.allWindowsMinimized` so they can never disagree.
+- **Park-state staleness rule (v2.9.2)**: the cached `windowList[].isMinimized` flag freezes at rebuild time and can be stale — Quickshell's Hyprland handle lags silent moves onto the special workspace. Every park-state consumer (icon hide, divider gating, `DockItem.minimized`) MUST call `DockModel.allWindowsMinimized(list, root.liveWsNameOf, root.minimizedWorkspace)` so the address-based live lookup (the same source as the running-dot indicator) overrides the cache. The `movewindow`/`movewindowv2` rawEvent also schedules a one-shot `modelSettleTimer` (300ms) rebuild to re-freeze model state after the lag resolves.
 
 ### Urgency / Notification System
 - `urgentMap` mixes two key shapes: `"0x…"` per-window addresses + bare `appId` strings (from notification service).

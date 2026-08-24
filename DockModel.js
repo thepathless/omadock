@@ -507,11 +507,24 @@ function buildEntries(pinnedIds, toplevels, appRows, appLibrary, hyprFor, minimi
 // True when the list has at least one window and every one of them is parked
 // on the minimized workspace. Used by both the running-icon hide logic and
 // the divider gating so the two can never disagree.
-function allWindowsMinimized(windowList) {
-  var list = Array.isArray(windowList) ? windowList : []
+//
+// liveWsOf/minWs: optional live resolver. The cached isMinimized flag freezes
+// at rebuild time and can be stale — Quickshell's Hyprland handle lags silent
+// moves onto the special workspace — so callers that can resolve live state
+// (the address-based lookup the running-dot uses) must pass it here. A window
+// counts as minimized when its cached flag says so OR the live workspace does.
+function allWindowsMinimized(windowList, liveWsOf, minWs) {
+  // toArray, NOT Array.isArray: windowList arrives from the Repeater model as
+  // a QVariantList, which Array.isArray rejects — the guard silently emptied
+  // every list and made this helper return false forever (v2.9.1 regression).
+  var list = toArray(windowList)
   if (list.length === 0) return false
   for (var i = 0; i < list.length; i++) {
-    if (list[i] && !list[i].isMinimized) return false
+    var w = list[i]
+    if (!w) return false
+    if (w.isMinimized) continue
+    var ws = liveWsOf ? String(liveWsOf(w) || "") : String(w.workspaceName || "")
+    if (ws !== minWs) return false
   }
   return true
 }
