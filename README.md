@@ -9,7 +9,7 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/thepathless/omadock/releases"><img src="https://img.shields.io/badge/release-v2.8.0-blue?style=for-the-badge" alt="Release" /></a>
+  <a href="https://github.com/thepathless/omadock/releases"><img src="https://img.shields.io/badge/release-v2.9.0-blue?style=for-the-badge" alt="Release" /></a>
   <a href="https://omarchy.org"><img src="https://img.shields.io/badge/omarchy-shell_plugin-blueviolet?style=for-the-badge" alt="Omarchy" /></a>
   <a href="https://hyprland.org"><img src="https://img.shields.io/badge/Wayland-Hyprland-00a4dc?style=for-the-badge" alt="Hyprland" /></a>
   <a href="https://quickshell.org"><img src="https://img.shields.io/badge/Quickshell-Qt6_QML-41cd52?style=for-the-badge" alt="Quickshell" /></a>
@@ -105,7 +105,7 @@ Underneath each running application icon, Omadock draws indicator dots that show
 2. **All Windows (`"all"`)**: One click parks every window of the app simultaneously. Each becomes its own preview tile.
 3. **Disabled (`"off"`)**: Clicking an active app never minimizes — it cycles focus to the next window.
 
-> **Intelligent focus & workspace navigation**: Left-clicking any running app brings its window forward. If the window is minimized, Omadock unminimizes and restores it; if it is on another workspace, Omadock navigates there and focuses it.
+> **Intelligent focus & workspace navigation**: Left-clicking any running app brings its window forward. If the window is minimized, Omadock unminimizes and restores it onto your current workspace; if it is visible on another workspace, Omadock navigates there and focuses it.
 
 ---
 
@@ -124,9 +124,9 @@ When an app has multiple windows open:
 Minimized windows appear as **live preview tiles** between the pinned and running sections — oldest parked window on the left, newest on the right:
 
 - Each tile shows a **real screenshot** of the window, an app badge, and a title tooltip.
-- **Click a tile** → restores that exact window to its original workspace.
-- **Right-click a tile** → Restore / Close actions.
-- In **All Windows** mode, each app's windows compress into a single stacked group tile (badge shows the count; click restores all).
+- **Click a tile** → restores that exact window onto your **currently active workspace**.
+- **Right-click a tile** → Restore Here / Restore to Original / Close actions. "Restore to Original" sends the window(s) back to the workspace they were minimized from.
+- In **All Windows** mode, each app's windows compress into a single stacked group tile (badge shows the count; clicking it restores all at once — every window lands on your current workspace in a single step, with no per-window flashing).
 - Toggle via Settings → **Minimized Window Previews** or the `showMinimizedTiles` config key.
 
 ---
@@ -331,7 +331,7 @@ o.bind("SUPER + SHIFT + M", "Restore oldest minimized", "exec qs ipc call omadoc
 Right-click the app icon → **Pin to Dock** / **Unpin from Dock**. Drag pinned icons to reorder.
 
 ### Where do minimized windows go?
-Omadock parks them on a hidden Hyprland workspace (`special:minimized`). Each appears as a **live preview tile** on the dock. Click a tile to restore the window to its original workspace.
+Omadock parks them on a hidden Hyprland workspace (`special:minimized`). Each appears as a **live preview tile** on the dock. Click a tile to restore the window onto your current workspace (or right-click → Restore to Original to send it back where it came from).
 
 ### How do I make the dock fully transparent?
 Right-click the Omarchy logo → **Appearance** → **Background Opacity** → **Transparent (0%)**. The dock renders a specular border around the icons.

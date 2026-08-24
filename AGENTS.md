@@ -48,6 +48,10 @@ qs ipc call omadock restoreLast
 > **Note:** `omarchy plugin reload` does **not** exist.  
 > **Note:** Save-triggered auto-reload does **not** work — the shell watcher does not traverse symlinks.
 
+
+> **Note:** `omarchy restart shell` **does** exist. Use it everytime you make any changes to the plugin to reload the plugin to show the changes live to the user.
+
+
 ---
 
 ## ✅ Validation Gates (run before every commit)
@@ -104,7 +108,7 @@ These rules are enforced by the Omarchy marketplace CI and the `omarchy-plugin-d
 ### Minimized-Window Preview Tiles
 - `ScreencopyView { live: false }` + `captureFrame()` — a **failed export** emits `stopped` which destroys the capture context.
 - Re-assigning `captureSource` forces re-negotiation on recovery.
-- Minimized windows are parked on `special:minimized`; restore returns them to the original workspace stored in `minimizedOrigins[address]`.
+- Minimized windows are parked on `special:minimized`; the origin workspace is stored in `minimizedOrigins[address]` at park time. **Default restore targets the user's currently active workspace**; "Restore to Original" (tile context menu) passes `useOrigin=true` to send windows back via `minimizedOrigins`.
 - **No running-indicator dot under tile delegates** — removed by design decision 2026-08-24. Do not re-add.
 
 ### Urgency / Notification System
