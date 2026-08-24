@@ -9,7 +9,7 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/thepathless/omadock/releases"><img src="https://img.shields.io/badge/release-v2.9.2-blue?style=for-the-badge" alt="Release" /></a>
+  <a href="https://github.com/thepathless/omadock/releases"><img src="https://img.shields.io/badge/release-v2.9.3-blue?style=for-the-badge" alt="Release" /></a>
   <a href="https://omarchy.org"><img src="https://img.shields.io/badge/omarchy-shell_plugin-blueviolet?style=for-the-badge" alt="Omarchy" /></a>
   <a href="https://hyprland.org"><img src="https://img.shields.io/badge/Wayland-Hyprland-00a4dc?style=for-the-badge" alt="Hyprland" /></a>
   <a href="https://quickshell.org"><img src="https://img.shields.io/badge/Quickshell-Qt6_QML-41cd52?style=for-the-badge" alt="Quickshell" /></a>
@@ -27,6 +27,7 @@ Whether you run a single browser window or tile dozens of terminals across multi
 - Instant visual window-state feedback via a 3-state indicator system
 - Mouse-wheel window cycling with rich multi-window tooltips
 - Sequential or batch minimization with live preview tiles on the dock
+- Unpinned apps whose windows are all minimized collapse into their tile — the tile is the dock's single representation for them
 - Real-time attention alerts with optional audio chimes
 - Live drag-and-drop pin reordering
 - Pinned folder stacks with recent-file popovers
@@ -127,6 +128,7 @@ Minimized windows appear as **live preview tiles** between the pinned and runnin
 - **Click a tile** → restores that exact window onto your **currently active workspace**.
 - **Right-click a tile** → Restore Here / Restore to Original / Close actions. "Restore to Original" sends the window(s) back to the workspace they were minimized from.
 - In **All Windows** mode, each app's windows compress into a single stacked group tile (badge shows the count; clicking it restores all at once — every window lands on your current workspace in a single step, with no per-window flashing).
+- **Unpinned apps that are fully minimized hide their running icon entirely** — the tile becomes the app's only representation on the dock (pinned apps keep both icon and tile).
 - Toggle via Settings → **Minimized Window Previews** or the `showMinimizedTiles` config key.
 
 ---
@@ -299,9 +301,11 @@ All settings can be changed via the right-click menu or edited directly in `~/.c
 Omadock exposes dock actions to Quickshell's IPC bus, bindable in `~/.config/hypr/bindings.lua`:
 
 ```lua
-o.bind("SUPER + M",       "Minimize focused window",   "exec qs ipc call omadock minimizeActive")
-o.bind("SUPER + SHIFT + M", "Restore oldest minimized", "exec qs ipc call omadock restoreLast")
+o.bind("SUPER + M",       "Minimize focused window",   "exec qs -p /usr/share/omarchy/shell ipc call omadock minimizeActive")
+o.bind("SUPER + SHIFT + M", "Restore oldest minimized", "exec qs -p /usr/share/omarchy/shell ipc call omadock restoreLast")
 ```
+
+> **Note**: the `-p /usr/share/omarchy/shell` flag is required — the Omarchy shell runs from the system path, so a bare `qs ipc call` cannot resolve the instance.
 
 | IPC Target | Action |
 | :--- | :--- |
@@ -353,8 +357,8 @@ omarchy plugin validate ~/Projects/omadock
 journalctl --user -xeu omarchy-shell -n 50 --no-pager
 
 # Smoke-test IPC keybinds
-qs ipc call omadock minimizeActive
-qs ipc call omadock restoreLast
+qs -p /usr/share/omarchy/shell ipc call omadock minimizeActive
+qs -p /usr/share/omarchy/shell ipc call omadock restoreLast
 ```
 
 ---

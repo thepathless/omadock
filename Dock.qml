@@ -2642,9 +2642,10 @@ Item {
 
   // ------------------------------------------------- external keybind hooks
   // Hyprland plugins cannot register compositor binds directly, but these IPC
-  // targets expose dock actions to `qs ipc call omadock <fn>` so users can
-  // bind them in ~/.config/hypr/bindings.lua, e.g.:
-  //   o.bind("SUPER + M", "Minimize focused", "exec qs ipc call omadock minimizeActive")
+  // targets expose dock actions to `qs -p /usr/share/omarchy/shell ipc call omadock <fn>`
+  // so users can bind them in ~/.config/hypr/bindings.lua, e.g.:
+  //   o.bind("SUPER + M", "Minimize focused",
+  //     "exec qs -p /usr/share/omarchy/shell ipc call omadock minimizeActive")
   IpcHandler {
     target: "omadock"
 

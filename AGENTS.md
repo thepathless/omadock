@@ -41,8 +41,8 @@ journalctl --user -xeu omarchy-shell -n 80 --no-pager
 omarchy plugin list --json | jq '.[] | select(.id == "omadock")'
 
 # Smoke-test IPC keybinds:
-qs ipc call omadock minimizeActive
-qs ipc call omadock restoreLast
+qs -p /usr/share/omarchy/shell ipc call omadock minimizeActive
+qs -p /usr/share/omarchy/shell ipc call omadock restoreLast
 ```
 
 > **Note:** `omarchy plugin reload` does **not** exist.  
@@ -65,7 +65,7 @@ omarchy plugin validate ~/Projects/omadock
 
 # 3. Manual verification (no automated test suite):
 #    a. Visual layout after `omarchy restart shell` — confirm magnification, menus, tiles render correctly.
-#    b. IPC smoke: qs ipc call omadock minimizeActive && qs ipc call omadock restoreLast
+#    b. IPC smoke: qs -p /usr/share/omarchy/shell ipc call omadock minimizeActive && qs -p /usr/share/omarchy/shell ipc call omadock restoreLast
 #    c. Idle CPU MUST stay at 0.00% — verify with `top` or `htop` while dock is idle.
 ```
 
@@ -120,7 +120,7 @@ These rules are enforced by the Omarchy marketplace CI and the `omarchy-plugin-d
 - **Foreground Suppression Rule**: urgency is suppressed if the window is already the active foreground window.
 - **Startup Suppression Rule**: urgency is suppressed for windows that opened within the last 3 seconds (`recentOpenedWindowAddrs` expiry).
 
-### IPC Keybind Targets (`qs ipc call omadock <fn>`)
+### IPC Keybind Targets (`qs -p /usr/share/omarchy/shell ipc call omadock <fn>`)
 - `minimizeActive` — park the currently focused window to `special:minimized`
 - `restoreLast` — restore the oldest-parked window across all apps (FIFO)
 
