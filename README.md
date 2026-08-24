@@ -9,7 +9,7 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/thepathless/omadock/releases"><img src="https://img.shields.io/badge/release-v2.9.0-blue?style=for-the-badge" alt="Release" /></a>
+  <a href="https://github.com/thepathless/omadock/releases"><img src="https://img.shields.io/badge/release-v2.9.1-blue?style=for-the-badge" alt="Release" /></a>
   <a href="https://omarchy.org"><img src="https://img.shields.io/badge/omarchy-shell_plugin-blueviolet?style=for-the-badge" alt="Omarchy" /></a>
   <a href="https://hyprland.org"><img src="https://img.shields.io/badge/Wayland-Hyprland-00a4dc?style=for-the-badge" alt="Hyprland" /></a>
   <a href="https://quickshell.org"><img src="https://img.shields.io/badge/Quickshell-Qt6_QML-41cd52?style=for-the-badge" alt="Quickshell" /></a>
@@ -144,7 +144,7 @@ Right-click application icons to access native XDG desktop actions:
 
 ### 🗂️ 6. Pinned Folder Stacks & Recent Files
 
-- **1-click popover**: Click any pinned folder (`~/Downloads`, custom directories) to reveal a sorted list of recent files (up to 16, newest first).
+- **1-click popover**: Click any pinned folder (`~/Downloads`, custom directories) to reveal a sorted list of recent files (up to 16, newest first). Folders holding more show a **"+N more — open in File Manager"** row at the bottom.
 - **File metadata**: Mimetype icons, sizes, and relative times (`Just now`, `5m ago`, `2h ago`).
 - **Direct launch**: Click any file to open it with `xdg-open`; click **Open in File Manager** at the bottom.
 - **Folder picker**: Add any folder from Settings → **Folders & Stacks ›** via a native GTK folder dialog.
@@ -198,7 +198,7 @@ Right-click the Omarchy logo → **Dock Settings** to access the full settings m
 
 - **0.00% Idle CPU**: All state is driven by Hyprland's native IPC event bus — no polling loops.
 - **Tiling Window Reservation**: In **Always Show** mode, Omadock sets a Wayland `exclusiveZone` so tiled windows never overlap the dock.
-- **Intelligent Autohide**: Stays visible on empty workspaces; hides only when open windows overlap the dock area (AABB intersection check, triggered on window moves — not on a timer).
+- **Intelligent Autohide**: Stays visible on empty workspaces; hides only when open windows overlap the dock area (AABB intersection check against the dock's own monitor — event-driven on window moves, with a lightweight 350ms fallback only while the dock is visible during interactive window drags/resizes).
 
 ---
 
@@ -225,7 +225,7 @@ Right-click the Omarchy logo → **Dock Settings** to access the full settings m
 | **Left Click** | Folder Icon | Toggles the recent-files stack popover |
 | **Right Click** | Folder Icon | Folder options (Open in File Manager, Unpin) |
 | **Left Click** | Preview Tile | Restores that minimized window |
-| **Right Click** | Preview Tile | Restore / Close |
+| **Right Click** | Preview Tile | Restore Here / Restore to Original / Close |
 | **Click & Drag** | Pinned Icon | Reorders position live |
 | **Bottom Edge Hover** | Screen Bottom | Reveals the autohidden dock |
 
@@ -270,7 +270,7 @@ All settings can be changed via the right-click menu or edited directly in `~/.c
 | `intelligentAutohide` | `boolean` | `true` | Hide only when a window overlaps the dock area. |
 | `minimizeMode` | `string` | `"active"` | `"active"` (sequential FIFO), `"all"` (group batch), `"off"` (disabled). |
 | `showMinimizedTiles` | `boolean` | `true` | Show minimized windows as live preview tiles on the dock. |
-| `opacity` | `number \| string` | `1.0` | Background transparency: `"theme"` (auto), `1.0`, `0.80`, `0.65`, `0.35`, `0.0`. |
+| `opacity` | `number \| string` | `1.0` | Background transparency: `"theme"` / `"auto"` (follow theme), `1.0`, `0.80`, `0.65`, `0.35`, `0.0`. |
 | `shape` | `string` | `"rounded"` | Corner style: `"rounded"`, `"round"` (full pill), `"square"`, `"theme"` (auto from Omarchy theme). |
 | `bgColor` | `string` | `"theme"` | Background color: `"theme"` (auto), `"none"`, or a hex string e.g. `"#1e1e2e"`. |
 | `folderColor` | `string` | `"theme"` | Folder icon color: `"theme"`, `"symbolic"`, `"white"`, `"black"`, `"Yaru-sage"`, `"Yaru-blue"`, etc. |

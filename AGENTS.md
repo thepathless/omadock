@@ -92,7 +92,8 @@ These rules are enforced by the Omarchy marketplace CI and the `omarchy-plugin-d
 [ logo ] → [ pinned apps ] → [left tile divider] → [ minimized preview tiles ] → [right divider] → [ running apps ] → [folder divider] → [ pinned folders ]
 ```
 - Left tile divider: shown only when `pinnedSection.length > 0 && hasTiles`
-- Right divider: shared with the pinned|running separator, shown only when `runningSection.length > 0 && hasTiles`
+- Right divider: shared with the pinned|running separator, shown only when `pinnedSection.length > 0 && visibleRunningCount > 0`
+- `visibleRunningCount` = running entries minus unpinned apps whose windows are ALL minimized (`DockModel.allWindowsMinimized`) — those collapse to zero width and are represented by tiles, so they must not hold dividers open (fixes the "two dividers around a lone tile" bug, 2026-08-24)
 - Prevents doubled lines when a middle section is empty.
 - `dockCard` self-sizes from `row.implicitWidth` — never hard-code a width.
 
@@ -110,6 +111,7 @@ These rules are enforced by the Omarchy marketplace CI and the `omarchy-plugin-d
 - Re-assigning `captureSource` forces re-negotiation on recovery.
 - Minimized windows are parked on `special:minimized`; the origin workspace is stored in `minimizedOrigins[address]` at park time. **Default restore targets the user's currently active workspace**; "Restore to Original" (tile context menu) passes `useOrigin=true` to send windows back via `minimizedOrigins`.
 - **No running-indicator dot under tile delegates** — removed by design decision 2026-08-24. Do not re-add.
+- **Unpinned + fully-minimized apps hide their running icon** (`isFullyTiled` → width 0); the tile is the single representation. Divider gating uses `visibleRunningCount` for the same reason — keep both derived from `DockModel.allWindowsMinimized` so they can never disagree.
 
 ### Urgency / Notification System
 - `urgentMap` mixes two key shapes: `"0x…"` per-window addresses + bare `appId` strings (from notification service).
