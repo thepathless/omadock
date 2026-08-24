@@ -309,11 +309,13 @@ function isPinned(pinnedIds, appId) {
 }
 
 // Reorder pinned apps: move appId from its current position to insertBeforeId.
-// If insertBeforeId is null/empty, move to the end.
+// If insertBeforeId is null/empty, move to the end. Dropping onto the dragged
+// item itself is a no-op (prevents the "teleport to end" self-drop bug).
 function reorderPinned(pinnedIds, appId, insertBeforeId) {
   var arr = Array.isArray(pinnedIds) ? pinnedIds.slice() : []
   var id = stripDesktop(appId)
   if (!id) return arr
+  if (insertBeforeId && stripDesktop(insertBeforeId) === id) return arr
 
   var fromIdx = arr.indexOf(id)
   if (fromIdx < 0) return arr
@@ -502,12 +504,16 @@ function buildEntries(pinnedIds, toplevels, appRows, appLibrary, hyprFor, minimi
   return { pinned: pinnedOut, running: runningOut }
 }
 
-function activeAppId(toplevels, activeToplevel) {
-  var top = activeToplevel || null
-  if (top) return stripDesktop(top.appId)
-  var list = toArray(toplevels)
-  if (list.length > 0) return stripDesktop(list[0].appId)
-  return ""
+// True when the list has at least one window and every one of them is parked
+// on the minimized workspace. Used by both the running-icon hide logic and
+// the divider gating so the two can never disagree.
+function allWindowsMinimized(windowList) {
+  var list = Array.isArray(windowList) ? windowList : []
+  if (list.length === 0) return false
+  for (var i = 0; i < list.length; i++) {
+    if (list[i] && !list[i].isMinimized) return false
+  }
+  return true
 }
 
 // Which window a click or a wheel step should land on. Pure: the caller
