@@ -1066,13 +1066,25 @@ Item {
     : -1e6
 
   readonly property int appsSlots: root.showAppsButton ? 1 : 0
+  // Running apps that actually render an icon. Fully-minimized unpinned apps
+  // collapse to zero width (the tile section represents them), so they must
+  // not keep dividers alive. When tiles are disabled the icons always show.
+  readonly property int visibleRunningCount: {
+    var n = 0
+    for (var i = 0; i < root.runningSection.length; i++) {
+      var item = root.runningSection[i]
+      if (root.showMinimizedTiles && item && DockModel.allWindowsMinimized(item.windowList)) continue
+      n++
+    }
+    return n
+  }
   // Pinned-group | running divider. Sits after the tile section when tiles
   // exist, so it doubles as the right tile divider.
-  readonly property bool hasSeparator: root.pinnedSection.length > 0 && root.runningSection.length > 0
+  readonly property bool hasSeparator: root.pinnedSection.length > 0 && root.visibleRunningCount > 0
   readonly property real gapWidth: Style.space(root.itemSpacing)
   readonly property real separatorWidth: Style.space(1)
   readonly property int folderSlots: root.pinnedFolders ? root.pinnedFolders.length : 0
-  readonly property bool hasFolderSeparator: root.folderSlots > 0 && (root.pinnedSection.length > 0 || root.runningSection.length > 0)
+  readonly property bool hasFolderSeparator: root.folderSlots > 0 && (root.pinnedSection.length > 0 || root.visibleRunningCount > 0)
 
   // Minimized-window preview tiles (macOS-style section on the dock's right).
   // In minimizeMode "all", a parked app's windows compress into ONE stacked
@@ -1191,7 +1203,16 @@ Item {
     var custom = String(root.dockBgColor || "")
     if (custom.charAt(0) !== "#") return Color.bar.text
 
-    var cardIsLight = root.isLight(Qt.color(custom))
+    // A hand-edited config can hold an invalid hex string; Qt.color() throws
+    // on those, which would break this binding and take the whole dock's
+    // foreground with it. Fall back to the theme color instead.
+    var customColor
+    try {
+      customColor = Qt.color(custom)
+    } catch (e) {
+      return Color.bar.text
+    }
+    var cardIsLight = root.isLight(customColor)
     if (cardIsLight !== root.isLight(Color.bar.text)) return Color.bar.text
     return cardIsLight ? "#12100f" : "#f2efec"
   }
@@ -1455,8 +1476,22 @@ Item {
           return
         }
 
-        // Logical monitor dimensions accounting for fractional scaling
-        var mon = Hyprland.focusedMonitor
+        // Logical monitor dimensions accounting for fractional scaling.
+        // Resolve the monitor this dock actually lives on — the globally
+        // focused monitor is the wrong coordinate frame on multi-monitor
+        // setups whenever focus sits on another output.
+        var mon = null
+        var dockName = dockScreen ? String(dockScreen.name || "") : ""
+        if (dockName !== "" && Hyprland.monitors) {
+          var monitors = Hyprland.monitors.values || []
+          for (var m = 0; m < monitors.length; m++) {
+            if (monitors[m] && String(monitors[m].name || "") === dockName) {
+              mon = monitors[m]
+              break
+            }
+          }
+        }
+        if (!mon) mon = Hyprland.focusedMonitor
         var scale = (mon && mon.scale > 0)
           ? mon.scale
           : (dockScreen && dockScreen.devicePixelRatio ? dockScreen.devicePixelRatio : 1.0)
@@ -1475,12 +1510,15 @@ Item {
         var dockBottom = screenLogicalH
 
         var overlap = false
-        var focusedWsId = Hyprland.focusedWorkspace ? Hyprland.focusedWorkspace.id : -1
+        // Compare against the dock monitor's own active workspace, not the
+        // global focus — windows visible next to the dock on its output are
+        // the ones that can overlap it.
+        var dockWsId = (mon && mon.activeWorkspace) ? mon.activeWorkspace.id : -1
 
         for (var i = 0; i < clients.length; i++) {
           var c = clients[i]
           if (!c.mapped || c.hidden) continue
-          if (!c.workspace || c.workspace.id !== focusedWsId) continue
+          if (!c.workspace || c.workspace.id !== dockWsId) continue
 
           var at = c.at
           var sz = c.size
@@ -1509,12 +1547,18 @@ Item {
   Process {
     id: folderStackScanner
     property string targetFolder: ""
-    command: ["python3", "-c", "import os, json, time, sys\nfolder = os.path.expanduser(sys.argv[1]) if len(sys.argv) > 1 else ''\nif not folder or not os.path.exists(folder):\n    print('{\"count\":0,\"items\":[]}')\n    sys.exit(0)\nentries = []\ntry:\n    for entry in os.scandir(folder):\n        try:\n            if entry.name.startswith('.'):\n                continue\n            stat = entry.stat()\n            is_dir = entry.is_dir()\n            size_bytes = stat.st_size if not is_dir else 0\n            if size_bytes < 1024:\n                size_str = f'{size_bytes} B'\n            elif size_bytes < 1024 * 1024:\n                size_str = f'{size_bytes / 1024:.1f} KB'\n            elif size_bytes < 1024 * 1024 * 1024:\n                size_str = f'{size_bytes / (1024 * 1024):.1f} MB'\n            else:\n                size_str = f'{size_bytes / (1024 * 1024 * 1024):.1f} GB'\n            diff = time.time() - stat.st_mtime\n            if diff < 60:\n                time_str = 'Just now'\n            elif diff < 3600:\n                time_str = f'{int(diff // 60)}m ago'\n            elif diff < 86400:\n                time_str = f'{int(diff // 3600)}h ago'\n            else:\n                time_str = f'{int(diff // 86400)}d ago'\n            ext = os.path.splitext(entry.name)[1].lower()\n            is_img = ext in ['.png', '.jpg', '.jpeg', '.webp', '.svg', '.gif']\n            if is_dir:\n                icon = 'folder'\n            elif is_img:\n                icon = 'image-x-generic'\n            elif ext in ['.mp4', '.mkv', '.webm', '.mov', '.avi']:\n                icon = 'video-x-generic'\n            elif ext in ['.mp3', '.flac', '.wav', '.ogg', '.m4a']:\n                icon = 'audio-x-generic'\n            elif ext in ['.zip', '.tar', '.gz', '.xz', '.7z', '.rar']:\n                icon = 'package-x-generic'\n            elif ext in ['.pdf']:\n                icon = 'application-pdf'\n            elif ext in ['.txt', '.md', '.json', '.qml', '.py', '.cpp', '.js', '.lua', '.rs', '.go', '.html', '.css']:\n                icon = 'text-x-generic'\n            else:\n                icon = 'application-x-executable'\n            entries.append({'name': entry.name, 'path': entry.path, 'isDir': is_dir, 'isImage': is_img, 'size': size_str, 'time': time_str, 'mtime': stat.st_mtime, 'icon': icon})\n        except Exception:\n            pass\nexcept Exception:\n    pass\nentries.sort(key=lambda x: x['mtime'], reverse=True)\nprint(json.dumps({'count': len(entries), 'items': entries[:16]}))\n", folderStackScanner.targetFolder]
+    command: ["python3", "-c", "import os, json, time, sys\nfolder = os.path.expanduser(sys.argv[1]) if len(sys.argv) > 1 else ''\nif not folder or not os.path.exists(folder):\n    print(json.dumps({'count':0,'items':[],'folder':folder}))\n    sys.exit(0)\nentries = []\ntry:\n    for entry in os.scandir(folder):\n        try:\n            if entry.name.startswith('.'):\n                continue\n            stat = entry.stat()\n            is_dir = entry.is_dir()\n            size_bytes = stat.st_size if not is_dir else 0\n            if size_bytes < 1024:\n                size_str = f'{size_bytes} B'\n            elif size_bytes < 1024 * 1024:\n                size_str = f'{size_bytes / 1024:.1f} KB'\n            elif size_bytes < 1024 * 1024 * 1024:\n                size_str = f'{size_bytes / (1024 * 1024):.1f} MB'\n            else:\n                size_str = f'{size_bytes / (1024 * 1024 * 1024):.1f} GB'\n            diff = time.time() - stat.st_mtime\n            if diff < 60:\n                time_str = 'Just now'\n            elif diff < 3600:\n                time_str = f'{int(diff // 60)}m ago'\n            elif diff < 86400:\n                time_str = f'{int(diff // 3600)}h ago'\n            else:\n                time_str = f'{int(diff // 86400)}d ago'\n            ext = os.path.splitext(entry.name)[1].lower()\n            is_img = ext in ['.png', '.jpg', '.jpeg', '.webp', '.svg', '.gif']\n            if is_dir:\n                icon = 'folder'\n            elif is_img:\n                icon = 'image-x-generic'\n            elif ext in ['.mp4', '.mkv', '.webm', '.mov', '.avi']:\n                icon = 'video-x-generic'\n            elif ext in ['.mp3', '.flac', '.wav', '.ogg', '.m4a']:\n                icon = 'audio-x-generic'\n            elif ext in ['.zip', '.tar', '.gz', '.xz', '.7z', '.rar']:\n                icon = 'package-x-generic'\n            elif ext in ['.pdf']:\n                icon = 'application-pdf'\n            elif ext in ['.txt', '.md', '.json', '.qml', '.py', '.cpp', '.js', '.lua', '.rs', '.go', '.html', '.css']:\n                icon = 'text-x-generic'\n            else:\n                icon = 'application-x-executable'\n            entries.append({'name': entry.name, 'path': entry.path, 'isDir': is_dir, 'isImage': is_img, 'size': size_str, 'time': time_str, 'mtime': stat.st_mtime, 'icon': icon})\n        except Exception:\n            pass\nexcept Exception:\n    pass\nentries.sort(key=lambda x: x['mtime'], reverse=True)\nprint(json.dumps({'count': len(entries), 'items': entries[:16], 'folder': folder}))\n", folderStackScanner.targetFolder]
     running: false
     stdout: StdioCollector {
       onStreamFinished: {
         try {
           var parsed = JSON.parse(this.text) || { count: 0, items: [] }
+          // Stale-result guard: only apply if this scan is still for the
+          // folder the user currently has open (or any at all). Prevents a
+          // slow older scan from painting one folder's files under another's
+          // header, or repopulating after the stack was closed.
+          var wanted = String(root.activeStackFolder || "").replace(/^~/, Quickshell.env("HOME"))
+          if (parsed.folder !== wanted) return
           root.activeStackTotalCount = parsed.count || 0
           root.activeStackEntries = parsed.items || []
         } catch (e) {
@@ -1823,16 +1867,26 @@ Item {
   function updateNotifService() {
     if (!root.notifService && root.shell && typeof root.shell.serviceFor === "function") {
       var s = root.shell.serviceFor("omarchy.notifications") || root.shell.firstPartyServiceFor("omarchy.notifications")
-      if (s) root.notifService = s
+      if (s) {
+        root.notifService = s
+        root._notifServiceAttempts = 0
+      }
     }
   }
 
+  // Startup retry poll for the notifications service. Self-terminates once
+  // resolved; capped at ~5s (25 ticks) so a shell that never exposes the
+  // service can't keep the event loop awake forever (zero-CPU invariant).
+  property int _notifServiceAttempts: 0
   Timer {
     id: serviceCheckTimer
     interval: 200
     repeat: true
-    running: !root.notifService
-    onTriggered: root.updateNotifService()
+    running: !root.notifService && root._notifServiceAttempts < 25
+    onTriggered: {
+      root._notifServiceAttempts++
+      root.updateNotifService()
+    }
   }
 
   function handleNotificationReceived(row) {
@@ -2970,6 +3024,10 @@ Item {
       return
     }
     root.closeContext()
+    // Kill any in-flight scan first: assigning running = true while a process
+    // is already running is a no-op in Quickshell, which used to let a slow
+    // older scan race the new one.
+    if (folderStackScanner.running) folderStackScanner.running = false
     root.activeStackFolder = path
     root.activeStackName = name || "Folder"
     root.activeStackX = cx
@@ -2980,6 +3038,7 @@ Item {
   }
 
   function closeFolderStack() {
+    if (folderStackScanner.running) folderStackScanner.running = false
     root.activeStackFolder = ""
     root.activeStackName = ""
     root.activeStackEntries = []
@@ -3104,6 +3163,10 @@ Item {
         anchors.fill: parent
         z: -1
         hoverEnabled: true
+        // Accept every button: the layer-shell mask routes all clicks here
+        // while a menu is open, so a right-click on empty space must dismiss
+        // the menu too instead of being swallowed with no effect.
+        acceptedButtons: Qt.LeftButton | Qt.RightButton | Qt.MiddleButton
         onClicked: function(mouse) {
           if (root.contextAppId !== "") {
             root.closeContext()
@@ -3554,15 +3617,8 @@ Item {
             // When an unpinned app has ALL its windows minimized and tiles are
             // showing, the tile section already represents it — hide the icon
             // slot entirely so only the tile (with hollow dot) is visible.
-            readonly property bool isFullyTiled: {
-              if (!root.showMinimizedTiles) return false
-              var list = modelData.windowList || []
-              if (list.length === 0) return false
-              for (var i = 0; i < list.length; i++) {
-                if (list[i] && !list[i].isMinimized) return false
-              }
-              return true
-            }
+            readonly property bool isFullyTiled: root.showMinimizedTiles
+              && DockModel.allWindowsMinimized(modelData.windowList)
             visible: !isFullyTiled
 
             // Row preserves space for invisible items that have explicit width.
@@ -3692,7 +3748,20 @@ Item {
           }
         }
 
-        MenuDivider {}
+        // The scanner caps at 16 entries; tell the user when the folder holds
+        // more instead of silently truncating.
+        ContextRow {
+          visible: root.activeStackTotalCount > root.activeStackEntries.length
+          text: "+ " + (root.activeStackTotalCount - root.activeStackEntries.length) + " more — open in File Manager"
+          onTriggered: {
+            Util.execDetached("uwsm-app -- xdg-open " + Util.shellQuote(root.activeStackFolder.replace(/^~/, Quickshell.env("HOME"))))
+            root.closeFolderStack()
+          }
+        }
+
+        MenuDivider {
+          visible: root.activeStackTotalCount > root.activeStackEntries.length
+        }
 
         ContextRow {
           text: "Open in File Manager"
