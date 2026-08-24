@@ -130,8 +130,7 @@ Item {
       return false
     }
 
-    readonly property bool minimized: item.running
-      && DockModel.allWindowsMinimized(item.windowList, root.liveWsNameOf, root.minimizedWorkspace)
+    readonly property bool minimized: DockModel.allWindowsMinimized(item.windowList, root.liveWsNameOf, root.minimizedWorkspace)
 
     readonly property bool onFocusedWorkspace: {
       var list = item.windowList || []
@@ -1074,6 +1073,18 @@ Item {
     }
     return n
   }
+  // Slot index of running entry idx among VISIBLE icons only. Fully-tiled
+  // entries collapse to zero width, so they must not consume a slot in the
+  // wave home-center arithmetic — every icon after one would drift by a
+  // full slot. Same predicate as visibleRunningCount, so they never disagree.
+  function visibleRunningSlotBefore(idx) {
+    var n = 0
+    for (var i = 0; i < idx && i < root.runningSection.length; i++) {
+      var e = root.runningSection[i]
+      if (!(root.showMinimizedTiles && e && DockModel.allWindowsMinimized(e.windowList, root.liveWsNameOf, root.minimizedWorkspace))) n++
+    }
+    return n
+  }
   // Pinned-group | running divider. Sits after the tile section when tiles
   // exist, so it doubles as the right tile divider.
   readonly property bool hasSeparator: root.pinnedSection.length > 0 && root.visibleRunningCount > 0
@@ -1121,14 +1132,19 @@ Item {
   // Left tile divider (pinned|tiles) renders only when pins precede the tiles.
   readonly property bool hasLeftTileSeparator: root.hasTiles && root.pinnedSection.length > 0
 
+  // Raw slot total: hasTiles must stay true even when every running icon is
+  // hidden (a lone tile must still render), so this counts all entries.
   readonly property int slotTotal: root.appsSlots + root.pinnedSection.length + root.runningSection.length + root.folderSlots
-  readonly property int elementTotal: root.slotTotal
+  // Width arithmetic total: hidden (fully-tiled) entries occupy zero width,
+  // so the row-width and gap math must count only visible icons.
+  readonly property int visibleSlotTotal: root.appsSlots + root.pinnedSection.length + root.visibleRunningCount + root.folderSlots
+  readonly property int elementTotal: root.visibleSlotTotal
     + (root.hasSeparator ? 1 : 0)
     + (root.hasFolderSeparator ? 1 : 0)
     + (root.hasLeftTileSeparator ? 1 : 0)
     + (root.hasTiles ? root.tileCount : 0)
 
-  readonly property real baseRowWidth: root.slotTotal * root.iconSlot
+  readonly property real baseRowWidth: root.visibleSlotTotal * root.iconSlot
     + (root.hasSeparator ? root.separatorWidth : 0)
     + (root.hasFolderSeparator ? root.separatorWidth : 0)
     + (root.hasLeftTileSeparator ? root.separatorWidth : 0)
@@ -3611,9 +3627,12 @@ Item {
             running: modelData.running
             windows: modelData.windows
             windowList: modelData.windowList
+            // Wave geometry must count only icons that actually render — a
+            // hidden (fully-tiled) entry occupies zero width in the Row.
+            readonly property int visibleIdx: root.visibleRunningSlotBefore(index)
             homeCenter: root.slotHomeCenter(
-              root.appsSlots + root.pinnedSection.length + (root.hasLeftTileSeparator ? 1 : 0) + (root.hasSeparator ? 1 : 0) + root.tileElements + index,
-              root.appsSlots + root.pinnedSection.length + index,
+              root.appsSlots + root.pinnedSection.length + (root.hasLeftTileSeparator ? 1 : 0) + (root.hasSeparator ? 1 : 0) + root.tileElements + visibleIdx,
+              root.appsSlots + root.pinnedSection.length + visibleIdx,
               root.hasSeparator,
               root.tilesFixedWidth)
             pinned: false
@@ -3660,8 +3679,8 @@ Item {
             name: modelData.name || "Folder"
             icon: modelData.icon || DockModel.folderIconFor(modelData.path, "")
             homeCenter: root.slotHomeCenter(
-              root.appsSlots + root.pinnedSection.length + (root.hasLeftTileSeparator ? 1 : 0) + (root.hasSeparator ? 1 : 0) + root.tileElements + root.runningSection.length + (root.hasFolderSeparator ? 1 : 0) + index,
-              root.appsSlots + root.pinnedSection.length + root.runningSection.length + index,
+              root.appsSlots + root.pinnedSection.length + (root.hasLeftTileSeparator ? 1 : 0) + (root.hasSeparator ? 1 : 0) + root.tileElements + root.visibleRunningCount + (root.hasFolderSeparator ? 1 : 0) + index,
+              root.appsSlots + root.pinnedSection.length + root.visibleRunningCount + index,
               (root.hasSeparator ? 1 : 0) + (root.hasFolderSeparator ? 1 : 0),
               root.tilesFixedWidth)
             onOpenStackRequested: function(fpath, fname, cx, cy) {
