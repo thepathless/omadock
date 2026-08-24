@@ -1128,12 +1128,11 @@ Item {
   readonly property int tileCount: root.tileModel.length
   readonly property real tileWidth: Math.round(root.iconSlot * 1.5)
   readonly property real tileHeight: Math.round(root.iconSlot * 0.95)
-  readonly property bool hasTiles: root.tileCount > 0 && root.slotTotal > 0
+  readonly property bool hasTiles: root.tileCount > 0
   // Left tile divider (pinned|tiles) renders only when pins precede the tiles.
   readonly property bool hasLeftTileSeparator: root.hasTiles && root.pinnedSection.length > 0
 
-  // Raw slot total: hasTiles must stay true even when every running icon is
-  // hidden (a lone tile must still render), so this counts all entries.
+  // Raw slot total — used for width arithmetic alongside hasTiles.
   readonly property int slotTotal: root.appsSlots + root.pinnedSection.length + root.runningSection.length + root.folderSlots
   // Width arithmetic total: hidden (fully-tiled) entries occupy zero width,
   // so the row-width and gap math must count only visible icons.
@@ -1447,6 +1446,16 @@ Item {
   // re-frozen once the Hyprland handle has caught up (see rawEvent handler).
   Timer {
     id: modelSettleTimer
+    interval: 300
+    onTriggered: root.refreshDock()
+  }
+
+  // Deferred rebuild after configreloaded: Quickshell's Hyprland.toplevels
+  // re-syncs handles asynchronously via refreshWorkspaces + refreshToplevels;
+  // a 40ms rebuild lands mid-sync with stale data, marking parked windows as
+  // running. 300ms is the empirical settle time for handle re-attachment.
+  Timer {
+    id: configReloadSettleTimer
     interval: 300
     onTriggered: root.refreshDock()
   }
@@ -1886,6 +1895,12 @@ Item {
       // the model (stale isMinimized kept the running icon beside its tile).
       // Event-driven single shot — self-terminating, no polling.
       if (n === "movewindow" || n === "movewindowv2") modelSettleTimer.restart()
+      // configreloaded fires Quickshell refreshWorkspaces + refreshToplevels
+      // which destroy/recreate workspace objects and re-assign toplevel handles.
+      // A model rebuild during this transient reads stale workspace pointers and
+      // marks parked windows as running (e.g. screenshot hw-cursor toggle).
+      // Defer until handles stabilize — same budget as movewindow settle.
+      if (n === "configreloaded") configReloadSettleTimer.restart()
     }
   }
 
@@ -3501,6 +3516,15 @@ Item {
                 onCaptureSourceChanged: {
                   captureRetry.attempts = 0
                   captureRetry.restart()
+                }
+                // Failed exports emit stopped, which destroys the Wayland
+                // capture context. Null-then-restore forces createContext()
+                // via setCaptureSource; Qt.callLater avoids double-triggering
+                // onCaptureSourceChanged in the same event loop tick.
+                onStopped: {
+                  var src = captureSource
+                  captureSource = null
+                  Qt.callLater(function() { captureSource = src })
                 }
 
                 Timer {
