@@ -990,25 +990,24 @@ Item {
       onClicked: function(mouse) {
         if (mouse.button === Qt.RightButton) {
           var mappedPos = fitem.mapToItem(dockWindow.contentItem, mouse.x, mouse.y)
+          if (!mappedPos) return
           fitem.menuRequested(fitem.folderPath, fitem.name, mappedPos.x, mappedPos.y)
         } else {
           var centerPos = fitem.mapToItem(dockWindow.contentItem, fitem.width / 2, 0)
+          if (!centerPos) return
           fitem.openStackRequested(fitem.folderPath, fitem.name, centerPos.x, centerPos.y)
         }
       }
     }
 
-    // Hover Tooltip
-    Item {
-      id: tooltipAnchor
-      anchors.horizontalCenter: parent.horizontalCenter
-      anchors.top: parent.top
-      anchors.topMargin: -Style.space(4)
-
-      PanelToolTip {
-        visible: area.containsMouse && root.showTooltips && root.contextAppId === "" && root.activeStackFolder === ""
-        text: fitem.name + " (Folder)"
-      }
+    // Hover tooltip — uses our own HoverTooltip so textFormat: Text.PlainText is enforced.
+    // (PanelToolTip is an opaque shell component; folder names come from user config.)
+    HoverTooltip {
+      text: fitem.name + " (Folder)"
+      hovered: area.containsMouse
+      blocked: !root.showTooltips || root.activeStackFolder !== ""
+      x: (fitem.width - width) / 2
+      y: -height - Style.space(8)
     }
   }
 
@@ -1020,7 +1019,6 @@ Item {
 
   readonly property string dockPath: Quickshell.env("HOME") + "/.config/omarchy/dock.json"
   readonly property string configPath: Quickshell.env("HOME") + "/.config/omarchy/omadock.json"
-  readonly property string legacyConfigPath: Quickshell.env("HOME") + "/.config/omarchy/suva.dock.json"
 
   property string screenName: ""
   readonly property var dockScreen: root.screenName
@@ -1431,7 +1429,11 @@ Item {
     }
   }
 
-  // Periodic safety check while dock is visible on desktop to catch live window drag/moves
+  // Periodic fallback overlap check — deliberate exception to the zero-CPU-polling invariant.
+  // Hyprland does not emit IPC events for in-progress window drags, so there is no event-driven
+  // way to detect a window being dragged over the dock. This timer fires at 350ms while the dock
+  // is visible and uncovered, catching that case. It is fully gated: stops when hidden, when the
+  // user hovers the dock card, and during menus / drag reorder — so CPU cost is zero at rest.
   Timer {
     id: intelligentOverlapCheckTimer
     interval: 350
@@ -1830,10 +1832,7 @@ Item {
     interval: 200
     repeat: true
     running: !root.notifService
-    onTriggered: {
-      root.updateNotifService()
-      if (root.notifService) serviceCheckTimer.stop()
-    }
+    onTriggered: root.updateNotifService()
   }
 
   function handleNotificationReceived(row) {
@@ -2773,7 +2772,7 @@ Item {
 
   function launchDesktopAction(action, appName) {
     if (!action) return
-    root.beginLaunchFeedback(appName || action.name)
+    root.markLaunching(root.contextAppId || "", 0)
     try {
       if (typeof action.execute === "function") {
         action.execute()
@@ -3611,7 +3610,7 @@ Item {
         }
 
         Repeater {
-          model: root.activeStackEntries.slice(0, 10)
+          model: root.activeStackEntries.slice(0, 16)
           delegate: FileStackRow {
             name: modelData.name
             path: modelData.path
@@ -4709,4 +4708,3 @@ Item {
     }
   }
 }
-
