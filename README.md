@@ -5,6 +5,10 @@
 </p>
 
 <p align="center">
+  <img src="assets/preview-desktop.png" alt="Omadock running on the Omarchy desktop" width="900" />
+</p>
+
+<p align="center">
   <b>A modern, high-performance application dock for <a href="https://omarchy.org">Omarchy</a> (Quickshell + Hyprland).</b>
 </p>
 
