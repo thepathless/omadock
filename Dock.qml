@@ -2249,12 +2249,16 @@ Item {
     return true
   }
 
-  function restoreWindow(targetRef, appId) {
+  function restoreWindow(targetRef, appId, useOrigin) {
     var address = typeof targetRef === "string" ? targetRef : root.windowAddress(targetRef)
     if (!address) return false
 
 
-    var target = root.minimizedOrigins[address] || root.workspaceTarget(Hyprland.focusedWorkspace)
+    // Default restore target is the workspace the user is on right now;
+    // useOrigin=true sends the window back to where it was parked from.
+    var target = ""
+    if (useOrigin && root.minimizedOrigins[address]) target = root.minimizedOrigins[address]
+    if (!target) target = root.workspaceTarget(Hyprland.focusedWorkspace)
     if (!target) return false
 
     var origins = DockModel.copyMap(root.minimizedOrigins)
@@ -2281,6 +2285,74 @@ Item {
       DockModel.focusWindow(top)
     }
     return true
+  }
+
+  // Restores a group of windows in one compositor transaction:
+  // all moves are dispatched silently first, then workspace focus and window
+  // activation happen exactly once. This prevents the "one-by-one fullscreen"
+  // flash that occurs when restoreWindow() is called in a loop (each call
+  // previously triggered its own focus switch and Wayland activation).
+  //
+  // primaryAddress: the window to focus after all moves. When null/undefined,
+  // the most-recently-parked window (highest parkedAt timestamp) is chosen.
+  //
+  // useOrigin: when true, each window returns to the workspace it was parked
+  // from (minimizedOrigins). Default restores everything onto the user's
+  // currently active workspace.
+  function restoreWindowBatch(wins, primaryAddress, useOrigin) {
+    if (!wins || wins.length === 0) return
+
+    // Single-copy the maps — O(n) instead of O(n²) individual copies.
+    var origins = DockModel.copyMap(root.minimizedOrigins)
+    var parkedTimes = DockModel.copyMap(root.parkedAt)
+
+    var focusAddr = null
+    var focusTarget = null
+    var bestTime = -1
+
+    for (var i = 0; i < wins.length; i++) {
+      var w = wins[i]
+      if (!w || !w.address) continue
+      var address = w.address
+
+      var target = ""
+      if (useOrigin && origins[address]) target = origins[address]
+      if (!target) target = root.workspaceTarget(Hyprland.focusedWorkspace)
+      if (!target) continue
+
+      var t = parkedTimes[address] !== undefined ? parkedTimes[address] : 0
+      delete origins[address]
+      delete parkedTimes[address]
+
+      // Silent move only — no workspace switch or window focus per iteration.
+      root.hyprDispatch(
+        'hl.dsp.window.move({ window = "address:' + address + '", workspace = "'
+          + root.luaString(target) + '", follow = false })',
+        "movetoworkspacesilent " + target + ",address:" + address)
+
+      // Track which window to focus: explicit override first, then most-recently-parked.
+      if (primaryAddress && address === primaryAddress) {
+        focusAddr = address
+        focusTarget = target
+        bestTime = Infinity
+      } else if (bestTime !== Infinity && t >= bestTime) {
+        bestTime = t
+        focusAddr = address
+        focusTarget = target
+      }
+    }
+
+    // Commit map mutations once.
+    root.minimizedOrigins = origins
+    root.parkedAt = parkedTimes
+
+    // Single workspace switch + single window activation after all moves.
+    if (focusTarget) {
+      root.hyprDispatch('hl.dsp.focus({ workspace = "' + root.luaString(focusTarget) + '" })',
+                        "workspace " + focusTarget)
+      var top = root.liveToplevelForAddress(focusAddr)
+      if (top) DockModel.focusWindow(top)
+    }
   }
 
   // The workspace a window sits on right now. Model primitives freeze state at
@@ -2875,11 +2947,11 @@ Item {
   }
 
   function restoreContextTile() {
-    var wins = root.contextTileWins
-    for (var i = 0; i < wins.length; i++) {
-      var w = wins[i]
-      if (w && w.address) root.restoreWindow(w.address, w.appId || "")
-    }
+    root.restoreWindowBatch(root.contextTileWins || [])
+  }
+
+  function restoreContextTileOriginal() {
+    root.restoreWindowBatch(root.contextTileWins || [], null, true)
   }
 
   function closeContextTile() {
@@ -3270,10 +3342,7 @@ Item {
             }
 
             function doRestore() {
-              for (var i = 0; i < groupWins.length; i++) {
-                var w = groupWins[i]
-                if (w && w.address) root.restoreWindow(w.address, w.appId || "")
-              }
+              root.restoreWindowBatch(groupWins)
             }
 
             function doClose() {
@@ -4541,9 +4610,17 @@ Item {
           }
 
           ContextRow {
-            text: root.contextTileWins.length > 1 ? "Restore All" : "Restore"
+            text: root.contextTileWins.length > 1 ? "Restore All Here" : "Restore Here"
             onTriggered: {
               root.restoreContextTile()
+              root.closeContext()
+            }
+          }
+
+          ContextRow {
+            text: root.contextTileWins.length > 1 ? "Restore All to Original" : "Restore to Original"
+            onTriggered: {
+              root.restoreContextTileOriginal()
               root.closeContext()
             }
           }
