@@ -1,46 +1,57 @@
-# Omadock (`omadock`)
+<div align="center">
+
+# ❖ OMADOCK
+
+### *A modern, fluid, zero-CPU application dock engineered for Omarchy Linux*
+
+[![Release](https://img.shields.io/badge/release-v2.9.6-6c7086?style=for-the-badge&logo=github&logoColor=white&labelColor=1e1e2e)](https://github.com/thepathless/omadock/releases)
+[![Omarchy](https://img.shields.io/badge/omarchy-4.0.1+-cba6f7?style=for-the-badge&logo=archlinux&logoColor=white&labelColor=1e1e2e)](https://omarchy.org)
+[![Hyprland](https://img.shields.io/badge/compositor-Hyprland-89b4fa?style=for-the-badge&logo=wayland&logoColor=white&labelColor=1e1e2e)](https://hyprland.org)
+[![Quickshell](https://img.shields.io/badge/shell-Quickshell_Qt6-a6e3a1?style=for-the-badge&logo=qt&logoColor=white&labelColor=1e1e2e)](https://quickshell.org)
+[![License](https://img.shields.io/badge/license-MIT-fab387?style=for-the-badge&labelColor=1e1e2e)](LICENSE)
+
+<br />
 
 <p align="center">
-  <img src="preview.png" alt="Omadock — application dock for Omarchy" width="900" />
+  <img src="preview.png" alt="Omadock Hero Preview" width="880" style="border-radius: 12px; box-shadow: 0 8px 24px rgba(0,0,0,0.4);" />
 </p>
 
 <p align="center">
-  <img src="assets/preview-desktop.png" alt="Omadock running on the Omarchy desktop" width="900" />
+  <a href="#-quick-start"><b>Quick Start</b></a> •
+  <a href="#-core-features"><b>Features</b></a> •
+  <a href="#-minimized-preview-tiles"><b>Preview Tiles</b></a> •
+  <a href="#-controls-cheat-sheet"><b>Controls</b></a> •
+  <a href="#%EF%B8%8F-configuration-reference"><b>Configuration</b></a> •
+  <a href="#-keyboard-shortcuts-via-ipc"><b>Keybindings</b></a> •
+  <a href="#-faq"><b>FAQ</b></a>
 </p>
 
-<p align="center">
-  <b>A modern, high-performance application dock for <a href="https://omarchy.org">Omarchy</a> (Quickshell + Hyprland).</b>
-</p>
-
-<p align="center">
-  <a href="https://github.com/thepathless/omadock/releases"><img src="https://img.shields.io/badge/release-v2.9.6-blue?style=for-the-badge" alt="Release" /></a>
-  <a href="https://omarchy.org"><img src="https://img.shields.io/badge/omarchy-shell_plugin-blueviolet?style=for-the-badge" alt="Omarchy" /></a>
-  <a href="https://hyprland.org"><img src="https://img.shields.io/badge/Wayland-Hyprland-00a4dc?style=for-the-badge" alt="Hyprland" /></a>
-  <a href="https://quickshell.org"><img src="https://img.shields.io/badge/Quickshell-Qt6_QML-41cd52?style=for-the-badge" alt="Quickshell" /></a>
-  <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-green?style=for-the-badge" alt="License" /></a>
-</p>
+</div>
 
 ---
 
-## 📖 Overview
+## ⚡ Overview
 
-**Omadock** is a lightweight, zero-CPU application dock built natively for **Omarchy Linux**. It pairs a clean, modern aesthetic with the power of the **Hyprland** tiling compositor.
+**Omadock** is an ultra-fast, lightweight shell overlay plugin built natively for **Omarchy (Arch Linux + Hyprland + Quickshell)**. It bridges the gap between dynamic tiling compositors and traditional desktop ergonomics, delivering a polished, tactile dock with **0.00% background CPU consumption**.
 
-Whether you run a single browser window or tile dozens of terminals across multiple workspaces, Omadock gives you:
+```
+  [ ❖ Logo ] ─► [ Pinned Apps ] ─► [ 🪟 Minimized Tiles ] ─► [ Running Apps ] ─► [ 📁 Folders ]
+```
 
-- Instant visual window-state feedback via a 3-state indicator system
-- Mouse-wheel window cycling with rich multi-window tooltips
-- Sequential or batch minimization with live preview tiles on the dock
-- Unpinned apps whose windows are all minimized collapse into their tile — the tile is the dock's single representation for them
-- Real-time attention alerts with optional audio chimes
-- Live drag-and-drop pin reordering
-- Pinned folder stacks with recent-file popovers
-- Native FreeDesktop Desktop Actions (jump lists)
-- Deep right-click customization — all without leaving the dock
+### ✨ Key Highlights
+
+- **🔘 3-State Window Dots**: Instant visual indicator dots for active, visible, and minimized windows.
+- **🌊 Wave & Zoom Magnification**: Continuous cosine-falloff cursor growth with unmagnified geometry anchors.
+- **🪟 Live Preview Tiles**: Minimized windows park directly on the dock as Wayland `ScreencopyView` live cards.
+- **⚡ FreeDesktop Jump Lists**: Native desktop action menus (incognito tabs, new windows, custom actions).
+- **📁 Folder Stacks & Popovers**: 1-click popovers for recent files with automatic theme sync and color presets.
+- **🔔 Attention Glow & Canberra Chimes**: Bouncing alerts and audio chimes for background notifications.
+- **🎯 Intelligent Zero-CPU Autohide**: Event-driven 2D Axis-Aligned Bounding Box (AABB) window overlap detection.
+- **🔄 Fluid Drag-and-Drop**: Drag pinned items to reorder with live real-time insertion markers.
 
 ---
 
-## ⚡ Quick Start
+## 🚀 Quick Start
 
 ### Install
 
@@ -62,11 +73,11 @@ omarchy plugin remove omadock --yes
 
 ---
 
-## 🌟 Feature Guide
+## 🌟 Core Features
 
-### 🔘 1. The 3-State Window Indicator System
+### 🔘 1. 3-State Window Indicators
 
-Underneath each running application icon, Omadock draws indicator dots that show the exact state of every window at a glance:
+Every running application icon features micro-indicators communicating the exact state of all open instances:
 
 ```
   ┌─────────────────────────────────────────────────────────────┐
@@ -77,23 +88,33 @@ Underneath each running application icon, Omadock draws indicator dots that show
   └─────────────────────────────────────────────────────────────┘
 ```
 
-- **Active Focused `[ ▬ ]`**: Expands into an illuminated pill bar in your active theme's accent color.
-- **Open Visible `[ ● ]`**: Solid circle for every window sitting on your desktop.
-- **Minimized `[ ○ ]`**: Hollow ring the moment a window is parked on `special:minimized`.
-
----
-
-### 🔢 2. Adaptive Multi-Window Scaling
-
-| Window Count | Indicator Display | Description |
+| Window Count | Indicator Visual | Behavior |
 | :--- | :--- | :--- |
-| **1–4 windows** | `[ ▬ ] [ ● ] [ ○ ] [ ● ]` | Every window gets its own full-size dot or active bar. |
-| **5 windows** | `[ ▬ ] [ ● ] [ ● ] [ ● ] [ ● ]` | Micro-dot compression (`4px`) fits 5 instances cleanly. |
-| **6+ windows** | `[ ▬ ] [ ● ] [ ● ] [ ● ] [ +N ]` | First 4 states + a compact `+N` overflow badge. |
+| **1–4 windows** | `[ ▬ ] [ ● ] [ ○ ] [ ● ]` | Dedicated indicator dot/bar for every individual window. |
+| **5 windows** | `[ ▬ ] [ ● ] [ ● ] [ ● ] [ ● ]` | Micro-dot scaling ($4\text{px}$) fits up to 5 instances cleanly. |
+| **6+ windows** | `[ ▬ ] [ ● ] [ ● ] [ ● ] [ +N ]` | First 4 instance dots plus a compact `+N` count badge. |
 
 ---
 
-### 🔄 3. Minimize on Click (3 Modes)
+### 🪟 2. Minimized Preview Tiles
+
+When a window is parked on `special:minimized`, Omadock generates a live visual preview tile between your pinned and running applications:
+
+<div align="center">
+  <img src="assets/preview-dock.png" alt="Omadock Preview Tiles" width="700" style="border-radius: 8px;" />
+</div>
+
+- **📸 Live Screencopy Capture**: Single-shot Wayland screencopy capture renders the window content.
+- **🎯 1-Click Restore**: Left-clicking any preview tile restores the window directly onto your **currently active workspace**.
+- **📍 Origin Restoration**: Right-click any tile to choose between **Restore Here**, **Restore to Original Workspace**, or **Close**.
+- **📦 Stacked Batch Minimization**: In `"all"` mode, multiple windows from the same application bundle into a stacked visual card with count badge.
+- **👻 Tile-Collapse Invariant**: Unpinned apps whose windows are all minimized collapse their regular running icon, making the preview tile their single dock representation.
+
+---
+
+### 🔄 3. Minimize on Click Modes
+
+Configure how clicking an active application icon behaves in `omadock.json` or via the Settings menu:
 
 ```
                          ┌─────────────────────────────────┐
@@ -106,140 +127,85 @@ Underneath each running application icon, Omadock draws indicator dots that show
   (Sequential FIFO — default)  (Group Batch / Hide)        (Standard / Classic)
 ```
 
-1. **Active Window (`"active"` — default)**: Minimizes only the single focused window; focus passes to the next window. Each parked window appears as its own live preview tile.
-2. **All Windows (`"all"`)**: One click parks every window of the app simultaneously. Each becomes its own preview tile.
-3. **Disabled (`"off"`)**: Clicking an active app never minimizes — it cycles focus to the next window.
-
-> **Intelligent focus & workspace navigation**: Left-clicking any running app brings its window forward. If the window is minimized, Omadock unminimizes and restores it onto your current workspace; if it is visible on another workspace, Omadock navigates there and focuses it.
+1. **`"active"` (Default)**: Minimizes the active window and passes focus to the next instance.
+2. **`"all"` (Group Batch)**: Simultaneously minimizes all instances of the application in an atomic batch.
+3. **`"off"` (Disabled)**: Keeps all windows visible and cycles focus between open instances.
 
 ---
 
-### 📜 4. Interactive Tooltips & Mouse-Wheel Selection
+### 🌊 4. Wave & Zoom Magnification
 
-When an app has multiple windows open:
+Omadock features Juan Pablo Zamora's raised-cosine falloff equation for fluid, Apple-style wave magnification:
 
-1. **Hover** the dock icon → a rich tooltip lists all visible windows (minimized ones appear as tiles instead).
-2. **Scroll** the mouse wheel → a `›` cursor cycles through the window list live.
-3. **Left-click** → directly focuses the selected window.
+$$\text{scale}(d) = 1 + (\text{peak} - 1) \cdot \frac{1 + \cos\left(\frac{\pi \cdot d}{R}\right)}{2} \quad \text{for } d \le R$$
 
----
-
-### 🪟 4b. Live Minimized-Window Preview Tiles
-
-Minimized windows appear as **live preview tiles** between the pinned and running sections — oldest parked window on the left, newest on the right:
-
-- Each tile shows a **real screenshot** of the window, an app badge, and a title tooltip.
-- **Click a tile** → restores that exact window onto your **currently active workspace**.
-- **Right-click a tile** → Restore Here / Restore to Original / Close actions. "Restore to Original" sends the window(s) back to the workspace they were minimized from.
-- In **All Windows** mode, each app's windows compress into a single stacked group tile (badge shows the count; clicking it restores all at once — every window lands on your current workspace in a single step, with no per-window flashing).
-- **Unpinned apps that are fully minimized hide their running icon entirely** — the tile becomes the app's only representation on the dock (pinned apps keep both icon and tile).
-- Toggle via Settings → **Minimized Window Previews** or the `showMinimizedTiles` config key.
+- **Wave Mode (`"wave"`)**: Dynamic slot growth where neighbor items smoothly expand with constant unmagnified home coordinates (zero feedback drift).
+- **Zoom Mode (`"zoom"`)**: Scales only the hovered icon in-place without shifting surrounding slots.
+- **Off (`"off"`)**: Clean, static dock geometry for minimal distraction.
 
 ---
 
-### ⚡ 5. FreeDesktop Desktop Actions (Jump Lists)
+### 📁 5. Pinned Folder Stacks & File Popovers
 
-Right-click application icons to access native XDG desktop actions:
+Pin directories like `~/Downloads`, `~/Projects`, or custom paths directly to your dock:
 
-- **Browsers**: Open New Incognito / Private Window.
-- **Editors & Terminals**: New Empty Window or recent workspaces.
-- **Communication**: New Chat, Compose, or status change.
-- **Web Apps / PWAs**: Open in browser or native window.
-
----
-
-### 🗂️ 6. Pinned Folder Stacks & Recent Files
-
-- **1-click popover**: Click any pinned folder (`~/Downloads`, custom directories) to reveal a sorted list of recent files (up to 16, newest first). Folders holding more show a **"+N more — open in File Manager"** row at the bottom.
-- **File metadata**: Mimetype icons, sizes, and relative times (`Just now`, `5m ago`, `2h ago`).
-- **Direct launch**: Click any file to open it with `xdg-open`; click **Open in File Manager** at the bottom.
-- **Folder picker**: Add any folder from Settings → **Folders & Stacks ›** via a native GTK folder dialog.
+- **Recent Files Popover**: 1-click reveals up to 16 newest files sorted chronologically with mimetype icons, file sizes, and relative times (`Just now`, `5m ago`).
+- **Direct Opening**: Click any file to launch with `xdg-open` or open the containing folder in your file manager.
+- **GTK Folder Dialog**: Easily browse and attach custom folders from the Settings menu.
 
 ---
 
-### 🎨 7. Themed Folder Colors & Symbolic Outlines
+## 🎨 Customization & Theming
 
-- **Auto Theme Sync**: Folder icon colors automatically track the active Omarchy theme.
-- **Yaru Color Swatches**: Sage, Olive, Magenta, Purple, Blue, Red, Yellow, Brown, Teal, Charcoal.
-- **Monochrome Symbolic Outlines**: Crisp outline glyphs for dark, vantablack, or minimal setups. Also available as explicit White / Black presets.
+Right-click the Omarchy logo or empty dock space to access deep customization:
 
----
+<div align="center">
+  <table>
+    <tr>
+      <td align="center"><img src="assets/preview-settings-1.png" width="160" alt="Main Settings" /><br /><b>Main Menu</b></td>
+      <td align="center"><img src="assets/preview-settings-2.png" width="180" alt="Appearance" /><br /><b>Appearance</b></td>
+      <td align="center"><img src="assets/preview-settings-3.png" width="160" alt="Behavior" /><br /><b>Behavior</b></td>
+      <td align="center"><img src="assets/preview-settings-4.png" width="160" alt="Sizing" /><br /><b>Sizing & Gaps</b></td>
+      <td align="center"><img src="assets/preview-settings-5.png" width="160" alt="Stacks" /><br /><b>Folder Stacks</b></td>
+    </tr>
+  </table>
+</div>
 
-### 🔔 8. Notification Urgency & Audio Chimes
-
-- When a background app receives a notification (Slack, Discord, Matrix, WhatsApp…), its dock icon **bounces and pulses** with an urgency glow.
-- **Audio feedback**: Selectable chime (`Bell`, `Message`, `Complete`, `Info`, `Warning`, or `None`).
-- **Foreground Suppression**: Urgency is automatically suppressed when you are already inside that window.
-- **Startup Suppression**: Initial window-open urgency is ignored for 3 seconds to prevent false triggers on launch.
-- **Omarchy DND Integration**: Sound alerts are automatically muted when system-wide Do Not Disturb is active.
-
----
-
-### 🎨 9. Appearance & Deep Customization
-
-Right-click the Omarchy logo → **Dock Settings** to access the full settings menu:
-
-- **Corner Shapes**: `Auto (Theme)`, `Rounded`, `Round` (full pill), `Square`.
-- **Background Opacity**: `Auto (Theme)`, `100%`, `80%`, `65%`, `35%`, `0% (Transparent)`.
-- **Custom Color Swatches**: 10 curated presets (Pure Black, Mocha, Deep Slate, Midnight Blue, Dark Navy, Emerald Forest, Velvet Ruby…) plus automatic luminance contrast for foreground text.
-- **Icon Size**: `Small (28px)`, `Medium (36px)`, `Large (44px)`, `Extra Large (52px)`.
-- **Icon Spacing**: `Compact`, `Normal`, `Relaxed`.
-- **Magnification**: `Wave` (raised-cosine falloff, grows layout), `Zoom` (single-icon peak), or `Off`.
-
-<p align="center">
-  <img src="assets/preview-settings-1.png" alt="Omadock Main Settings" width="180" />
-  &nbsp;
-  <img src="assets/preview-settings-2.png" alt="Appearance & Opacity" width="220" />
-  &nbsp;
-  <img src="assets/preview-settings-3.png" alt="Behavior & Minimize Modes" width="180" />
-  &nbsp;
-  <img src="assets/preview-settings-4.png" alt="Icon Sizing & Gaps" width="180" />
-  &nbsp;
-  <img src="assets/preview-settings-5.png" alt="Folders & Stacks Settings" width="180" />
-</p>
-
----
-
-### 🎯 10. Zero-CPU Autohide & Tiling Adaptation
-
-- **0.00% Idle CPU**: All state is driven by Hyprland's native IPC event bus — no polling loops.
-- **Tiling Window Reservation**: In **Always Show** mode, Omadock sets a Wayland `exclusiveZone` so tiled windows never overlap the dock.
-- **Intelligent Autohide**: Stays visible on empty workspaces; hides only when open windows overlap the dock area (AABB intersection check against the dock's own monitor — event-driven on window moves, with a lightweight 350ms fallback only while the dock is visible during interactive window drags/resizes).
-
----
-
-### 🔄 11. Live Drag-and-Drop Pin Reordering
-
-- Click and drag any pinned icon horizontally to reorder it.
-- A real-time insertion indicator shows the exact drop position.
-- Pin order is persisted across reboots in `~/.config/omarchy/dock.json`.
+- **Shapes**: `Auto (Theme)`, `Rounded`, `Round (Pill)`, `Square`.
+- **Opacity**: `Auto (Theme)`, `100%`, `80%`, `65%`, `35%`, `0% (Transparent Specular)`.
+- **Color Presets**: Theme Auto, Pure Black, Mocha, Deep Slate, Midnight Blue, Dark Navy, Emerald Forest, Velvet Ruby.
+- **Icon Sizing**: Small ($28\text{px}$), Medium ($36\text{px}$), Large ($44\text{px}$), Extra Large ($52\text{px}$).
 
 ---
 
 ## 🖱️ Controls Cheat Sheet
 
-| Action | Target | Result |
+| Gesture / Trigger | Target | Action Executed |
 | :--- | :--- | :--- |
-| **Left Click** | Omarchy Logo | Opens the Omarchy Application Menu |
-| **Right Click** | Omarchy Logo / Empty Dock Space | Opens Dock Settings |
-| **Scroll** | Omarchy Logo | Cycles workspaces |
-| **Middle Click** | Omarchy Logo | Opens a terminal |
-| **Left Click** | App Icon | Launches, focuses, switches workspace, or minimizes/restores |
-| **Middle Click** | App Icon | Opens a **new instance** of the application |
-| **Scroll** | App Icon | Cycles focus between open windows |
-| **Right Click** | App Icon | App menu (window list, Desktop Actions, Pin/Unpin, Quit) |
-| **Left Click** | Folder Icon | Toggles the recent-files stack popover |
-| **Right Click** | Folder Icon | Folder options (Open in File Manager, Unpin) |
-| **Left Click** | Preview Tile | Restores that minimized window |
+| **Left Click** | ❖ Omarchy Logo | Opens Omarchy Application Launcher |
+| **Right Click** | ❖ Omarchy Logo | Opens Omadock Preferences Menu |
+| **Scroll Wheel** | ❖ Omarchy Logo | Cycles active Hyprland workspaces |
+| **Middle Click** | ❖ Omarchy Logo | Spawns default terminal emulator |
+| **Left Click** | Application Icon | Launches app / focuses / restores window |
+| **Middle Click** | Application Icon | Launches a **new instance** of the application |
+| **Scroll Wheel** | Application Icon | Cycles focus through open instances |
+| **Right Click** | Application Icon | Context menu (Window list, Desktop Actions, Pin, Close) |
+| **Left Click** | Folder Stack | Toggles recent-files popover |
+| **Right Click** | Folder Stack | Folder options (Open in File Manager, Unpin) |
+| **Left Click** | Preview Tile | Restores window to current workspace |
 | **Right Click** | Preview Tile | Restore Here / Restore to Original / Close |
-| **Click & Drag** | Pinned Icon | Reorders position live |
-| **Bottom Edge Hover** | Screen Bottom | Reveals the autohidden dock |
+| **Drag & Drop** | Pinned Icon | Reorders pinned application position live |
+| **Bottom Edge Hover** | Screen Edge | Reveals autohidden dock instantly |
 
 ---
 
 ## ⚙️ Configuration Reference
 
-All settings can be changed via the right-click menu or edited directly in `~/.config/omarchy/omadock.json`:
+Settings persist in `~/.config/omarchy/omadock.json` and are editable live:
+
+<details open>
+<summary><b>View Annotated Configuration Schema</b></summary>
+<br />
 
 ```json
 {
@@ -270,97 +236,81 @@ All settings can be changed via the right-click menu or edited directly in `~/.c
 }
 ```
 
-| Property | Type | Default | Description |
-| :--- | :--- | :--- | :--- |
-| `autohide` | `boolean` | `true` | Autohide on reveal. `false` = always visible. |
-| `intelligentAutohide` | `boolean` | `true` | Hide only when a window overlaps the dock area. |
-| `minimizeMode` | `string` | `"active"` | `"active"` (sequential FIFO), `"all"` (group batch), `"off"` (disabled). |
-| `showMinimizedTiles` | `boolean` | `true` | Show minimized windows as live preview tiles on the dock. |
-| `opacity` | `number \| string` | `1.0` | Background transparency: `"theme"` / `"auto"` (follow theme), `1.0`, `0.80`, `0.65`, `0.35`, `0.0`. |
-| `shape` | `string` | `"rounded"` | Corner style: `"rounded"`, `"round"` (full pill), `"square"`, `"theme"` (auto from Omarchy theme). |
-| `bgColor` | `string` | `"theme"` | Background color: `"theme"` (auto), `"none"`, or a hex string e.g. `"#1e1e2e"`. |
-| `folderColor` | `string` | `"theme"` | Folder icon color: `"theme"`, `"symbolic"`, `"white"`, `"black"`, `"Yaru-sage"`, `"Yaru-blue"`, etc. |
-| `itemSpacing` | `number` | `4` | Gap between icons in pixels (`2`, `4`, `8`). |
-| `iconSize` | `number` | `0` | Icon size in pixels (`28`, `36`, `44`, `52`; `0` = auto from bar height). |
-| `hoverEffect` | `string` | `"zoom"` | `"zoom"` (single-icon peak), `"wave"` (raised-cosine falloff), `"off"`. |
-| `showAppsButton` | `boolean` | `true` | Show/hide the Omarchy logo button. |
-| `showTooltips` | `boolean` | `true` | Show app-name tooltips on hover. |
-| `advancedTooltips` | `boolean` | `true` | Rich tooltips listing up to 8 windows; scroll to cycle, click to focus. |
-| `launchBounce` | `boolean` | `true` | Bounce icon while an app is starting. |
-| `showUrgentHint` | `boolean` | `true` | Pulse and bounce on urgency / attention demand. |
-| `urgentOnNotification` | `boolean` | `true` | Trigger urgency when a desktop notification arrives. |
-| `urgentSound` | `boolean` | `true` | Play a chime on urgency (auto-silenced in DND mode). |
-| `urgentSoundName` | `string` | `"bell"` | Sound name: `"bell"`, `"message-new-instant"`, `"complete"`, `"dialog-information"`, `"none"`. |
-| `screen` | `string` | `""` | Monitor name to pin the dock to (default: primary monitor). |
-| `revealDelay` | `number` | `160` | Edge dwell time in ms before the hidden dock reveals (0–2000). |
-| `tooltipDelay` | `number` | `450` | Hover dwell time in ms before tooltips appear (0–5000). |
-| `pinnedFolders` | `array` | `[…]` | Pinned folder objects: `{ "path": "…", "name": "…", "icon": "…" }`. |
+</details>
 
-> **Legacy key**: `clickToMinimize` (boolean) is still read for backwards compatibility but is derived from `minimizeMode`. Prefer `minimizeMode`.
+<br />
+
+| Key | Type | Default | Description |
+| :--- | :--- | :--- | :--- |
+| `autohide` | `bool` | `true` | Enables dock autohiding on hover exit. |
+| `intelligentAutohide` | `bool` | `true` | Hides dock only when windows overlap its bounding box (AABB). |
+| `minimizeMode` | `string` | `"active"` | `"active"` (FIFO single), `"all"` (batch group), `"off"` (disabled). |
+| `showMinimizedTiles` | `bool` | `true` | Displays live screencopy preview tiles for parked windows. |
+| `opacity` | `number \| str` | `1.0` | Background opacity: `"theme"`, `1.0`, `0.80`, `0.65`, `0.35`, `0.0`. |
+| `shape` | `string` | `"rounded"` | Dock geometry: `"rounded"`, `"round"` (pill), `"square"`, `"theme"`. |
+| `bgColor` | `string` | `"theme"` | `"theme"`, `"none"`, or custom hex string (`"#1e1e2e"`). |
+| `folderColor` | `string` | `"theme"` | `"theme"`, `"symbolic"`, `"white"`, `"black"`, `"Yaru-blue"`, etc. |
+| `hoverEffect` | `string` | `"zoom"` | Hover growth mode: `"zoom"`, `"wave"`, or `"off"`. |
+| `revealDelay` | `int` | `160` | Edge dwell time in milliseconds before unhiding ($0$–$2000$). |
+| `tooltipDelay` | `int` | `450` | Tooltip hover dwell delay in milliseconds ($0$–$5000$). |
 
 ---
 
-### Keyboard Bindings via IPC
+## ⌨️ Keyboard Shortcuts via IPC
 
-Omadock exposes dock actions to Quickshell's IPC bus, bindable in `~/.config/hypr/bindings.lua`:
+Omadock registers IPC commands callable directly by Quickshell. Add these keybinds to `~/.config/hypr/bindings.lua`:
 
 ```lua
-o.bind("SUPER + M",       "Minimize focused window",   "exec qs -p /usr/share/omarchy/shell ipc call omadock minimizeActive")
+-- Minimize currently focused window to Omadock
+o.bind("SUPER + M", "Minimize focused window", "exec qs -p /usr/share/omarchy/shell ipc call omadock minimizeActive")
+
+-- Restore longest-parked window (FIFO)
 o.bind("SUPER + SHIFT + M", "Restore oldest minimized", "exec qs -p /usr/share/omarchy/shell ipc call omadock restoreLast")
 ```
 
-> **Note**: the `-p /usr/share/omarchy/shell` flag is required — the Omarchy shell runs from the system path, so a bare `qs ipc call` cannot resolve the instance.
-
-| IPC Target | Action |
-| :--- | :--- |
-| `minimizeActive` | Park the currently focused window to `special:minimized` |
-| `restoreLast` | Restore the longest-parked window across all apps (FIFO) |
-
----
-
-### Pinned Applications (`~/.config/omarchy/dock.json`)
-
-```json
-{
-  "pinned": [
-    "foot",
-    "org.gnome.Nautilus",
-    "google-chrome",
-    "code"
-  ]
-}
-```
+> [!NOTE]
+> The `-p /usr/share/omarchy/shell` flag is mandatory to target the active Omarchy system shell instance.
 
 ---
 
 ## ❓ FAQ
 
-### How do I pin or unpin an application?
-Right-click the app icon → **Pin to Dock** / **Unpin from Dock**. Drag pinned icons to reorder.
+<details>
+<summary><b>Where are minimized windows stored?</b></summary>
+<br />
+Windows are moved to Hyprland's internal <code>special:minimized</code> workspace. Omadock tracks their origin workspace in-memory and renders live screencopy preview cards.
+</details>
 
-### Where do minimized windows go?
-Omadock parks them on a hidden Hyprland workspace (`special:minimized`). Each appears as a **live preview tile** on the dock. Click a tile to restore the window onto your current workspace (or right-click → Restore to Original to send it back where it came from).
+<details>
+<summary><b>How do I pin or unpin applications?</b></summary>
+<br />
+Right-click any running application icon and click <b>Pin to Dock</b>. Pinned applications are stored in <code>~/.config/omarchy/dock.json</code>. You can drag and drop icons along the dock to reorder them live.
+</details>
 
-### How do I make the dock fully transparent?
-Right-click the Omarchy logo → **Appearance** → **Background Opacity** → **Transparent (0%)**. The dock renders a specular border around the icons.
+<details>
+<summary><b>How do I make the dock completely transparent?</b></summary>
+<br />
+Right-click the Omarchy logo → <b>Appearance</b> → <b>Background Opacity</b> → <b>Transparent (0%)</b>. The dock renders a clean specular border around the active icons.
+</details>
 
-### How do I reload the dock after editing config?
-```bash
-omarchy restart shell
-```
+<details>
+<summary><b>How do I reload after manual JSON edits?</b></summary>
+<br />
+Run <code>omarchy restart shell</code> in your terminal to instantly reload the Quickshell engine.
+</details>
 
 ---
 
-## 🛠️ Diagnostics
+## 🛠️ Diagnostics & Validation
 
 ```bash
-# Validate plugin against Omarchy marketplace standards
+# Validate manifest compliance against Omarchy 4.0.1+ standards
 omarchy plugin validate ~/Projects/omadock
 
-# Live compositor logs
+# Inspect live compositor journal logs
 journalctl --user -xeu omarchy-shell -n 50 --no-pager
 
-# Smoke-test IPC keybinds
+# Smoke test IPC integration
 qs -p /usr/share/omarchy/shell ipc call omadock minimizeActive
 qs -p /usr/share/omarchy/shell ipc call omadock restoreLast
 ```
@@ -369,4 +319,5 @@ qs -p /usr/share/omarchy/shell ipc call omadock restoreLast
 
 ## 📄 License
 
-Distributed under the [MIT License](LICENSE). Copyright © 2026 Suvadeep Mondal.
+Distributed under the **MIT License**.  
+Copyright © 2026 **[thepathless](https://github.com/thepathless)**.
