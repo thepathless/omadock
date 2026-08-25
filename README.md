@@ -34,23 +34,15 @@
 
 **Omadock** is an ultra-fast, lightweight shell overlay plugin built natively for **Omarchy (Arch Linux + Hyprland + Quickshell)**. It bridges the gap between dynamic tiling compositors and traditional desktop ergonomics, delivering a polished, tactile dock with **0.00% background CPU consumption**.
 
-```
-  [ ❖ Logo ] ─► [ Pinned Apps ] ─► [ 🪟 Minimized Tiles ] ─► [ Running Apps ] ─► [ 📁 Folders ]
-```
-
-<br />
-
 <p align="center">
   <img src="preview.png" alt="Omadock Close-up View" width="850" style="border-radius: 8px; box-shadow: 0 4px 20px rgba(0,0,0,0.35);" />
 </p>
-
-<br />
 
 ### ✨ Key Highlights
 
 - **🔘 3-State Window Dots**: Instant visual indicator dots for active, visible, and minimized windows.
 - **🌊 Wave & Zoom Magnification**: Continuous cosine-falloff cursor growth with unmagnified geometry anchors.
-- **🪟 Live Preview Tiles**: Minimized windows park directly on the dock as Wayland `ScreencopyView` live cards.
+- **🪟 Visual Window Previews**: Minimized windows park directly on the dock as visual thumbnail cards.
 - **⚡ FreeDesktop Jump Lists**: Native desktop action menus (incognito tabs, new windows, custom actions).
 - **📁 Folder Stacks & Popovers**: 1-click popovers for recent files with automatic theme sync and color presets.
 - **🔔 Attention Glow & Canberra Chimes**: Bouncing alerts and audio chimes for background notifications.
@@ -112,11 +104,11 @@ When a window is parked on `special:minimized`, Omadock generates a live visual 
   <img src="assets/preview-dock.png" alt="Omadock Preview Tiles" width="700" style="border-radius: 8px;" />
 </div>
 
-- **📸 Live Screencopy Capture**: Single-shot Wayland screencopy capture renders the window content.
+- **📸 Visual Window Previews**: Displays a clean, static thumbnail of the window upon minimization.
 - **🎯 1-Click Restore**: Left-clicking any preview tile restores the window directly onto your **currently active workspace**.
 - **📍 Origin Restoration**: Right-click any tile to choose between **Restore Here**, **Restore to Original Workspace**, or **Close**.
-- **📦 Stacked Batch Minimization**: In `"all"` mode, multiple windows from the same application bundle into a stacked visual card with count badge.
-- **👻 Tile-Collapse Invariant**: Unpinned apps whose windows are all minimized collapse their regular running icon, making the preview tile their single dock representation.
+- **📦 Stacked Group Cards**: In `"all"` mode, multiple windows from the same application bundle into a stacked visual card with count badge.
+- **🧩 Space-Saving Icon Collapse**: Unpinned apps collapse into their preview tile when all windows are minimized, keeping the dock uncluttered.
 
 ---
 
@@ -170,21 +162,21 @@ Right-click the Omarchy logo or empty dock space to access deep customization:
 <div align="center">
   <table>
     <tr>
-      <th align="center" width="33%">Main Menu</th>
-      <th align="center" width="33%">Appearance & Opacity</th>
-      <th align="center" width="33%">Behavior & Minimize Modes</th>
+      <th align="center" width="33%">Appearance</th>
+      <th align="center" width="33%">Behavior & Windows</th>
+      <th align="center" width="33%">Effects & Animations</th>
     </tr>
     <tr>
-      <td align="center" valign="top"><img src="assets/preview-settings-1.png" width="240" alt="Main Settings Menu" /></td>
-      <td align="center" valign="top"><img src="assets/preview-settings-2.png" width="240" alt="Appearance & Opacity Menu" /></td>
-      <td align="center" valign="top"><img src="assets/preview-settings-3.png" width="240" alt="Behavior & Minimize Modes" /></td>
+      <td align="center" valign="top"><img src="assets/preview-settings-1.png" width="240" alt="Appearance Settings" /></td>
+      <td align="center" valign="top"><img src="assets/preview-settings-2.png" width="240" alt="Behavior & Windows Settings" /></td>
+      <td align="center" valign="top"><img src="assets/preview-settings-3.png" width="240" alt="Effects & Animations Settings" /></td>
     </tr>
     <tr>
-      <th align="center" width="33%">Icon Sizing & Gaps</th>
-      <th align="center" colspan="2" width="66%">Folder Stacks & Theme Swatches</th>
+      <th align="center" width="33%">Size & Spacing</th>
+      <th align="center" colspan="2" width="66%">Folders & Stacks</th>
     </tr>
     <tr>
-      <td align="center" valign="top"><img src="assets/preview-settings-4.png" width="240" alt="Icon Sizing & Gaps" /></td>
+      <td align="center" valign="top"><img src="assets/preview-settings-4.png" width="240" alt="Size & Spacing Settings" /></td>
       <td align="center" colspan="2" valign="top"><img src="assets/preview-settings-5.png" width="260" alt="Folders & Stacks Settings" /></td>
     </tr>
   </table>
@@ -297,7 +289,7 @@ o.bind("SUPER + SHIFT + M", "Restore oldest minimized", "exec qs -p /usr/share/o
 <details>
 <summary><b>Where are minimized windows stored?</b></summary>
 <br />
-Windows are moved to Hyprland's internal <code>special:minimized</code> workspace. Omadock tracks their origin workspace in-memory and renders live screencopy preview cards.
+Windows are placed onto Hyprland's hidden <code>special:minimized</code> workspace. Omadock remembers their origin workspace so you can restore them instantly to where they belong.
 </details>
 
 <details>
