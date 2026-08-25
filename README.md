@@ -1,6 +1,6 @@
 <div align="center">
 
-# ❖ OMADOCK
+# ❖ OMADOCK ・ オマドック
 
 ### *A modern, fluid, zero-CPU application dock engineered for Omarchy Linux*
 
@@ -20,7 +20,8 @@
   <a href="#-quick-start"><b>Quick Start</b></a> •
   <a href="#-core-features"><b>Features</b></a> •
   <a href="#-minimized-preview-tiles"><b>Preview Tiles</b></a> •
-  <a href="#-controls-cheat-sheet"><b>Controls</b></a> •
+  <a href="#-customization--theming"><b>Theming</b></a> •
+  <a href="#%EF%B8%8F-controls-cheat-sheet"><b>Controls</b></a> •
   <a href="#%EF%B8%8F-configuration-reference"><b>Configuration</b></a> •
   <a href="#-keyboard-shortcuts-via-ipc"><b>Keybindings</b></a> •
   <a href="#-faq"><b>FAQ</b></a>
@@ -32,7 +33,9 @@
 
 ## ⚡ Overview
 
-**Omadock** is an ultra-fast, lightweight shell overlay plugin built natively for **Omarchy (Arch Linux + Hyprland + Quickshell)**. It bridges the gap between dynamic tiling compositors and traditional desktop ergonomics, delivering a polished, tactile dock with **0.00% background CPU consumption**.
+**Omadock (オマドック)** is an ultra-fast, lightweight shell overlay plugin built natively for **[Omarchy](https://omarchy.org/)** (Arch Linux + Hyprland + Quickshell).
+
+Crafted in the spirit of **Omakase (おまかせ)** — curated elegance and effortless flow — Omadock bridges the gap between dynamic tiling compositors and tactile desktop ergonomics. It delivers fluid wave magnification, live screencopy preview cards, and multi-instance window management with strictly **0.00% background CPU consumption**.
 
 <p align="center">
   <img src="preview.png" alt="Omadock Close-up View" width="850" style="border-radius: 8px; box-shadow: 0 4px 20px rgba(0,0,0,0.35);" />
