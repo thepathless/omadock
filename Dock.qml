@@ -1249,14 +1249,46 @@ Item {
   readonly property var pinnedSection: root.dockModel.pinned || []
   readonly property var runningSection: root.dockModel.running || []
 
+  property string _lastRefreshSource: ""
+  property int _prevParkedCount: 0
+
   function refreshDock() {
+    // Guard: after configreloaded (e.g. screenshot cursor toggling or config changes),
+    // Quickshell's Hyprland.toplevels workspace bindings are temporarily stale/detached
+    // (refreshWorkspaces destroys/recreates workspace objects while refreshToplevels is async).
+    // A rebuild during this transient window reads null workspace pointers (wsName="") and marks
+    // parked windows as running.
+    // Detect this by checking if any toplevel has a null workspace object, or if the parked
+    // count dropped to 0 from >0 without a closewindow event. If so, defer to modelSettleTimer.
+    // Settle timer invocations bypass the guard so legitimate 0-parked transitions settle cleanly.
+    var hTops = Hyprland.toplevels ? Hyprland.toplevels.values : []
+    var parked = 0
+    var hasNullWorkspaces = false
+    for (var j = 0; j < hTops.length; j++) {
+      var h = hTops[j]
+      if (h && !h.workspace) {
+        hasNullWorkspaces = true
+      } else if (h && h.workspace && String(h.workspace.name || "") === root.minimizedWorkspace) {
+        parked++
+      }
+    }
+    var isCloseWindow = root._lastRefreshSource === "closewindow/rawEvent"
+    var isSettleTimer = root._lastRefreshSource === "modelSettleTimer" || root._lastRefreshSource === "configReloadSettleTimer"
+    if (!isCloseWindow && !isSettleTimer && (hasNullWorkspaces || (root._prevParkedCount > 0 && parked === 0))) {
+      modelSettleTimer.restart()
+      root._lastRefreshSource = ""
+      return
+    }
+
     root.dockModel = root.shell && root.shell.appLibrary
       ? DockModel.buildEntries(root.pinnedIds, ToplevelManager.toplevels.values, root.appRows,
                                root.shell.appLibrary, root.hyprToplevelFor, root.minimizedWorkspace)
       : { pinned: [], running: [] }
+    root._prevParkedCount = parked
     root.rescanMinimizedWindows()
     root.pruneLaunching()
     root.pruneWindowState()
+    root._lastRefreshSource = ""
   }
 
   function rescanMinimizedWindows() {
@@ -1439,7 +1471,7 @@ Item {
   Timer {
     id: modelTimer
     interval: 40
-    onTriggered: root.refreshDock()
+    onTriggered: { root._lastRefreshSource = "modelTimer"; root.refreshDock() }
   }
 
   // One-shot deferred rebuild after park/restore moves, so model state is
@@ -1447,7 +1479,7 @@ Item {
   Timer {
     id: modelSettleTimer
     interval: 300
-    onTriggered: root.refreshDock()
+    onTriggered: { root._lastRefreshSource = "modelSettleTimer"; root.refreshDock() }
   }
 
   // Deferred rebuild after configreloaded: Quickshell's Hyprland.toplevels
@@ -1457,7 +1489,7 @@ Item {
   Timer {
     id: configReloadSettleTimer
     interval: 300
-    onTriggered: root.refreshDock()
+    onTriggered: { root._lastRefreshSource = "configReloadSettleTimer"; root.refreshDock() }
   }
 
   Timer {
@@ -1763,6 +1795,7 @@ Item {
   Connections {
     target: ToplevelManager.toplevels
     function onValuesChanged() {
+      root._lastRefreshSource = "ToplevelManager.onValuesChanged"
       modelTimer.restart()
       debounceOverlapTimer.restart()
       root.syncContextWindows()
@@ -1774,6 +1807,7 @@ Item {
   Connections {
     target: Hyprland.toplevels
     function onValuesChanged() {
+      root._lastRefreshSource = "Hyprland.onValuesChanged"
       modelTimer.restart()
     }
   }
@@ -1880,7 +1914,7 @@ Item {
           delete mo[fullAddr]
           root.minimizedOrigins = mo
         }
-        root.refreshDock()
+        { root._lastRefreshSource = "closewindow/rawEvent"; root.refreshDock() }
       }
       if (n === "workspace" || n === "workspacev2" || n === "openwindow" || n === "closewindow" ||
           n === "movewindow" || n === "movewindowv2" || n === "activewindow" || n === "activewindowv2" ||
@@ -2004,7 +2038,7 @@ Item {
     root.updateNotifService()
     root.rescanApps()
   }
-  onPinnedIdsChanged: root.refreshDock()
+  onPinnedIdsChanged: { root._lastRefreshSource = "pinnedIdsChanged"; root.refreshDock() }
 
   // ------------------------------------------------- functions
 
@@ -2074,6 +2108,7 @@ Item {
 
   function rescanApps() {
     root.appRows = root.shell && root.shell.appLibrary ? root.shell.appLibrary.sortedEntries("") : []
+    root._lastRefreshSource = "rescanApps"
     root.refreshDock()
   }
 
@@ -2087,7 +2122,6 @@ Item {
       try { root.shell.appLibrary.refreshIcons() } catch (e) {}
     }
     root.rescanApps()
-    root.refreshDock()
   }
 
   function folderColorLabel(colorId) {
