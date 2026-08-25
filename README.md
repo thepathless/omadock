@@ -38,6 +38,14 @@
   [ ❖ Logo ] ─► [ Pinned Apps ] ─► [ 🪟 Minimized Tiles ] ─► [ Running Apps ] ─► [ 📁 Folders ]
 ```
 
+<br />
+
+<p align="center">
+  <img src="preview.png" alt="Omadock Close-up View" width="850" style="border-radius: 8px; box-shadow: 0 4px 20px rgba(0,0,0,0.35);" />
+</p>
+
+<br />
+
 ### ✨ Key Highlights
 
 - **🔘 3-State Window Dots**: Instant visual indicator dots for active, visible, and minimized windows.
@@ -162,11 +170,22 @@ Right-click the Omarchy logo or empty dock space to access deep customization:
 <div align="center">
   <table>
     <tr>
-      <td align="center"><img src="assets/preview-settings-1.png" width="160" alt="Main Settings" /><br /><b>Main Menu</b></td>
-      <td align="center"><img src="assets/preview-settings-2.png" width="180" alt="Appearance" /><br /><b>Appearance</b></td>
-      <td align="center"><img src="assets/preview-settings-3.png" width="160" alt="Behavior" /><br /><b>Behavior</b></td>
-      <td align="center"><img src="assets/preview-settings-4.png" width="160" alt="Sizing" /><br /><b>Sizing & Gaps</b></td>
-      <td align="center"><img src="assets/preview-settings-5.png" width="160" alt="Stacks" /><br /><b>Folder Stacks</b></td>
+      <th align="center" width="33%">Main Menu</th>
+      <th align="center" width="33%">Appearance & Opacity</th>
+      <th align="center" width="33%">Behavior & Minimize Modes</th>
+    </tr>
+    <tr>
+      <td align="center" valign="top"><img src="assets/preview-settings-1.png" width="240" alt="Main Settings Menu" /></td>
+      <td align="center" valign="top"><img src="assets/preview-settings-2.png" width="240" alt="Appearance & Opacity Menu" /></td>
+      <td align="center" valign="top"><img src="assets/preview-settings-3.png" width="240" alt="Behavior & Minimize Modes" /></td>
+    </tr>
+    <tr>
+      <th align="center" width="33%">Icon Sizing & Gaps</th>
+      <th align="center" colspan="2" width="66%">Folder Stacks & Theme Swatches</th>
+    </tr>
+    <tr>
+      <td align="center" valign="top"><img src="assets/preview-settings-4.png" width="240" alt="Icon Sizing & Gaps" /></td>
+      <td align="center" colspan="2" valign="top"><img src="assets/preview-settings-5.png" width="260" alt="Folders & Stacks Settings" /></td>
     </tr>
   </table>
 </div>
