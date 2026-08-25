@@ -46,18 +46,6 @@ function workspaceShort(wsId, wsName) {
   return String(wsId)
 }
 
-// Spelled-out label for menu rows: "3", "scratchpad", "minimized".
-function workspaceLabel(wsName, wsId) {
-  var name = String(wsName == null ? "" : wsName).trim()
-  if (name.indexOf("special:") === 0) return name.slice(8)
-  if (name) return name
-  return (wsId === null || wsId === undefined) ? "" : String(wsId)
-}
-
-function isBrowserHost(id) {
-  var raw = stripDesktop(id).toLowerCase()
-  return /^(helium|helium-browser|google-chrome|chromium|brave-browser|brave|microsoft-edge|edge|opera|vivaldi|firefox)$/i.test(raw)
-}
 
 function extractNotificationWebDomain(body, summary) {
   var text = (String(body || "") + "\n" + String(summary || "")).trim()
@@ -390,10 +378,11 @@ function windowAddress(handle) {
   return "0x" + value
 }
 
-function buildEntries(pinnedIds, toplevels, appRows, appLibrary, hyprFor, minimizedWs) {
+function buildEntries(pinnedIds, toplevels, appRows, appLibrary, hyprFor, minimizedWs, minimizedOrigins) {
   var pinned = Array.isArray(pinnedIds) ? pinnedIds : []
   var list = toArray(toplevels)
   var minWs = minimizedWs || "special:minimized"
+  var minOrigins = minimizedOrigins || {}
 
   var runningIds = []
   var winMap = {}
@@ -409,13 +398,13 @@ function buildEntries(pinnedIds, toplevels, appRows, appLibrary, hyprFor, minimi
     var h = hyprFor ? hyprFor(toplevel) : null
     var addr = windowAddress(h)
     var ws = h ? h.workspace : null
-    var wsName = ws ? String(ws.name || ws.id || "") : ""
-    var isParked = (wsName === minWs)
+    var wsName = ws ? String(ws.name || ws.id || "") : (addr && minOrigins[addr] ? minWs : "")
+    var isParked = (wsName === minWs) || Boolean(addr && minOrigins[addr])
     winMap[appId].push({
       title: String(toplevel.title || "Window"),
       address: addr,
       appId: appId,
-      workspaceName: wsName,
+      workspaceName: isParked ? minWs : wsName,
       isMinimized: isParked
     })
   }
@@ -517,6 +506,7 @@ function allWindowsMinimized(windowList, liveWsOf, minWs) {
   // toArray, NOT Array.isArray: windowList arrives from the Repeater model as
   // a QVariantList, which Array.isArray rejects — the guard silently emptied
   // every list and made this helper return false forever (v2.9.1 regression).
+  var targetWs = minWs || "special:minimized"
   var list = toArray(windowList)
   if (list.length === 0) return false
   for (var i = 0; i < list.length; i++) {
@@ -524,7 +514,7 @@ function allWindowsMinimized(windowList, liveWsOf, minWs) {
     if (!w) return false
     if (w.isMinimized) continue
     var ws = liveWsOf ? String(liveWsOf(w) || "") : String(w.workspaceName || "")
-    if (ws !== minWs) return false
+    if (ws !== targetWs) return false
   }
   return true
 }
@@ -561,10 +551,6 @@ function pickAppWindow(toplevels, activeToplevel, appId, direction) {
 
 function focusWindow(toplevel) {
   if (toplevel && toplevel.activate) toplevel.activate()
-}
-
-function closeWindow(toplevel) {
-  if (toplevel && toplevel.close) toplevel.close()
 }
 
 function closeApp(toplevels, appId) {

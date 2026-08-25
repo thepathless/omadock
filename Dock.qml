@@ -150,10 +150,6 @@ Item {
 
     readonly property bool starting: root.launchPending[item.appId] !== undefined
 
-    function windowFocused(window) {
-      return root.isWindowFocused(window)
-    }
-
     readonly property string tooltipText: {
       if (item.name === "") return ""
       if (item.starting) return item.name + " [starting…]"
@@ -1132,8 +1128,6 @@ Item {
   // Left tile divider (pinned|tiles) renders only when pins precede the tiles.
   readonly property bool hasLeftTileSeparator: root.hasTiles && root.pinnedSection.length > 0
 
-  // Raw slot total — used for width arithmetic alongside hasTiles.
-  readonly property int slotTotal: root.appsSlots + root.pinnedSection.length + root.runningSection.length + root.folderSlots
   // Width arithmetic total: hidden (fully-tiled) entries occupy zero width,
   // so the row-width and gap math must count only visible icons.
   readonly property int visibleSlotTotal: root.appsSlots + root.pinnedSection.length + root.visibleRunningCount + root.folderSlots
@@ -1249,46 +1243,14 @@ Item {
   readonly property var pinnedSection: root.dockModel.pinned || []
   readonly property var runningSection: root.dockModel.running || []
 
-  property string _lastRefreshSource: ""
-  property int _prevParkedCount: 0
-
   function refreshDock() {
-    // Guard: after configreloaded (e.g. screenshot cursor toggling or config changes),
-    // Quickshell's Hyprland.toplevels workspace bindings are temporarily stale/detached
-    // (refreshWorkspaces destroys/recreates workspace objects while refreshToplevels is async).
-    // A rebuild during this transient window reads null workspace pointers (wsName="") and marks
-    // parked windows as running.
-    // Detect this by checking if any toplevel has a null workspace object, or if the parked
-    // count dropped to 0 from >0 without a closewindow event. If so, defer to modelSettleTimer.
-    // Settle timer invocations bypass the guard so legitimate 0-parked transitions settle cleanly.
-    var hTops = Hyprland.toplevels ? Hyprland.toplevels.values : []
-    var parked = 0
-    var hasNullWorkspaces = false
-    for (var j = 0; j < hTops.length; j++) {
-      var h = hTops[j]
-      if (h && !h.workspace) {
-        hasNullWorkspaces = true
-      } else if (h && h.workspace && String(h.workspace.name || "") === root.minimizedWorkspace) {
-        parked++
-      }
-    }
-    var isCloseWindow = root._lastRefreshSource === "closewindow/rawEvent"
-    var isSettleTimer = root._lastRefreshSource === "modelSettleTimer" || root._lastRefreshSource === "configReloadSettleTimer"
-    if (!isCloseWindow && !isSettleTimer && (hasNullWorkspaces || (root._prevParkedCount > 0 && parked === 0))) {
-      modelSettleTimer.restart()
-      root._lastRefreshSource = ""
-      return
-    }
-
     root.dockModel = root.shell && root.shell.appLibrary
-      ? DockModel.buildEntries(root.pinnedIds, ToplevelManager.toplevels.values, root.appRows,
-                               root.shell.appLibrary, root.hyprToplevelFor, root.minimizedWorkspace)
+      ? DockModel.buildEntries(root.pinnedIds, (ToplevelManager.toplevels ? ToplevelManager.toplevels.values : []), root.appRows,
+                               root.shell.appLibrary, root.hyprToplevelFor, root.minimizedWorkspace, root.minimizedOrigins)
       : { pinned: [], running: [] }
-    root._prevParkedCount = parked
     root.rescanMinimizedWindows()
     root.pruneLaunching()
     root.pruneWindowState()
-    root._lastRefreshSource = ""
   }
 
   function rescanMinimizedWindows() {
@@ -1296,10 +1258,12 @@ Item {
     var tops = Hyprland.toplevels ? Hyprland.toplevels.values : []
     for (var i = 0; i < tops.length; i++) {
       var h = tops[i]
-      if (!h || !h.workspace) continue
-      if (String(h.workspace.name || "") !== root.minimizedWorkspace) continue
+      if (!h) continue
       var addr = root.windowAddress(h)
       if (!addr) continue
+      var isParked = (h.workspace && String(h.workspace.name || "") === root.minimizedWorkspace)
+                  || (root.minimizedOrigins && root.minimizedOrigins[addr] !== undefined)
+      if (!isParked) continue
       var top = root.liveToplevelForAddress(addr)
       var title = String((top && top.title) || h.title || "Window")
       var appId = ""
@@ -1401,7 +1365,6 @@ Item {
   property var activeStackEntries: []
   property int activeStackTotalCount: 0
   property real activeStackX: 0
-  property string activeStackViewMode: "grid"
   property string contextFolderPath: ""
   property string contextFolderName: ""
 
@@ -1471,25 +1434,15 @@ Item {
   Timer {
     id: modelTimer
     interval: 40
-    onTriggered: { root._lastRefreshSource = "modelTimer"; root.refreshDock() }
+    onTriggered: root.refreshDock()
   }
 
-  // One-shot deferred rebuild after park/restore moves, so model state is
-  // re-frozen once the Hyprland handle has caught up (see rawEvent handler).
+  // One-shot deferred rebuild after park/restore moves and configreloaded events,
+  // so model state is re-frozen once Hyprland handles settle.
   Timer {
     id: modelSettleTimer
     interval: 300
-    onTriggered: { root._lastRefreshSource = "modelSettleTimer"; root.refreshDock() }
-  }
-
-  // Deferred rebuild after configreloaded: Quickshell's Hyprland.toplevels
-  // re-syncs handles asynchronously via refreshWorkspaces + refreshToplevels;
-  // a 40ms rebuild lands mid-sync with stale data, marking parked windows as
-  // running. 300ms is the empirical settle time for handle re-attachment.
-  Timer {
-    id: configReloadSettleTimer
-    interval: 300
-    onTriggered: { root._lastRefreshSource = "configReloadSettleTimer"; root.refreshDock() }
+    onTriggered: root.refreshDock()
   }
 
   Timer {
@@ -1565,10 +1518,12 @@ Item {
 
         var cardW = dockCard.width > 0 ? (dockCard.width + Style.gapsOut * 2) : 320
         var cardH = dockCard.height > 0 ? (dockCard.height + Style.gapsOut * 2) : 60
-        var dockLeft = (screenLogicalW - cardW) / 2
-        var dockRight = (screenLogicalW + cardW) / 2
-        var dockTop = screenLogicalH - cardH - 12
-        var dockBottom = screenLogicalH
+        var monX = (mon && typeof mon.x === "number") ? mon.x : 0
+        var monY = (mon && typeof mon.y === "number") ? mon.y : 0
+        var dockLeft = monX + (screenLogicalW - cardW) / 2
+        var dockRight = monX + (screenLogicalW + cardW) / 2
+        var dockTop = monY + screenLogicalH - cardH - 12
+        var dockBottom = monY + screenLogicalH
 
         var overlap = false
         // Compare against the dock monitor's own active workspace, not the
@@ -1795,7 +1750,6 @@ Item {
   Connections {
     target: ToplevelManager.toplevels
     function onValuesChanged() {
-      root._lastRefreshSource = "ToplevelManager.onValuesChanged"
       modelTimer.restart()
       debounceOverlapTimer.restart()
       root.syncContextWindows()
@@ -1807,7 +1761,6 @@ Item {
   Connections {
     target: Hyprland.toplevels
     function onValuesChanged() {
-      root._lastRefreshSource = "Hyprland.onValuesChanged"
       modelTimer.restart()
     }
   }
@@ -1914,7 +1867,7 @@ Item {
           delete mo[fullAddr]
           root.minimizedOrigins = mo
         }
-        { root._lastRefreshSource = "closewindow/rawEvent"; root.refreshDock() }
+        root.refreshDock()
       }
       if (n === "workspace" || n === "workspacev2" || n === "openwindow" || n === "closewindow" ||
           n === "movewindow" || n === "movewindowv2" || n === "activewindow" || n === "activewindowv2" ||
@@ -1931,10 +1884,8 @@ Item {
       if (n === "movewindow" || n === "movewindowv2") modelSettleTimer.restart()
       // configreloaded fires Quickshell refreshWorkspaces + refreshToplevels
       // which destroy/recreate workspace objects and re-assign toplevel handles.
-      // A model rebuild during this transient reads stale workspace pointers and
-      // marks parked windows as running (e.g. screenshot hw-cursor toggle).
-      // Defer until handles stabilize — same budget as movewindow settle.
-      if (n === "configreloaded") configReloadSettleTimer.restart()
+      // Settle handles cleanly via modelSettleTimer.
+      if (n === "configreloaded") modelSettleTimer.restart()
     }
   }
 
@@ -2038,7 +1989,7 @@ Item {
     root.updateNotifService()
     root.rescanApps()
   }
-  onPinnedIdsChanged: { root._lastRefreshSource = "pinnedIdsChanged"; root.refreshDock() }
+  onPinnedIdsChanged: root.refreshDock()
 
   // ------------------------------------------------- functions
 
@@ -2108,7 +2059,6 @@ Item {
 
   function rescanApps() {
     root.appRows = root.shell && root.shell.appLibrary ? root.shell.appLibrary.sortedEntries("") : []
-    root._lastRefreshSource = "rescanApps"
     root.refreshDock()
   }
 
@@ -2147,10 +2097,6 @@ Item {
     root.folderColor = color
     root.themeVersion++
     root.saveConfig()
-  }
-
-  function toggleAppsMenu() {
-    if (root.shell) root.shell.toggle("omarchy.menu", '{"menu":"apps"}')
   }
 
   function openDockSettingsMenu(x, y) {
@@ -2227,7 +2173,7 @@ Item {
     }
     // No handles to tell parked from visible: fall back to the pure order.
     var top = DockModel.pickAppWindow(
-      ToplevelManager.toplevels.values, ToplevelManager.activeToplevel, appId, direction)
+      (ToplevelManager.toplevels ? ToplevelManager.toplevels.values : []), ToplevelManager.activeToplevel, appId, direction)
     if (top) root.focusToplevel(top, appId)
   }
 
@@ -2485,7 +2431,10 @@ Item {
   function liveWsNameOf(win) {
     var cached = win ? String(win.workspaceName || "") : ""
     var h = (win && win.address) ? root.liveHyprToplevelForAddress(win.address) : null
-    return (h && h.workspace) ? String(h.workspace.name || h.workspace.id || "") : cached
+    if (h && h.workspace) return String(h.workspace.name || h.workspace.id || "")
+    if (win && win.address && root.minimizedOrigins && root.minimizedOrigins[win.address] !== undefined)
+      return root.minimizedWorkspace
+    return cached
   }
 
   function isWinParkedLive(win) {
@@ -2998,20 +2947,21 @@ Item {
     var entry = root.entryForId(root.contextAppId)
     var wins = entry && entry.windowList ? entry.windowList : []
     if (wins.length === 0) {
-      var allTops = ToplevelManager.toplevels.values || []
+      var allTops = ToplevelManager.toplevels ? ToplevelManager.toplevels.values : []
       for (var w = 0; w < allTops.length; w++) {
         var top = allTops[w]
         if (top && (top.appId === root.contextAppId || DockModel.isAppMatch(top.appId, root.contextAppId))) {
           var h = root.hyprToplevelFor ? root.hyprToplevelFor(top) : null
           var addr = root.windowAddress(h)
           var ws = h ? h.workspace : null
-          var wsName = ws ? String(ws.name || ws.id || "") : ""
+          var wsName = ws ? String(ws.name || ws.id || "") : (addr && root.minimizedOrigins && root.minimizedOrigins[addr] ? root.minimizedWorkspace : "")
+          var isParked = (wsName === root.minimizedWorkspace) || Boolean(addr && root.minimizedOrigins && root.minimizedOrigins[addr])
           wins.push({
             title: String(top.title || "Window"),
             address: addr,
             appId: root.contextAppId,
-            workspaceName: wsName,
-            isMinimized: (wsName === root.minimizedWorkspace)
+            workspaceName: isParked ? root.minimizedWorkspace : wsName,
+            isMinimized: isParked
           })
         }
       }
@@ -3545,6 +3495,7 @@ Item {
                 // tile its frame exactly once, after the session is ready.
                 function requestFrame() {
                   if (hasContent || !captureSource) return
+                  captureRetry.attempts = 0
                   captureRetry.restart()
                 }
                 onCaptureSourceChanged: {
@@ -4907,7 +4858,7 @@ Item {
               visible: root.contextWindows > 0
               danger: true
               onTriggered: {
-                DockModel.closeApp(ToplevelManager.toplevels.values, root.contextAppId)
+                DockModel.closeApp((ToplevelManager.toplevels ? ToplevelManager.toplevels.values : []), root.contextAppId)
                 root.closeContext()
               }
             }
