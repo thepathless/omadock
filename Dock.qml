@@ -120,7 +120,7 @@ Item {
     readonly property bool urgent: {
       if (!root.showUrgentHint) return false
       // Foreground Suppression Rule: An app currently focused in the foreground suppresses urgency bounce
-      if (item.isFocused) return false
+      if (item.active || item.isFocused) return false
       if (item.appId && root.urgentMap[item.appId]) return true
       var list = item.windowList || []
       for (var i = 0; i < list.length; i++) {
@@ -1309,6 +1309,8 @@ Item {
       return ""
     }
   }
+  onActiveIdChanged: if (root.activeId) root.clearUrgentApp(root.activeId, root.activeWindowAddress)
+  onActiveWindowAddressChanged: if (root.activeWindowAddress) root.clearUrgentApp(root.activeId, root.activeWindowAddress)
 
   readonly property int focusedWorkspaceId: Hyprland.focusedWorkspace
     ? Hyprland.focusedWorkspace.id
@@ -1778,6 +1780,10 @@ Item {
             recent[aid] = address
             root.appRecentWindow = recent
           }
+          root.clearUrgentApp(aid, address)
+        } else if (top) {
+          var addressOnly = root.windowAddress(root.hyprToplevelFor(top))
+          if (addressOnly) root.clearUrgentApp("", addressOnly)
         }
       } catch (e) {}
       debounceOverlapTimer.restart()
@@ -1838,14 +1844,15 @@ Item {
         modelTimer.restart()
       }
       if (n === "activewindow" || n === "activewindowv2") {
-        var rawAddr = String(event.data || "").split(",")[0].trim()
-        if (rawAddr.slice(0, 2) === "0x" || rawAddr.slice(0, 2) === "0X") rawAddr = rawAddr.slice(2)
-        var fullAddr = "0x" + rawAddr
-        if (root.urgentMap[fullAddr]) {
-          var map = DockModel.copyMap(root.urgentMap)
-          delete map[fullAddr]
-          root.urgentMap = map
-          modelTimer.restart()
+        var eventData = String(event.data || "").trim()
+        if (n === "activewindowv2") {
+          var rawAddr = eventData.split(",")[0].trim()
+          if (rawAddr.slice(0, 2) === "0x" || rawAddr.slice(0, 2) === "0X") rawAddr = rawAddr.slice(2)
+          var fullAddr = "0x" + rawAddr
+          root.clearUrgentApp("", fullAddr)
+        } else {
+          var winClass = eventData.split(",")[0].trim()
+          if (winClass) root.clearUrgentApp(winClass, "")
         }
       }
       if (n === "closewindow") {
@@ -1943,6 +1950,10 @@ Item {
           isFocused = true
           break
         }
+      }
+
+      if (!isFocused && root.activeId && (DockModel.isAppMatch(appId, root.activeId) || (entry.id && DockModel.isAppMatch(entry.id, root.activeId)))) {
+        isFocused = true
       }
 
       // Foreground Suppression Rule: An app currently focused in the foreground suppresses urgency bounce
@@ -2246,6 +2257,7 @@ Item {
 
   function focusWindowByAddress(addr, appId) {
     if (!addr) return
+    root.clearUrgentApp(appId || "", addr)
     var handle = root.liveHyprToplevelForAddress(addr)
     var top = root.liveToplevelForAddress(addr)
 
@@ -2265,7 +2277,7 @@ Item {
         }
       }
     } else if (top) {
-      root.focusToplevel(top)
+      root.focusToplevel(top, appId)
     }
   }
 
@@ -2275,10 +2287,13 @@ Item {
   function focusToplevel(toplevel, appId) {
     if (!toplevel) return
     var handle = root.hyprToplevelFor(toplevel)
+    var addr = root.windowAddress(handle)
+    var aid = appId || (toplevel.appId ? DockModel.normalizeId(toplevel.appId) : "")
+    root.clearUrgentApp(aid, addr)
     var workspace = handle ? handle.workspace : null
 
     if (workspace && workspace.name === root.minimizedWorkspace) {
-      root.restoreWindow(handle, appId)
+      root.restoreWindow(handle, aid)
       return
     }
 
@@ -2603,7 +2618,7 @@ Item {
 
   // urgentMap mixes two key shapes: "0x…" per-window addresses and bare appIds
   // set by the notification service. Address keys die with their window; appId
-  // keys are not addresses and must survive the prune until the user clicks.
+  // keys are not addresses and must survive the prune until the user clicks or focuses.
   function keepUrgentLive(map, live) {
     var keys = Object.keys(map)
     if (keys.length === 0) return map
@@ -2616,6 +2631,103 @@ Item {
       else next[key] = map[key]
     }
     return dropped ? next : map
+  }
+
+  // Clears urgency entries from urgentMap for an application and its windows.
+  // Called whenever an app/window receives focus or is activated/clicked by user.
+  function clearUrgentApp(appId, address) {
+    if (!root.urgentMap) return
+    var hasKeys = false
+    for (var k in root.urgentMap) {
+      if (root.urgentMap[k]) { hasKeys = true; break }
+    }
+    if (!hasKeys) return
+
+    var map = DockModel.copyMap(root.urgentMap)
+    var changed = false
+
+    var normAddr = ""
+    if (address) {
+      var rawAddr = String(address).trim()
+      if (rawAddr.slice(0, 2) === "0x" || rawAddr.slice(0, 2) === "0X") rawAddr = rawAddr.slice(2)
+      if (rawAddr) normAddr = "0x" + rawAddr
+    }
+
+    // Direct address deletion if present
+    if (normAddr && map[normAddr]) {
+      delete map[normAddr]
+      changed = true
+    }
+
+    var allEntries = root.pinnedSection.concat(root.runningSection)
+    var targetEntries = []
+
+    // Find entries matching address or appId
+    for (var i = 0; i < allEntries.length; i++) {
+      var entry = allEntries[i]
+      if (!entry) continue
+      var entryId = entry.appId || entry.id
+      var matched = false
+
+      if (appId && (entryId === appId || DockModel.isAppMatch(entryId, appId))) {
+        matched = true
+      }
+
+      if (!matched && normAddr && entry.windowList) {
+        for (var w = 0; w < entry.windowList.length; w++) {
+          var winAddr = entry.windowList[w] ? entry.windowList[w].address : ""
+          if (winAddr && winAddr === normAddr) {
+            matched = true
+            break
+          }
+        }
+      }
+
+      if (matched) {
+        targetEntries.push(entry)
+      }
+    }
+
+    // Direct raw appId deletion
+    if (appId) {
+      var rawId = DockModel.stripDesktop(appId)
+      var normId = DockModel.normalizeId(appId)
+      if (map[appId]) { delete map[appId]; changed = true }
+      if (rawId && map[rawId]) { delete map[rawId]; changed = true }
+      if (normId && map[normId]) { delete map[normId]; changed = true }
+    }
+
+    // Delete keys for matched entries
+    for (var t = 0; t < targetEntries.length; t++) {
+      var tEntry = targetEntries[t]
+      var tId = tEntry.appId || tEntry.id
+      if (tId && map[tId]) { delete map[tId]; changed = true }
+      if (tEntry.id && map[tEntry.id]) { delete map[tEntry.id]; changed = true }
+      if (tEntry.appId && map[tEntry.appId]) { delete map[tEntry.appId]; changed = true }
+      var tWins = tEntry.windowList || []
+      for (var tw = 0; tw < tWins.length; tw++) {
+        var twAddr = tWins[tw] ? tWins[tw].address : ""
+        if (twAddr && map[twAddr]) {
+          delete map[twAddr]
+          changed = true
+        }
+      }
+    }
+
+    // Also check if any remaining key in map matches appId via DockModel.isAppMatch
+    if (appId) {
+      for (var mKey in map) {
+        if (mKey.slice(0, 2) !== "0x" && DockModel.isAppMatch(mKey, appId)) {
+          delete map[mKey]
+          changed = true
+        }
+      }
+    }
+
+    if (changed) {
+      root.urgentMap = map
+      modelTimer.restart()
+    }
   }
 
   // byValue: the map holds addresses as values (app -> window) rather than keys.
@@ -2808,19 +2920,8 @@ Item {
     }
 
     // Clear urgency map entries for this application immediately on click
-    var map = DockModel.copyMap(root.urgentMap)
-    if (map[appId]) {
-      delete map[appId]
-      hadUrgency = true
-    }
-    for (var w = 0; w < windows.length; w++) {
-      var a = windows[w] ? windows[w].address : ""
-      if (a && map[a]) {
-        delete map[a]
-        hadUrgency = true
-      }
-    }
-    root.urgentMap = map
+    if (root.urgentMap[appId]) hadUrgency = true
+    root.clearUrgentApp(appId, "")
 
     // If an urgent window is parked/minimized: restore it directly to its origin workspace
     if (urgentParked) {
