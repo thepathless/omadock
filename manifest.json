@@ -14,8 +14,8 @@
     "overlay": "Dock.qml"
   },
   "tags": [
+    "bar",
     "hyprland",
-    "launcher",
-    "quickshell"
+    "launcher"
   ]
 }
