@@ -2271,68 +2271,68 @@ Item {
     implicitHeight: 650
 
     mask: Region {
-      item: dockCardComp.dockCard
+      item: root.dockVisible ? dockCardComp.dockCard : undefined
       regions: [
-        Region { item: contextMenuComp },
-        Region { item: folderStackPopoverComp },
-        Region { item: revealStrip },
-        Region { item: globalDismiss }
+        Region { item: root.contextAppId !== "" ? contextMenuComp : undefined },
+        Region { item: root.activeStackFolder !== "" ? folderStackPopoverComp : undefined },
+        Region { item: (root.autohide && !root.dockVisible) ? revealStrip : undefined },
+        Region { item: (root.contextAppId !== "" || root.activeStackFolder !== "") ? globalDismiss : undefined }
       ]
     }
 
-    // ------------------------------------------------------------ reveal strip
-    // Sensor strip for bottom-edge unhiding + visual cue pill bar.
-    MouseArea {
+    // Bottom edge reveal strip — thin edge trigger with zero click-swallowing
+    Item {
       id: revealStrip
-      visible: root.autohide && !root.dockVisible
-      anchors.bottom: parent.bottom
       anchors.left: parent.left
       anchors.right: parent.right
+      anchors.bottom: parent.bottom
       height: root.revealHeight
-      hoverEnabled: true
-      cursorShape: Qt.ArrowCursor
-      z: 50
 
       HoverHandler {
         id: revealHover
         onHoveredChanged: root.syncVisibility()
       }
 
-      // Visual indicator bar showing where the dock is parked
       Rectangle {
-        id: revealBar
         anchors.bottom: parent.bottom
-        anchors.bottomMargin: Style.space(2)
         anchors.horizontalCenter: parent.horizontalCenter
         width: revealHover.hovered ? Style.space(48) : Style.space(24)
         height: Style.space(3)
         radius: height / 2
-        color: Util.alpha(Color.bar.active, revealHover.hovered ? 0.60 : 0.25)
-        border.color: Util.alpha(Color.bar.text, revealHover.hovered ? 0.40 : 0.15)
-        border.width: 1
-        visible: root.autohide && !root.dockVisible
-
-        Behavior on width {
-          NumberAnimation { duration: 150; easing.type: Easing.OutQuad }
-        }
-        Behavior on color {
-          ColorAnimation { duration: 150 }
-        }
+        color: Util.alpha(Color.bar.text, revealHover.hovered ? 0.6 : 0.25)
+        Behavior on width { NumberAnimation { duration: 150 } }
+        Behavior on color { ColorAnimation { duration: 150 } }
       }
     }
 
-    // ------------------------------------------------------------ dismiss backdrop
-    // Invisible full-window catcher that closes open popups on clicks outside.
-    MouseArea {
+    // Global dismiss area - catches clicks outside context menu or folder stack
+    Item {
       id: globalDismiss
-      visible: root.contextAppId !== "" || root.activeStackFolder !== ""
-      anchors.fill: parent
-      z: 90
-      hoverEnabled: false
-      acceptedButtons: Qt.LeftButton | Qt.RightButton | Qt.MiddleButton
-      onPressed: {
-        if (root.contextAppId !== "") root.closeContext()
-        if (root.activeStackFolder !== "") root.closeFolderStack()
+      width: (root.contextAppId !== "" || root.activeStackFolder !== "") ? dockWindow.width : 0
+      height: (root.contextAppId !== "" || root.activeStackFolder !== "") ? dockWindow.height : 0
+      MouseArea {
+        anchors.fill: parent
+        z: -1
+        hoverEnabled: true
+        // Accept every button: the layer-shell mask routes all clicks here
+        // while a menu is open, so a right-click on empty space must dismiss
+        // the menu too instead of being swallowed with no effect.
+        acceptedButtons: Qt.LeftButton | Qt.RightButton | Qt.MiddleButton
+        onClicked: function(mouse) {
+          if (root.contextAppId !== "") {
+            root.closeContext()
+          }
+          if (root.activeStackFolder !== "") {
+            root.closeFolderStack()
+          }
+        }
+        onReleased: function(mouse) {
+          if (root.dragAppId !== "") {
+            root.dragAppId = ""
+            root.dropBeforeId = ""
+            root.syncVisibility()
+          }
+        }
       }
     }
 
