@@ -585,6 +585,31 @@ function resolveThemedFolderIcon(iconName, themeName, folderColorMode) {
   var name = String(iconName || "folder").trim()
   if (name.indexOf("/") === 0 || name.indexOf("file://") === 0) return name
 
+  // Standardize known place aliases that don't have dedicated icons in Adwaita/Yaru
+  var placeAliases = {
+    "folder-development": "folder",
+    "folder-projects": "folder",
+    "folder-code": "folder",
+    "folder-git": "folder",
+    "folder-github": "folder",
+    "folder-src": "folder",
+    "folder-source": "folder",
+    "folder-build": "folder"
+  }
+  if (placeAliases[name]) {
+    name = placeAliases[name]
+  }
+
+  // Whitelist of valid place icons guaranteed to exist in Adwaita / Yaru place icon themes
+  var validPlaces = [
+    "folder", "folder-documents", "folder-download", "folder-music",
+    "folder-pictures", "folder-publicshare", "folder-remote",
+    "folder-templates", "folder-videos", "user-home", "user-desktop", "user-trash"
+  ]
+  if (validPlaces.indexOf(name) < 0) {
+    name = "folder"
+  }
+
   // Explicit white, black, or symbolic mode:
   if (folderColorMode === "white" || folderColorMode === "black" || folderColorMode === "symbolic") {
     return "file:///usr/share/icons/Adwaita/symbolic/places/" + name + "-symbolic.svg"

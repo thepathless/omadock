@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "id": "omadock",
   "name": "omadock",
-  "version": "3.0.1",
+  "version": "3.0.2",
   "author": "thepathless",
   "license": "MIT",
   "description": "Clean, modern, high-performance application dock for Omarchy with zero-CPU autohide, tiling window adaptation, and deep customization",
