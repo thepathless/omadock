@@ -53,8 +53,9 @@ Item {
     acceptedButtons: Qt.LeftButton | Qt.RightButton | Qt.MiddleButton
     onClicked: function(mouse) {
       if (mouse.button === Qt.RightButton) {
-        var pt = btn.mapToItem(dockCard, btn.width / 2, 0)
-        var gx = (dockCard ? dockCard.x : 0) + (pt ? pt.x : (btn.x + btn.width / 2))
+        var targetWin = root ? root.contentItemRef : null
+        var pt = targetWin ? btn.mapToItem(targetWin, btn.width / 2, 0) : null
+        var gx = pt ? pt.x : (btn.width / 2)
         btn.menuRequested(gx, 0)
       } else if (mouse.button === Qt.MiddleButton) {
         btn.middleClicked()

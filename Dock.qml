@@ -13,6 +13,7 @@ Item {
   id: root
 
   // -------------------------------------------------- component references
+  readonly property alias dockCardComp: dockCardComp
   readonly property alias dockCard: dockCardComp.dockCard
   readonly property alias cardHover: dockCardComp.cardHover
   readonly property alias pinnedRepeater: dockCardComp.pinnedRepeater

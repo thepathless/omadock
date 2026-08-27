@@ -10,7 +10,7 @@ BorderSurface {
 
   property var rootRef: null
   readonly property var root: rootRef
-  property var targetCard: root ? root.dockCard : null
+  property var targetCard: root ? (root.dockCardComp || root.dockCard) : null
   property var targetWindow: root ? root.contentItemRef : null
 
   property alias appContextMenuColumn: appContextMenuColumn

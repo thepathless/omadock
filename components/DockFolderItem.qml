@@ -120,9 +120,9 @@ Item {
     onClicked: function(mouse) {
       var targetWin = root ? root.contentItemRef : null
       if (mouse.button === Qt.RightButton) {
-        var mappedPos = targetWin ? fitem.mapToItem(targetWin, mouse.x, mouse.y) : null
+        var mappedPos = targetWin ? fitem.mapToItem(targetWin, fitem.width / 2, 0) : null
         if (!mappedPos) return
-        fitem.menuRequested(fitem.folderPath, fitem.name, mappedPos.x, mappedPos.y)
+        fitem.menuRequested(fitem.folderPath, fitem.name, mappedPos.x, 0)
       } else {
         var centerPos = targetWin ? fitem.mapToItem(targetWin, fitem.width / 2, 0) : null
         if (!centerPos) return

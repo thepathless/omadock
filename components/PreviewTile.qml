@@ -219,8 +219,9 @@ Item {
     onClicked: function(mouse) {
       if (!tile.win || !tile.win.address) return
       if (mouse.button === Qt.RightButton) {
-        var pt = dockCard ? tile.mapToItem(dockCard, tile.width / 2, 0) : null
-        var gx = (dockCard ? dockCard.x : 0) + (pt ? pt.x : (tile.x + tile.width / 2))
+        var targetWin = root ? root.contentItemRef : null
+        var pt = targetWin ? tile.mapToItem(targetWin, tile.width / 2, 0) : null
+        var gx = pt ? pt.x : (tile.width / 2)
         if (root) root.openTileContext(tile.groupWins, tile.win.appId || "", gx)
       } else if (root && root.contextAppId === "__tile_context__") {
         root.closeContext()

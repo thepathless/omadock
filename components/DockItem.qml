@@ -344,8 +344,9 @@ Item {
         return
       }
       if (mouse.button === Qt.RightButton) {
-        var pt = dockCard ? item.mapToItem(dockCard, item.width / 2, 0) : null
-        var gx = (dockCard ? dockCard.x : 0) + (pt ? pt.x : (item.x + item.width / 2))
+        var targetWin = root ? root.contentItemRef : null
+        var pt = targetWin ? item.mapToItem(targetWin, item.width / 2, 0) : null
+        var gx = pt ? pt.x : (item.width / 2)
         item.menuRequested(item.appId, gx, 0)
       } else if (mouse.button === Qt.MiddleButton) {
         item.newWindowRequested(item.appId)
