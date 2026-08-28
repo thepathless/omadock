@@ -131,6 +131,8 @@ Item {
         Qt.callLater(function() { captureSource = src })
       }
 
+      onHasContentChanged: if (hasContent) captureRetry.stop()
+
       Timer {
         id: captureRetry
         interval: 140
@@ -138,7 +140,11 @@ Item {
         repeat: attempts < 6
         onTriggered: {
           attempts++
-          if (!tilePreview.hasContent && tilePreview.captureSource) tilePreview.captureFrame()
+          if (tilePreview.hasContent || !tilePreview.captureSource) {
+            captureRetry.stop()
+            return
+          }
+          tilePreview.captureFrame()
         }
       }
     }

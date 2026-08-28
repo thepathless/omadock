@@ -287,6 +287,14 @@ function togglePinned(pinnedIds, appId) {
   var id = stripDesktop(appId)
   if (!id) return arr
   var idx = arr.indexOf(id)
+  if (idx < 0) {
+    for (var i = 0; i < arr.length; i++) {
+      if (isAppMatch(arr[i], id)) {
+        idx = i
+        break
+      }
+    }
+  }
   if (idx >= 0) arr.splice(idx, 1)
   else arr.push(id)
   return arr
@@ -294,7 +302,13 @@ function togglePinned(pinnedIds, appId) {
 
 function isPinned(pinnedIds, appId) {
   var arr = Array.isArray(pinnedIds) ? pinnedIds : []
-  return arr.indexOf(stripDesktop(appId)) >= 0
+  var id = stripDesktop(appId)
+  if (!id) return false
+  if (arr.indexOf(id) >= 0) return true
+  for (var i = 0; i < arr.length; i++) {
+    if (isAppMatch(arr[i], id)) return true
+  }
+  return false
 }
 
 // Reorder pinned apps: move appId from its current position to insertBeforeId.
@@ -593,7 +607,7 @@ function closeApp(toplevels, appId) {
 
 function folderIconFor(path, explicitIcon) {
   if (explicitIcon) return explicitIcon
-  var norm = String(path || "").toLowerCase()
+  var norm = String(path || "").trim().replace(/\/+$/, "").toLowerCase()
   if (norm.indexOf("download") >= 0) return "folder-download"
   if (norm.indexOf("document") >= 0) return "folder-documents"
   if (norm.indexOf("picture") >= 0) return "folder-pictures"

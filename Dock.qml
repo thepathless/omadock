@@ -1556,13 +1556,14 @@ Item {
   // the chronological FIFO. Windows parked before this shell session have no
   // timestamp and sort first, matching the "recover the oldest" expectation.
   function oldestParked(parked) {
-    if (parked.length <= 1) return parked[0] || null
+    if (!parked || parked.length <= 1) return (parked && parked[0]) || null
     var best = parked[0]
-    var bestTime = root.parkedAt[best.address] !== undefined ? root.parkedAt[best.address] : 0
+    var bestTime = (best && best.address && root.parkedAt[best.address] !== undefined) ? root.parkedAt[best.address] : 0
     for (var i = 1; i < parked.length; i++) {
-      var t = root.parkedAt[parked[i].address] !== undefined ? root.parkedAt[parked[i].address] : 0
+      var p = parked[i]
+      var t = (p && p.address && root.parkedAt[p.address] !== undefined) ? root.parkedAt[p.address] : 0
       if (t < bestTime) {
-        best = parked[i]
+        best = p
         bestTime = t
       }
     }
