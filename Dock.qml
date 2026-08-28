@@ -618,7 +618,7 @@ Item {
 
   Process {
     id: customFolderPickerProc
-    command: ["python3", "-c", "import gi\ngi.require_version('Gtk', '3.0')\nfrom gi.repository import Gtk\ndialog = Gtk.FileChooserDialog(title='Select Folder to Pin to Dock', action=Gtk.FileChooserAction.SELECT_FOLDER)\ndialog.add_buttons(Gtk.STOCK_CANCEL, Gtk.ResponseType.CANCEL, Gtk.STOCK_OPEN, Gtk.ResponseType.OK)\nres = dialog.run()\nif res == Gtk.ResponseType.OK:\n    print(dialog.get_filename())\ndialog.destroy()\n"]
+    command: ["python3", "-c", "import sys, subprocess, shutil\ntry:\n    import gi\n    gi.require_version('Gtk', '3.0')\n    from gi.repository import Gtk\n    dialog = Gtk.FileChooserDialog(title='Select Folder to Pin to Dock', action=Gtk.FileChooserAction.SELECT_FOLDER)\n    dialog.add_buttons(Gtk.STOCK_CANCEL, Gtk.ResponseType.CANCEL, Gtk.STOCK_OPEN, Gtk.ResponseType.OK)\n    res = dialog.run()\n    if res == Gtk.ResponseType.OK:\n        print(dialog.get_filename())\n    dialog.destroy()\nexcept Exception:\n    if shutil.which('zenity'):\n        res = subprocess.run(['zenity', '--file-selection', '--directory', '--title=Select Folder to Pin to Dock'], capture_output=True, text=True)\n        if res.returncode == 0 and res.stdout.strip():\n            print(res.stdout.strip())\n    elif shutil.which('kdialog'):\n        res = subprocess.run(['kdialog', '--getexistingdirectory', '--title', 'Select Folder to Pin to Dock'], capture_output=True, text=True)\n        if res.returncode == 0 and res.stdout.strip():\n            print(res.stdout.strip())\n"]
     running: false
     stdout: StdioCollector {
       onStreamFinished: {
