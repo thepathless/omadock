@@ -1017,7 +1017,7 @@ BorderSurface {
           }
 
           Repeater {
-            model: root ? root.contextWindowList : []
+            model: root ? root.contextWindowList.slice(0, 8) : []
             delegate: ContextRow {
               text: root ? root.windowRowLabel(modelData) : ""
               isWindowRow: true
@@ -1032,6 +1032,12 @@ BorderSurface {
                 if (root) root.closeContext()
               }
             }
+          }
+
+          ContextRow {
+            visible: root ? (root.contextWindowList.length > 8) : false
+            text: "+ " + (root ? (root.contextWindowList.length - 8) : 0) + " more windows"
+            isHeader: true
           }
 
           MenuDivider {}

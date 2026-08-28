@@ -113,14 +113,8 @@ Item {
       z: 1
       spacing: Style.space(root ? root.itemSpacing : 4)
 
-      anchors.left: parent.left
-      anchors.leftMargin: dockCard.contentLeftInset
-      anchors.right: parent.right
-      anchors.rightMargin: dockCard.contentRightInset
-      anchors.top: parent.top
-      anchors.topMargin: dockCard.contentTopInset
-      anchors.bottom: parent.bottom
-      anchors.bottomMargin: dockCard.contentBottomInset
+      x: dockCard.contentLeftInset
+      y: dockCard.contentTopInset
 
       DockIconButton {
         rootRef: cardWrapper.rootRef

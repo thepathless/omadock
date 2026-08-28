@@ -209,7 +209,7 @@ Item {
       delegate: Rectangle {
         readonly property var winObj: (item.windowList && item.windowList.length > index) ? item.windowList[index] : null
         readonly property bool winMinimized: winObj ? item.isWinMinimized(winObj) : item.minimized
-        readonly property bool winActive: !winMinimized && (winObj ? item.isWinActive(winObj) : (index === 0 && item.isFocused))
+        readonly property bool winActive: !winMinimized && ((winObj && winObj.address) ? item.isWinActive(winObj) : (index === 0 && item.isFocused))
 
         width: winActive ? item.dynamicActiveWidth : item.dynamicDotSize
         height: winActive ? Style.space(4) : item.dynamicDotSize

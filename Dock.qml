@@ -35,9 +35,11 @@ Item {
   readonly property string configPath: Quickshell.env("HOME") + "/.config/omarchy/omadock.json"
 
   property string screenName: ""
-  readonly property var dockScreen: root.screenName
-    ? root.screenForName(root.screenName)
-    : (Quickshell.screens.length > 0 ? Quickshell.screens[0] : null)
+  readonly property var dockScreen: {
+    var s = root.screenName ? root.screenForName(root.screenName) : null
+    if (s) return s
+    return Quickshell.screens.length > 0 ? Quickshell.screens[0] : null
+  }
 
   function screenForName(name) {
     var list = Quickshell.screens
@@ -108,11 +110,11 @@ Item {
   }
   // Pinned-group | running divider. Sits after the tile section when tiles
   // exist, so it doubles as the right tile divider.
-  readonly property bool hasSeparator: root.pinnedSection.length > 0 && root.visibleRunningCount > 0
+  readonly property bool hasSeparator: (root.pinnedSection.length > 0 || root.hasTiles) && root.visibleRunningCount > 0
   readonly property real gapWidth: Style.space(root.itemSpacing)
   readonly property real separatorWidth: Style.space(1)
   readonly property int folderSlots: root.pinnedFolders ? root.pinnedFolders.length : 0
-  readonly property bool hasFolderSeparator: root.folderSlots > 0 && (root.pinnedSection.length > 0 || root.visibleRunningCount > 0)
+  readonly property bool hasFolderSeparator: root.folderSlots > 0 && (root.pinnedSection.length > 0 || root.hasTiles || root.visibleRunningCount > 0)
 
   // Minimized-window preview tiles (macOS-style section on the dock's right).
   // In minimizeMode "all", a parked app's windows compress into ONE stacked
@@ -563,7 +565,7 @@ Item {
         for (var i = 0; i < clients.length; i++) {
           var c = clients[i]
           if (!c.mapped || c.hidden) continue
-          if (!c.workspace || c.workspace.id !== dockWsId) continue
+          if (!c.pinned && (!c.workspace || c.workspace.id !== dockWsId)) continue
 
           var at = c.at
           var sz = c.size
@@ -904,8 +906,10 @@ Item {
         root.refreshDock()
       }
       if (n === "workspace" || n === "workspacev2" || n === "openwindow" || n === "closewindow" ||
-          n === "movewindow" || n === "movewindowv2" || n === "activewindow" || n === "activewindowv2" ||
-          n === "changefloatingmode" || n === "fullscreen" || n === "pin" || n === "focusedmon") {
+          n === "movewindow" || n === "movewindowv2" || n === "resizewindow" || n === "resizewindowv2" ||
+          n === "activewindow" || n === "activewindowv2" || n === "changefloatingmode" ||
+          n === "fullscreen" || n === "pin" || n === "focusedmon" ||
+          n === "monitoradded" || n === "monitorremoved") {
         debounceOverlapTimer.restart()
       }
       if (n === "openwindow" || n === "closewindow" || n === "urgent"
@@ -1812,8 +1816,8 @@ Item {
     if (deskEntry && deskEntry.id) {
       root.shell.appLibrary.launch(deskEntry.id, targetName)
     } else {
-      var webAppMatch = String(appId).match(/^(?:chrome|chromium|brave|edge|microsoft-edge)-(.*?)__?-(?:default|profile.*)$/i)
-                     || String(appId).match(/^(?:chrome|chromium|brave|edge|microsoft-edge)-(.*?)$/i)
+      var webAppMatch = String(appId).match(/^(?:chrome|chromium|brave|edge|microsoft-edge|helium|helium-browser|opera|vivaldi)-(.*?)__?-(?:default|profile.*)$/i)
+                     || String(appId).match(/^(?:chrome|chromium|brave|edge|microsoft-edge|helium|helium-browser|opera|vivaldi)-(.*?)$/i)
       if (webAppMatch) {
         var webDomain = webAppMatch[1].replace(/^https?___?/i, "").replace(/__.*$/, "")
         Quickshell.execDetached(["omarchy-launch-webapp", "https://" + webDomain])
@@ -1956,7 +1960,7 @@ Item {
 
     // If an urgent window is parked/minimized: restore it directly to its origin workspace
     if (urgentParked) {
-      root.restoreWindow(urgentParked.address || urgentParked, appId)
+      root.restoreWindow(urgentParked.address || urgentParked, appId, true)
       return
     }
 
@@ -1967,7 +1971,7 @@ Item {
         return
       }
       if (parked.length > 0) {
-        root.restoreWindow(root.oldestParked(parked), appId)
+        root.restoreWindow(root.oldestParked(parked), appId, true)
         return
       }
       var target = root.windowHere(visible) || root.recentWindow(appId, visible) || visible[0]
@@ -2005,15 +2009,14 @@ Item {
     }
 
     // 2. Nothing focused: bring a visible window of this app forward
-    // (preferring current workspace, then recent, then first). Restoring
-    // minimized windows is the preview tiles' job — icon clicks never do it.
+    // (preferring current workspace, then recent, then first).
     if (visible.length > 0) {
       var target = root.windowHere(visible) || root.recentWindow(appId, visible) || visible[0]
       if (target && target.address) root.focusWindowByAddress(target.address, appId)
+    } else if (parked.length > 0 && !root.showMinimizedTiles) {
+      // When minimized preview tiles are disabled, clicking the app icon restores the window.
+      root.restoreWindow(root.oldestParked(parked), appId)
     }
-
-    // All windows parked (or none): intentionally nothing. The dock's preview
-    // tiles are the restore surface; a plain click must not surprise anyone.
   }
 
   // Menu rows name the workspace a window sits on, including the parked ones.
@@ -2280,7 +2283,7 @@ Item {
         Region { item: root.contextAppId !== "" ? contextMenuComp : null },
         Region { item: root.activeStackFolder !== "" ? folderStackPopoverComp : null },
         Region { item: (root.autohide && !root.dockVisible) ? revealStrip : null },
-        Region { item: (root.contextAppId !== "" || root.activeStackFolder !== "") ? globalDismiss : null }
+        Region { item: (root.contextAppId !== "" || root.activeStackFolder !== "" || root.dragAppId !== "") ? globalDismiss : null }
       ]
     }
 
@@ -2312,8 +2315,8 @@ Item {
     // Global dismiss area - catches clicks outside context menu or folder stack
     Item {
       id: globalDismiss
-      width: (root.contextAppId !== "" || root.activeStackFolder !== "") ? dockWindow.width : 0
-      height: (root.contextAppId !== "" || root.activeStackFolder !== "") ? dockWindow.height : 0
+      width: (root.contextAppId !== "" || root.activeStackFolder !== "" || root.dragAppId !== "") ? dockWindow.width : 0
+      height: (root.contextAppId !== "" || root.activeStackFolder !== "" || root.dragAppId !== "") ? dockWindow.height : 0
       MouseArea {
         anchors.fill: parent
         z: -1

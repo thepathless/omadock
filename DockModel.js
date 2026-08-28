@@ -9,18 +9,25 @@ var IGNORED_TOKENS = {
   "helium": true, "helium-browser": true, "opera": true, "vivaldi": true,
   "web": true, "omarchy": true,
   "https": true, "http": true, "www": true, "x86_64": true, "x86": true, "amd64": true, "lib": true,
-  "wine": true, "extension": true, "exe": true, "electron": true, "run": true, "wayland": true, "x11": true, "gtk3": true, "gtk4": true, "qt5": true, "qt6": true
+  "wine": true, "extension": true, "exe": true, "electron": true, "run": true, "wayland": true, "x11": true, "gtk3": true, "gtk4": true, "qt5": true, "qt6": true,
+  "gnome": true, "kde": true, "freedesktop": true, "mozilla": true, "google": true, "github": true, "gitlab": true,
+  "xfce": true, "mate": true, "elementary": true, "flathub": true, "microsoft": true,
+  "browser": true, "terminal": true, "system": true, "daemon": true, "service": true,
+  "tool": true, "tools": true, "utility": true, "utilities": true, "viewer": true, "player": true,
+  "manager": true, "editor": true, "helper": true, "agent": true, "stable": true, "beta": true,
+  "dev": true, "nightly": true, "canary": true, "release": true, "community": true
 };
 
 function stripDesktop(id) {
+  if (typeof id === "object" && id !== null && id.appId) id = id.appId
   var value = String(id == null ? "" : id).trim()
-  if (value.slice(-8) === ".desktop") value = value.slice(0, -8)
-  return value
+  return value.replace(/\.desktop$/i, "")
 }
 
 function toArray(list) {
   if (Array.isArray(list)) return list
-  if (list && typeof list.length === "number") {
+  if (!list || typeof list === "string" || typeof list === "function") return []
+  if (typeof list.length === "number") {
     var out = []
     for (var i = 0; i < list.length; i++) out.push(list[i])
     return out
@@ -34,16 +41,23 @@ function normalizeId(id) {
 
 function copyMap(src) {
   var out = {}
-  for (var key in src) out[key] = src[key]
+  for (var key in src) {
+    if (Object.prototype.hasOwnProperty.call(src, key)) out[key] = src[key]
+  }
   return out
 }
 
 // Compact workspace label for a tooltip: numbered workspaces only. Special
 // workspaces have no number worth showing, so they get nothing.
 function workspaceShort(wsId, wsName) {
-  if (wsId === null || wsId === undefined || wsId < 0) return ""
-  var name = String(wsName == null ? "" : wsName)
-  if (name && name.length <= 2) return name
+  var name = String(wsName == null ? "" : wsName).trim()
+  if (!name || name.indexOf("special:") === 0 || name === "special") return ""
+  var num = Number(wsId)
+  if (isNaN(num) || num < 0) {
+    if (name.length <= 2 && !isNaN(Number(name)) && Number(name) >= 0) return name
+    return ""
+  }
+  if (name.length <= 2) return name
   return String(wsId)
 }
 
@@ -53,18 +67,19 @@ function extractNotificationWebDomain(body, summary) {
   if (!text) return ""
 
   // 1. HTML anchor tag href or text: <a href="https://web.whatsapp.com/">web.whatsapp.com</a>
-  var anchorMatch = text.match(/<a\b[^>]*href=["']?([^"'>\s]+)["']?[^>]*>/i)
-                 || text.match(/href=["']?https?:\/\/([^"'>\s\/]+)/i)
+  var anchorMatch = text.match(/<a\b[^>]*href=["']?(https?:\/\/[^"'>\s]+)["']?[^>]*>/i)
+                 || text.match(/href=["']?(https?:\/\/[^"'>\s]+)["']?/i)
   if (anchorMatch && anchorMatch[1]) {
-    var rawHost = anchorMatch[1].replace(/^https?:\/\//i, "").split(/[\/?#:]/)[0]
+    var rawHost = anchorMatch[1].replace(/^https?:\/\//i, "").split(/[\/?#:]/)[0].replace(/\.+$/, "")
     if (rawHost) return rawHost.toLowerCase()
   }
 
   // 2. Leading URL or domain string (e.g. web.whatsapp.com, https://music.youtube.com)
-  var domainMatch = text.match(/(?:https?:\/\/|www\.)([a-zA-Z0-9.-]+(?::\d+)?\.[a-zA-Z]{2,}|[a-zA-Z0-9.-]+:\d+)/i)
-                 || text.match(/^\s*([a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(?:\.[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)*\.[a-zA-Z]{2,}(?::\d+)?)(?:[\/\s:]|$)/i)
+  var domainMatch = text.match(/https?:\/\/([a-zA-Z0-9.-]+(?::\d+)?)/i)
+                 || text.match(/www\.([a-zA-Z0-9.-]+(?::\d+)?)/i)
+                 || text.match(/\b([a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(?:\.[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)*\.[a-zA-Z]{2,}(?::\d+)?)\b/i)
   if (domainMatch && domainMatch[1]) {
-    return domainMatch[1].split(/[\/?#:]/)[0].toLowerCase()
+    return domainMatch[1].split(/[\/?#:]/)[0].replace(/\.+$/, "").toLowerCase()
   }
 
   return ""
@@ -124,7 +139,7 @@ function isAppMatch(idA, idB) {
   var candsB = getCandidates(b)
   for (var i = 0; i < candsA.length; i++) {
     var ca = candsA[i]
-    if (candsB.indexOf(ca) >= 0) return true
+    if (ca.length >= 3 && !IGNORED_TOKENS[ca] && candsB.indexOf(ca) >= 0) return true
   }
   return false
 }
@@ -221,8 +236,15 @@ function findNotificationTargets(allEntries, appRows, row) {
     if (!entry) continue
     var appId = entry.appId || entry.id
 
+    var iconIsGeneric = appIcon.indexOf("dialog-") === 0
+                     || appIcon.indexOf("preferences-") === 0
+                     || appIcon.indexOf("system-") === 0
+                     || appIcon.indexOf("notification-") === 0
+                     || appIcon.indexOf("status-") === 0
+                     || appIcon === "folder"
+
     var match = (appName !== "" && isAppMatch(appId, appName))
-             || (appIcon !== "" && isAppMatch(appId, appIcon))
+             || (appIcon !== "" && !iconIsGeneric && isAppMatch(appId, appIcon))
              || (entry.name && appName && String(entry.name).toLowerCase() === appName.toLowerCase())
 
     if (match) {
@@ -232,12 +254,16 @@ function findNotificationTargets(allEntries, appRows, row) {
 
   // Fallback: If no direct app match was found, evaluate summary for generic daemons / CLI notifications
   if (standardMatches.length === 0 && summary !== "") {
-    for (var i = 0; i < allEntries.length; i++) {
-      var entry = allEntries[i]
-      if (!entry) continue
-      var appId = entry.appId || entry.id
-      if (isAppMatch(appId, summary)) {
-        if (standardMatches.indexOf(entry) < 0) standardMatches.push(entry)
+    var sumClean = summary.trim()
+    var sumIsSingleWord = sumClean.indexOf(" ") < 0
+    if (sumIsSingleWord) {
+      for (var i = 0; i < allEntries.length; i++) {
+        var entry = allEntries[i]
+        if (!entry) continue
+        var appId = entry.appId || entry.id
+        if (isAppMatch(appId, sumClean)) {
+          if (standardMatches.indexOf(entry) < 0) standardMatches.push(entry)
+        }
       }
     }
   }
@@ -270,7 +296,7 @@ function parsePinned(raw) {
 }
 
 function serializePinned(pinnedIds) {
-  var arr = Array.isArray(pinnedIds) ? pinnedIds : []
+  var arr = toArray(pinnedIds)
   var cleaned = []
   var seen = {}
   for (var i = 0; i < arr.length; i++) {
@@ -283,7 +309,7 @@ function serializePinned(pinnedIds) {
 }
 
 function togglePinned(pinnedIds, appId) {
-  var arr = Array.isArray(pinnedIds) ? pinnedIds.slice() : []
+  var arr = toArray(pinnedIds).slice()
   var id = stripDesktop(appId)
   if (!id) return arr
   var idx = arr.indexOf(id)
@@ -301,7 +327,7 @@ function togglePinned(pinnedIds, appId) {
 }
 
 function isPinned(pinnedIds, appId) {
-  var arr = Array.isArray(pinnedIds) ? pinnedIds : []
+  var arr = toArray(pinnedIds)
   var id = stripDesktop(appId)
   if (!id) return false
   if (arr.indexOf(id) >= 0) return true
@@ -315,7 +341,7 @@ function isPinned(pinnedIds, appId) {
 // If insertBeforeId is null/empty, move to the end. Dropping onto the dragged
 // item itself is a no-op (prevents the "teleport to end" self-drop bug).
 function reorderPinned(pinnedIds, appId, insertBeforeId) {
-  var arr = Array.isArray(pinnedIds) ? pinnedIds.slice() : []
+  var arr = toArray(pinnedIds).slice()
   var id = stripDesktop(appId)
   if (!id) return arr
   if (insertBeforeId && stripDesktop(insertBeforeId) === id) return arr
@@ -343,7 +369,7 @@ function entryFor(appRows, appId) {
   // 1. Exact ID match
   for (var i = 0; i < appRows.length; i++) {
     var row = appRows[i]
-    var entry = row && row.entry
+    var entry = (row && row.entry) ? row.entry : row
     if (!entry) continue
     if (stripDesktop(entry.id) === want || stripDesktop(entry.id).toLowerCase() === wantLower) return entry
   }
@@ -351,7 +377,7 @@ function entryFor(appRows, appId) {
   // 2. Multi-token candidate match (e.g. chrome-x.com__-Default -> X.desktop, org.localsend.localsend_app -> localsend.desktop)
   var wantCands = getCandidates(want)
   for (var i = 0; i < appRows.length; i++) {
-    var entry = appRows[i] && appRows[i].entry
+    var entry = (appRows[i] && appRows[i].entry) ? appRows[i].entry : appRows[i]
     if (!entry) continue
     var entryCands = getCandidates(entry.id)
       .concat(getCandidates(entry.name))
@@ -364,7 +390,7 @@ function entryFor(appRows, appId) {
 
   // 3. Webapp Exec URL Match (if entry.exec contains candidate domain or URL)
   for (var i = 0; i < appRows.length; i++) {
-    var entry = appRows[i] && appRows[i].entry
+    var entry = (appRows[i] && appRows[i].entry) ? appRows[i].entry : appRows[i]
     if (!entry) continue
     var execStr = String(entry.exec || "").toLowerCase()
     if (execStr && (execStr.indexOf("http://") >= 0 || execStr.indexOf("https://") >= 0 || execStr.indexOf("--app") >= 0)) {
@@ -377,7 +403,7 @@ function entryFor(appRows, appId) {
 
   // 4. GenericName / Substring match
   for (var i = 0; i < appRows.length; i++) {
-    var entry = appRows[i] && appRows[i].entry
+    var entry = (appRows[i] && appRows[i].entry) ? appRows[i].entry : appRows[i]
     if (!entry) continue
     var generic = String(entry.genericName || "").toLowerCase()
     if (generic && wantCands.indexOf(generic) >= 0) return entry
@@ -390,11 +416,11 @@ function windowAddress(handle) {
   var value = String((handle && handle.address) || "").trim()
   if (!value) return ""
   if (value.slice(0, 2) === "0x" || value.slice(0, 2) === "0X") value = value.slice(2)
-  return "0x" + value
+  return "0x" + value.toLowerCase()
 }
 
 function buildEntries(pinnedIds, toplevels, appRows, appLibrary, hyprFor, minimizedWs, minimizedOrigins) {
-  var pinned = Array.isArray(pinnedIds) ? pinnedIds : []
+  var pinned = toArray(pinnedIds)
   var list = toArray(toplevels)
   var minWs = minimizedWs || "special:minimized"
   var minOrigins = minimizedOrigins || {}
@@ -415,7 +441,7 @@ function buildEntries(pinnedIds, toplevels, appRows, appLibrary, hyprFor, minimi
     }
     var addr = windowAddress(h)
     var ws = h ? h.workspace : null
-    var wsName = ws ? String(ws.name || ws.id || "") : (addr && minOrigins[addr] ? minWs : "")
+    var wsName = ws ? String(ws.name ? ws.name : (ws.id !== undefined && ws.id !== null ? ws.id : "")) : (addr && minOrigins[addr] ? minWs : "")
     var isParked = (wsName === minWs) || Boolean(addr && minOrigins[addr])
     winMap[appId].push({
       title: String(toplevel.title || "Window"),
@@ -540,16 +566,16 @@ function buildEntries(pinnedIds, toplevels, appRows, appLibrary, hyprFor, minimi
 // (the address-based lookup the running-dot uses) must pass it here. A window
 // counts as minimized when its cached flag says so OR the live workspace does.
 function allWindowsMinimized(windowList, liveWsOf, minWs) {
-  // toArray, NOT Array.isArray: windowList arrives from the Repeater model as
-  // a QVariantList, which Array.isArray rejects — the guard silently emptied
-  // every list and made this helper return false forever (v2.9.1 regression).
   var targetWs = minWs || "special:minimized"
   var list = toArray(windowList)
   if (list.length === 0) return false
   for (var i = 0; i < list.length; i++) {
     var w = list[i]
     if (!w) return false
-    var ws = liveWsOf ? String(liveWsOf(w) || "") : (w.isMinimized ? targetWs : String(w.workspaceName || ""))
+    var liveWs = liveWsOf ? liveWsOf(w) : null
+    var ws = (liveWs !== null && liveWs !== undefined && liveWs !== "")
+      ? String(liveWs)
+      : (w.isMinimized ? targetWs : String(w.workspaceName || ""))
     if (ws !== targetWs) return false
   }
   return true
@@ -565,11 +591,20 @@ function pickAppWindow(toplevels, activeToplevel, appId, direction) {
 
   for (var i = 0; i < list.length; i++) {
     var t = list[i]
-    if (t && (stripDesktop(t.appId) === want || isAppMatch(t.appId, want))) matching.push(t)
+    if (t && (stripDesktop(t.appId) === want || isAppMatch(t.appId, want) || (!t.appId && t.title && (stripDesktop(t.title) === want || isAppMatch(t.title, want))))) {
+      matching.push(t)
+    }
   }
 
   if (matching.length === 0) return null
   if (matching.length === 1) return matching[0]
+
+  if (direction === 0) {
+    for (var j = 0; j < matching.length; j++) {
+      if (matching[j] === activeToplevel || matching[j].activated) return matching[j]
+    }
+    return matching[0]
+  }
 
   var dir = (typeof direction === "number" && direction < 0) ? -1 : 1
   var activeIdx = -1
@@ -586,7 +621,9 @@ function pickAppWindow(toplevels, activeToplevel, appId, direction) {
 }
 
 function focusWindow(toplevel) {
-  if (toplevel && toplevel.activate) toplevel.activate()
+  try {
+    if (toplevel && typeof toplevel.activate === "function") toplevel.activate()
+  } catch (e) {}
 }
 
 function closeApp(toplevels, appId) {
@@ -597,9 +634,13 @@ function closeApp(toplevels, appId) {
   for (var i = 0; i < list.length; i++) {
     var t = list[i]
     if (!t) continue
-    if (stripDesktop(t.appId) === want || isAppMatch(t.appId, want)) {
-      if (t.close) t.close()
-      closed += 1
+    if (stripDesktop(t.appId) === want || isAppMatch(t.appId, want) || (!t.appId && t.title && (stripDesktop(t.title) === want || isAppMatch(t.title, want)))) {
+      try {
+        if (typeof t.close === "function") {
+          t.close()
+          closed += 1
+        }
+      } catch (e) {}
     }
   }
   return closed
@@ -607,16 +648,19 @@ function closeApp(toplevels, appId) {
 
 function folderIconFor(path, explicitIcon) {
   if (explicitIcon) return explicitIcon
-  var norm = String(path || "").trim().replace(/\/+$/, "").toLowerCase()
-  if (norm.indexOf("download") >= 0) return "folder-download"
-  if (norm.indexOf("document") >= 0) return "folder-documents"
-  if (norm.indexOf("picture") >= 0) return "folder-pictures"
-  if (norm.indexOf("music") >= 0) return "folder-music"
-  if (norm.indexOf("video") >= 0) return "folder-videos"
-  if (norm.indexOf("desktop") >= 0) return "user-desktop"
-  if (norm.indexOf("template") >= 0) return "folder-templates"
-  if (norm.indexOf("public") >= 0) return "folder-publicshare"
+  var clean = String(path || "").trim().replace(/\/+$/, "")
+  var norm = clean.toLowerCase()
   if (norm === "~" || (norm.indexOf("/home/") === 0 && norm.split("/").length <= 3)) return "user-home"
+  var baseName = norm.split("/").pop() || ""
+  if (baseName.indexOf("download") >= 0) return "folder-download"
+  if (baseName.indexOf("document") >= 0) return "folder-documents"
+  if (baseName.indexOf("picture") >= 0) return "folder-pictures"
+  if (baseName.indexOf("music") >= 0) return "folder-music"
+  if (baseName.indexOf("video") >= 0) return "folder-videos"
+  if (baseName.indexOf("desktop") >= 0) return "user-desktop"
+  if (baseName.indexOf("template") >= 0) return "folder-templates"
+  if (baseName.indexOf("public") >= 0) return "folder-publicshare"
+  if (baseName.indexOf("trash") >= 0) return "user-trash"
   return "folder"
 }
 
@@ -683,7 +727,7 @@ function resolveFileItemIcon(iconName, themeName, folderColorMode) {
   if (name.indexOf("/") === 0 || name.indexOf("file://") === 0) return name
 
   // If it is a folder / place icon:
-  if (name === "folder" || name.indexOf("folder-") === 0 || name === "user-home") {
+  if (name === "folder" || name.indexOf("folder-") === 0 || name.indexOf("user-") === 0) {
     return resolveThemedFolderIcon(name, themeName, folderColorMode)
   }
 
