@@ -8,7 +8,8 @@ var IGNORED_TOKENS = {
   "chrome": true, "chromium": true, "brave": true, "edge": true, "microsoft-edge": true,
   "helium": true, "helium-browser": true, "opera": true, "vivaldi": true,
   "web": true, "omarchy": true,
-  "https": true, "http": true, "www": true, "x86_64": true, "x86": true, "amd64": true, "lib": true
+  "https": true, "http": true, "www": true, "x86_64": true, "x86": true, "amd64": true, "lib": true,
+  "wine": true, "extension": true, "exe": true, "electron": true, "run": true, "wayland": true, "x11": true, "gtk3": true, "gtk4": true, "qt5": true, "qt6": true
 };
 
 function stripDesktop(id) {
@@ -55,15 +56,15 @@ function extractNotificationWebDomain(body, summary) {
   var anchorMatch = text.match(/<a\b[^>]*href=["']?([^"'>\s]+)["']?[^>]*>/i)
                  || text.match(/href=["']?https?:\/\/([^"'>\s/]+)/i)
   if (anchorMatch && anchorMatch[1]) {
-    var rawHost = anchorMatch[1].replace(/^https?:\/\//i, "").split(/[\/?#]/)[0]
+    var rawHost = anchorMatch[1].replace(/^https?:\/\//i, "").split(/[\/?#:]/)[0]
     if (rawHost) return rawHost.toLowerCase()
   }
 
   // 2. Leading URL or domain string (e.g. web.whatsapp.com, https://music.youtube.com)
-  var domainMatch = text.match(/^\s*(?:https?:\/\/|www\.)?([a-zA-Z0-9.-]+\.[a-zA-Z]{2,})/i)
-                 || text.match(/(?:https?:\/\/|www\.)([a-zA-Z0-9.-]+\.[a-zA-Z]{2,})/i)
+  var domainMatch = text.match(/^\s*(?:https?:\/\/|www\.)?([a-zA-Z0-9.-]+(?::\d+)?\.[a-zA-Z]{2,}|[a-zA-Z0-9.-]+:\d+)/i)
+                 || text.match(/(?:https?:\/\/|www\.)([a-zA-Z0-9.-]+(?::\d+)?\.[a-zA-Z]{2,}|[a-zA-Z0-9.-]+:\d+)/i)
   if (domainMatch && domainMatch[1]) {
-    return domainMatch[1].toLowerCase()
+    return domainMatch[1].split(":")[0].toLowerCase()
   }
 
   return ""

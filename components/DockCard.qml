@@ -270,15 +270,6 @@ Item {
           readonly property bool isFullyTiled: (root && root.showMinimizedTiles)
             && DockModel.allWindowsMinimized(modelData.windowList, root ? root.liveWsNameOf : null, root ? root.minimizedWorkspace : "special:minimized")
           visible: !isFullyTiled
-
-          // Row preserves space for invisible items that have explicit width.
-          // Collapse to 0 when hidden so the dock card shrinks correctly.
-          Binding {
-            target: runningDockItem
-            property: "width"
-            when: runningDockItem.isFullyTiled
-            value: 0
-          }
         }
       }
 

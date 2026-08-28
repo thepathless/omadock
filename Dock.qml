@@ -172,8 +172,8 @@ Item {
   // Where the row would start if nothing were magnified. The card is centred,
   // so this only moves when the dock's contents change.
   readonly property real baseRowLeft: (dockWindow.width
-    - (root.baseRowWidth + dockCard.contentLeftInset + dockCard.contentRightInset)) / 2
-    + dockCard.contentLeftInset
+    - (root.baseRowWidth + (dockCard ? dockCard.contentLeftInset : 0) + (dockCard ? dockCard.contentRightInset : 0))) / 2
+    + (dockCard ? dockCard.contentLeftInset : 0)
 
   function slotHomeCenter(elementIndex, slotsBefore, sepCount, extraLeftWidth) {
     var seps = (typeof sepCount === "number") ? sepCount : (sepCount ? 1 : 0)
@@ -501,7 +501,9 @@ Item {
     interval: 350
     repeat: true
     running: root.autohide && root.intelligentAutohide && root.dockVisible && !(cardHover && cardHover.hovered) && !(revealHover && revealHover.hovered) && root.contextAppId === "" && root.dragAppId === ""
-    onTriggered: overlapProc.running = true
+    onTriggered: {
+      if (!overlapProc.running) overlapProc.running = true
+    }
   }
 
   Process {
@@ -543,8 +545,8 @@ Item {
           ? (mon.height / scale)
           : (dockScreen ? dockScreen.height : 1080)
 
-        var cardW = dockCard.width > 0 ? (dockCard.width + Style.gapsOut * 2) : 320
-        var cardH = dockCard.height > 0 ? (dockCard.height + Style.gapsOut * 2) : 60
+        var cardW = (dockCard && dockCard.width > 0) ? (dockCard.width + Style.gapsOut * 2) : 320
+        var cardH = (dockCard && dockCard.height > 0) ? (dockCard.height + Style.gapsOut * 2) : 60
         var monX = (mon && typeof mon.x === "number") ? mon.x : 0
         var monY = (mon && typeof mon.y === "number") ? mon.y : 0
         var dockLeft = monX + (screenLogicalW - cardW) / 2
@@ -573,8 +575,8 @@ Item {
           var winBottom = at[1] + sz[1]
 
           // 2D Axis-Aligned Bounding Box (AABB) intersection check with dock area
-          var intersectsX = (winRight >= dockLeft) && (winLeft <= dockRight)
-          var intersectsY = (winBottom >= dockTop) && (winTop <= dockBottom)
+          var intersectsX = (winRight > dockLeft) && (winLeft < dockRight)
+          var intersectsY = (winBottom > dockTop) && (winTop < dockBottom)
 
           if (intersectsX && intersectsY) {
             overlap = true

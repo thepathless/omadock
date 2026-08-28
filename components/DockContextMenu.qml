@@ -31,7 +31,7 @@ BorderSurface {
     ? rowWidth + contentLeftInset + contentRightInset
     : 0
   height: (root && root.contextAppId !== "")
-    ? menuColumn.implicitHeight + contentTopInset + contentBottomInset
+    ? Math.min(540, menuColumn.implicitHeight + contentTopInset + contentBottomInset)
     : 0
 
   anchors.bottom: targetCard ? targetCard.top : undefined
