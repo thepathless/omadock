@@ -12,6 +12,7 @@ Item {
   readonly property var root: rootRef
 
   property alias dockCard: dockCard
+  property alias cardInputRegion: cardInputRegion
   property alias cardHover: cardHover
   property alias row: row
   property alias pinnedRepeater: pinnedRepeater
@@ -86,11 +87,23 @@ Item {
 
     HoverHandler {
       id: cardHover
+      margin: Style.space(20)
       onHoveredChanged: if (root) root.syncVisibility()
     }
 
     width: row.implicitWidth + contentLeftInset + contentRightInset
     height: row.implicitHeight + contentTopInset + contentBottomInset
+  }
+
+  // Wave magnification input envelope for layer-shell mask
+  Item {
+    id: cardInputRegion
+    anchors.horizontalCenter: dockCard.horizontalCenter
+    anchors.bottom: dockCard.bottom
+    width: dockCard.width + Style.space(24)
+    height: dockCard.height + Math.ceil(root ? root.iconSlot * 0.6 : 32) + Style.space(12)
+    z: -1
+  }
 
     // Click on card padding dismisses context menu
     MouseArea {
