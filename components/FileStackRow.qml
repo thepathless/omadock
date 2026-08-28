@@ -17,7 +17,14 @@ Item {
   property int themeVersion: 0
   property string currentIconThemeName: "Yaru"
   property string folderColor: "theme"
-  property real menuRowWidth: (parent && parent.parent && parent.parent.rowWidth !== undefined) ? parent.parent.rowWidth : 0
+  property real menuRowWidth: {
+    var p = parent
+    while (p) {
+      if (p.rowWidth !== undefined) return p.rowWidth
+      p = p.parent
+    }
+    return 0
+  }
 
   readonly property bool isMenuContent: true
   readonly property real rowWidth: frow.menuRowWidth > 0 ? frow.menuRowWidth : frow.implicitWidth

@@ -22,7 +22,14 @@ Item {
   readonly property bool isMenuContent: true
   readonly property real markWidth: Style.space(14)
 
-  property real menuRowWidth: (parent && parent.parent && parent.parent.rowWidth !== undefined) ? parent.parent.rowWidth : 0
+  property real menuRowWidth: {
+    var p = parent
+    while (p) {
+      if (p.rowWidth !== undefined) return p.rowWidth
+      p = p.parent
+    }
+    return 0
+  }
 
   implicitWidth: Math.min(Style.space(260), Math.max(220, Style.space(8) + crow.markWidth + Style.space(6)
     + label.implicitWidth + Style.space(8)))

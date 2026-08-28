@@ -180,7 +180,7 @@ Item {
     borderSpec: Border.surfaceSpec("tooltip", "border", Color.tooltip.border, 1)
     radius: Style.cornerRadius > 0 ? Style.cornerRadius : 6
     padding: Style.space(4)
-    x: Math.max(0, Math.min(parent.width - width, (parent.width - width) / 2))
+    x: (parent.width - width) / 2
     y: -height - Style.space(6)
     width: tileTooltipLabel.implicitWidth + contentLeftInset + contentRightInset
     height: tooltipImplicitHeight()

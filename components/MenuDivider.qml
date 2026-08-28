@@ -1,10 +1,18 @@
 import QtQuick
+import qs.Commons
 import qs.Ui
 
 Item {
   id: mdiv
 
-  property real menuRowWidth: (parent && parent.parent && parent.parent.rowWidth !== undefined) ? parent.parent.rowWidth : 0
+  property real menuRowWidth: {
+    var p = parent
+    while (p) {
+      if (p.rowWidth !== undefined) return p.rowWidth
+      p = p.parent
+    }
+    return 0
+  }
   readonly property bool isMenuContent: false
   implicitWidth: mdiv.menuRowWidth > 0 ? mdiv.menuRowWidth : Style.space(160)
   width: mdiv.menuRowWidth > 0 ? mdiv.menuRowWidth : implicitWidth

@@ -76,7 +76,7 @@ Item {
   // The card's own handler, lifted into window coordinates. Both terms move
   // together as the card grows, so their sum stays the physical pointer.
   readonly property real pointerX: cardHover.hovered
-    ? dockCard.x + cardHover.point.position.x
+    ? dockCardComp.x + cardHover.point.position.x
     : -1e6
 
   readonly property int appsSlots: root.showAppsButton ? 1 : 0
@@ -2095,8 +2095,8 @@ Item {
     root.contextWindowList = wins
     root.contextWindows = wins.length
     try {
-      if (appContextMenuColumn && appContextMenuColumn.selectedWindowIdx >= wins.length) {
-        appContextMenuColumn.selectedWindowIdx = -1
+      if (root.appContextMenuColumnRef && root.appContextMenuColumnRef.selectedWindowIdx >= wins.length) {
+        root.appContextMenuColumnRef.selectedWindowIdx = -1
       }
     } catch (e) {}
   }
@@ -2114,7 +2114,7 @@ Item {
     var canonicalId = (deskEntry && deskEntry.id) ? deskEntry.id : appId
     root.contextPinned = DockModel.isPinned(root.pinnedIds, appId) || (canonicalId !== appId && DockModel.isPinned(root.pinnedIds, canonicalId))
     root.contextDesktopActions = (deskEntry && deskEntry.actions) ? deskEntry.actions : []
-    try { appContextMenuColumn.selectedWindowIdx = -1 } catch (e) {}
+    try { if (root.appContextMenuColumnRef) root.appContextMenuColumnRef.selectedWindowIdx = -1 } catch (e) {}
     root.contextX = x
     root.contextY = y
   }
@@ -2271,12 +2271,12 @@ Item {
     implicitHeight: 650
 
     mask: Region {
-      item: root.dockVisible ? dockCardComp.dockCard : undefined
+      item: root.dockVisible ? dockCardComp.dockCard : null
       regions: [
-        Region { item: root.contextAppId !== "" ? contextMenuComp : undefined },
-        Region { item: root.activeStackFolder !== "" ? folderStackPopoverComp : undefined },
-        Region { item: (root.autohide && !root.dockVisible) ? revealStrip : undefined },
-        Region { item: (root.contextAppId !== "" || root.activeStackFolder !== "") ? globalDismiss : undefined }
+        Region { item: root.contextAppId !== "" ? contextMenuComp : null },
+        Region { item: root.activeStackFolder !== "" ? folderStackPopoverComp : null },
+        Region { item: (root.autohide && !root.dockVisible) ? revealStrip : null },
+        Region { item: (root.contextAppId !== "" || root.activeStackFolder !== "") ? globalDismiss : null }
       ]
     }
 
