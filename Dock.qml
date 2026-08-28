@@ -502,7 +502,7 @@ Item {
     id: intelligentOverlapCheckTimer
     interval: 350
     repeat: true
-    running: root.autohide && root.intelligentAutohide && root.dockVisible && !(cardHover && cardHover.hovered) && !(revealHover && revealHover.hovered) && root.contextAppId === "" && root.dragAppId === ""
+    running: root.autohide && root.intelligentAutohide && root.dockVisible && !(root.cardHover && root.cardHover.hovered) && !(revealHover && revealHover.hovered) && root.contextAppId === "" && root.dragAppId === ""
     onTriggered: {
       if (!overlapProc.running) overlapProc.running = true
     }
@@ -642,7 +642,7 @@ Item {
       return
     }
 
-    var isHovered = (cardHover && cardHover.hovered) || (revealHover && revealHover.hovered) || root.contextAppId !== "" || root.dragAppId !== "" || root.activeStackFolder !== ""
+    var isHovered = (root.cardHover && root.cardHover.hovered) || (revealHover && revealHover.hovered) || root.contextAppId !== "" || root.dragAppId !== "" || root.activeStackFolder !== ""
 
     // Hovered, Context Menu Open, or Dragging: keep visible
     if (isHovered) {
@@ -2278,12 +2278,12 @@ Item {
     implicitHeight: 650
 
     mask: Region {
-      item: root.dockVisible ? dockCardComp.dockCard : null
+      item: dockCardComp.dockCard
       regions: [
-        Region { item: root.contextAppId !== "" ? contextMenuComp : null },
-        Region { item: root.activeStackFolder !== "" ? folderStackPopoverComp : null },
-        Region { item: (root.autohide && !root.dockVisible) ? revealStrip : null },
-        Region { item: (root.contextAppId !== "" || root.activeStackFolder !== "" || root.dragAppId !== "") ? globalDismiss : null }
+        Region { item: contextMenuComp },
+        Region { item: folderStackPopoverComp },
+        Region { item: revealStrip },
+        Region { item: globalDismiss }
       ]
     }
 
