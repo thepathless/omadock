@@ -1803,6 +1803,9 @@ Item {
     if (!root.shell || !root.shell.appLibrary) return
     var target = entry || root.entryForId(appId)
     var deskEntry = DockModel.entryFor(root.appRows, appId)
+    if (!deskEntry && typeof DesktopEntries !== "undefined" && DesktopEntries) {
+      deskEntry = DesktopEntries.heuristicLookup(appId) || DesktopEntries.byId(appId)
+    }
     var targetId = (deskEntry && deskEntry.id) ? deskEntry.id : appId
     var targetName = (deskEntry && deskEntry.name) ? deskEntry.name : (target && target.name ? target.name : appId)
     if (deskEntry && deskEntry.id) {
@@ -2071,7 +2074,7 @@ Item {
   }
 
   function syncContextWindows() {
-    if (!root.contextAppId || root.contextAppId === "__dock_settings__" || root.contextAppId === "__folder_context__") return
+    if (!root.contextAppId || root.contextAppId === "__dock_settings__" || root.contextAppId === "__folder_context__" || root.contextAppId === "__tile_context__") return
     var entry = root.entryForId(root.contextAppId)
     var wins = entry && entry.windowList ? entry.windowList : []
     if (wins.length === 0) {
@@ -2250,8 +2253,6 @@ Item {
     }
     return Math.min(Math.max(widest, 220), Style.space(280))
   }
-
-  // ------------------------------------------------- panel window
 
   // ------------------------------------------------- panel window
 

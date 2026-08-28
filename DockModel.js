@@ -54,7 +54,7 @@ function extractNotificationWebDomain(body, summary) {
 
   // 1. HTML anchor tag href or text: <a href="https://web.whatsapp.com/">web.whatsapp.com</a>
   var anchorMatch = text.match(/<a\b[^>]*href=["']?([^"'>\s]+)["']?[^>]*>/i)
-                 || text.match(/href=["']?https?:\/\/([^"'>\s/]+)/i)
+                 || text.match(/href=["']?https?:\/\/([^"'>\s\/]+)/i)
   if (anchorMatch && anchorMatch[1]) {
     var rawHost = anchorMatch[1].replace(/^https?:\/\//i, "").split(/[\/?#:]/)[0]
     if (rawHost) return rawHost.toLowerCase()
@@ -492,7 +492,16 @@ function buildEntries(pinnedIds, toplevels, appRows, appLibrary, hyprFor, minimi
     }
     if (alreadyPinned || seen[rid]) continue
     seen[rid] = true
-    var wins = winMap[rid] || []
+    var cands = getCandidates(rid)
+    for (var c = 0; c < cands.length; c++) {
+      seen[cands[c]] = true
+    }
+    for (var k2 = 0; k2 < runningIds.length; k2++) {
+      if (isAppMatch(rid, runningIds[k2])) {
+        seen[runningIds[k2]] = true
+      }
+    }
+    var wins = getWindowsFor(rid)
     runningOut.push({
       id: rid,
       appId: rid,
