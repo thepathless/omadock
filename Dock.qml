@@ -2278,7 +2278,7 @@ Item {
     implicitHeight: 650
 
     mask: Region {
-      item: dockCardComp.cardInputRegion
+      item: dockCardComp.dockCard
       regions: [
         Region { item: contextMenuComp },
         Region { item: folderStackPopoverComp },
