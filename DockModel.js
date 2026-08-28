@@ -590,6 +590,9 @@ function folderIconFor(path, explicitIcon) {
   if (norm.indexOf("picture") >= 0) return "folder-pictures"
   if (norm.indexOf("music") >= 0) return "folder-music"
   if (norm.indexOf("video") >= 0) return "folder-videos"
+  if (norm.indexOf("desktop") >= 0) return "user-desktop"
+  if (norm.indexOf("template") >= 0) return "folder-templates"
+  if (norm.indexOf("public") >= 0) return "folder-publicshare"
   if (norm === "~" || (norm.indexOf("/home/") === 0 && norm.split("/").length <= 3)) return "user-home"
   return "folder"
 }
