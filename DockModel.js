@@ -61,10 +61,10 @@ function extractNotificationWebDomain(body, summary) {
   }
 
   // 2. Leading URL or domain string (e.g. web.whatsapp.com, https://music.youtube.com)
-  var domainMatch = text.match(/^\s*(?:https?:\/\/|www\.)?([a-zA-Z0-9.-]+(?::\d+)?\.[a-zA-Z]{2,}|[a-zA-Z0-9.-]+:\d+)/i)
-                 || text.match(/(?:https?:\/\/|www\.)([a-zA-Z0-9.-]+(?::\d+)?\.[a-zA-Z]{2,}|[a-zA-Z0-9.-]+:\d+)/i)
+  var domainMatch = text.match(/(?:https?:\/\/|www\.)([a-zA-Z0-9.-]+(?::\d+)?\.[a-zA-Z]{2,}|[a-zA-Z0-9.-]+:\d+)/i)
+                 || text.match(/^\s*([a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(?:\.[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)*\.[a-zA-Z]{2,}(?::\d+)?)(?:[\/\s:]|$)/i)
   if (domainMatch && domainMatch[1]) {
-    return domainMatch[1].split(":")[0].toLowerCase()
+    return domainMatch[1].split(/[\/?#:]/)[0].toLowerCase()
   }
 
   return ""
@@ -255,9 +255,9 @@ function parsePinned(raw) {
   } catch (e) {
     return []
   }
-  if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return []
+  if (!parsed || typeof parsed !== "object") return []
 
-  var arr = Array.isArray(parsed.pinned) ? parsed.pinned : []
+  var arr = Array.isArray(parsed) ? parsed : (Array.isArray(parsed.pinned) ? parsed.pinned : [])
   var out = []
   var seen = {}
   for (var i = 0; i < arr.length; i++) {
@@ -390,13 +390,15 @@ function buildEntries(pinnedIds, toplevels, appRows, appLibrary, hyprFor, minimi
   for (var i = 0; i < list.length; i++) {
     var toplevel = list[i]
     if (!toplevel) continue
+    var h = hyprFor ? hyprFor(toplevel) : null
     var appId = stripDesktop(toplevel.appId)
+    if (!appId && h && h.appId) appId = stripDesktop(h.appId)
+    if (!appId && toplevel.title) appId = stripDesktop(toplevel.title)
     if (!appId) continue
     if (!winMap[appId]) {
       winMap[appId] = []
       runningIds.push(appId)
     }
-    var h = hyprFor ? hyprFor(toplevel) : null
     var addr = windowAddress(h)
     var ws = h ? h.workspace : null
     var wsName = ws ? String(ws.name || ws.id || "") : (addr && minOrigins[addr] ? minWs : "")
@@ -411,14 +413,25 @@ function buildEntries(pinnedIds, toplevels, appRows, appLibrary, hyprFor, minimi
   }
 
   function getWindowsFor(targetId) {
-    if (winMap[targetId] && winMap[targetId].length > 0) return winMap[targetId]
+    var out = []
+    var seenAddr = {}
     for (var k = 0; k < runningIds.length; k++) {
       var rid = runningIds[k]
-      if (isAppMatch(targetId, rid)) {
-        return winMap[rid] || []
+      if (rid === targetId || isAppMatch(targetId, rid)) {
+        var wlist = winMap[rid] || []
+        for (var w = 0; w < wlist.length; w++) {
+          var item = wlist[w]
+          var addr = item ? item.address : ""
+          if (addr && !seenAddr[addr]) {
+            seenAddr[addr] = true
+            out.push(item)
+          } else if (!addr) {
+            out.push(item)
+          }
+        }
       }
     }
-    return []
+    return out
   }
 
   function enrich(list) {
@@ -513,8 +526,7 @@ function allWindowsMinimized(windowList, liveWsOf, minWs) {
   for (var i = 0; i < list.length; i++) {
     var w = list[i]
     if (!w) return false
-    if (w.isMinimized) continue
-    var ws = liveWsOf ? String(liveWsOf(w) || "") : String(w.workspaceName || "")
+    var ws = liveWsOf ? String(liveWsOf(w) || "") : (w.isMinimized ? targetWs : String(w.workspaceName || ""))
     if (ws !== targetWs) return false
   }
   return true

@@ -180,7 +180,7 @@ Item {
 
   function isWinMinimized(w) {
     if (!w || !root) return false
-    return root.liveWsNameOf(w) === root.minimizedWorkspace
+    return (w.isMinimized === true) || (root.liveWsNameOf(w) === root.minimizedWorkspace)
   }
 
   function isWinActive(w) {

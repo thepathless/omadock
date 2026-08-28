@@ -29,7 +29,7 @@ Item {
   // layout slot; zoom scales the visual stack in place (tileVisual).
   readonly property real homeCenter: root ? root.slotHomeCenter(
     root.appsSlots + root.pinnedSection.length + (root.hasLeftTileSeparator ? 1 : 0) + tileIndex,
-    root.appsSlots + root.pinnedSection.length + tileIndex,
+    root.appsSlots + root.pinnedSection.length,
     0,
     (root.hasLeftTileSeparator ? root.separatorWidth : 0) + tileIndex * root.tileWidth + (root.tileWidth - root.iconSlot) / 2) : 0
   property real magnifyScale: {
