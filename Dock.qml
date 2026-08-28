@@ -2303,12 +2303,15 @@ Item {
       Rectangle {
         anchors.bottom: parent.bottom
         anchors.horizontalCenter: parent.horizontalCenter
-        width: revealHover.hovered ? Style.space(48) : Style.space(24)
-        height: Style.space(3)
+        width: revealHover.hovered ? Style.space(56) : Style.space(28)
+        height: Style.space(3.5)
         radius: height / 2
-        color: Util.alpha(Color.bar.text, revealHover.hovered ? 0.6 : 0.25)
-        Behavior on width { NumberAnimation { duration: 150 } }
-        Behavior on color { ColorAnimation { duration: 150 } }
+        color: Util.alpha(Color.bar.active, revealHover.hovered ? 0.90 : 0.45)
+        opacity: (root.autohide && !root.dockVisible) ? 1.0 : 0.0
+
+        Behavior on width { NumberAnimation { duration: 200; easing.type: Easing.OutCubic } }
+        Behavior on color { ColorAnimation { duration: 180 } }
+        Behavior on opacity { NumberAnimation { duration: 180; easing.type: Easing.OutCubic } }
       }
     }
 
