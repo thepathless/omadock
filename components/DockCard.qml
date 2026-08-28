@@ -86,7 +86,6 @@ Item {
 
     HoverHandler {
       id: cardHover
-      margin: Style.space(20)
       onHoveredChanged: if (root) root.syncVisibility()
     }
 

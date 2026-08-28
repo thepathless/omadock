@@ -2301,20 +2301,14 @@ Item {
       }
 
       Rectangle {
-        id: revealPill
-        visible: root.autohide && !root.dockVisible
         anchors.bottom: parent.bottom
-        anchors.bottomMargin: Style.space(1)
         anchors.horizontalCenter: parent.horizontalCenter
-        width: revealHover.hovered ? Style.space(64) : Style.space(28)
-        height: Style.space(3.5)
+        width: revealHover.hovered ? Style.space(48) : Style.space(24)
+        height: Style.space(3)
         radius: height / 2
-        color: revealHover.hovered ? Color.bar.active : Util.alpha(Color.bar.text, 0.60)
-        border.color: Qt.rgba(0, 0, 0, 0.40)
-        border.width: 1
-
-        Behavior on width { NumberAnimation { duration: 220; easing.type: Easing.OutCubic } }
-        Behavior on color { ColorAnimation { duration: 180 } }
+        color: Util.alpha(Color.bar.text, revealHover.hovered ? 0.6 : 0.25)
+        Behavior on width { NumberAnimation { duration: 150 } }
+        Behavior on color { ColorAnimation { duration: 150 } }
       }
     }
 
