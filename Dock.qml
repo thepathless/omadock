@@ -890,71 +890,34 @@ Item {
       return area.containsMouse ? root.zoomPeak : 1
     }
 
-    readonly property string resolvedSource: {
-      var _tv = root.themeVersion
-      return DockModel.resolveThemedFolderIcon(fitem.icon, root.currentIconThemeName, root.folderColor)
-    }
-    readonly property bool isSymbolic: resolvedSource.indexOf("-symbolic.svg") >= 0 || resolvedSource.indexOf("symbolic") >= 0
-    readonly property color symbolicColor: {
-      if (root.folderColor === "white") return "#ffffff"
-      if (root.folderColor === "black") return "#111111"
-      return (Color.bar.background.hslLightness < 0.5 || Color.background.hslLightness < 0.5) ? "#ffffff" : "#111111"
-    }
-
     Behavior on magnifyScale {
       NumberAnimation { duration: 110; easing.type: Easing.OutQuad }
     }
 
-    Item {
-      id: iconSlot
-      width: root.iconSlot
-      height: root.iconSlot
+    Image {
+      id: folderIconImg
       anchors.horizontalCenter: parent.horizontalCenter
-      anchors.verticalCenter: parent.verticalCenter
-
-      Item {
-        id: iconContainer
-        width: root.iconSize
-        height: root.iconSize
-        anchors.centerIn: parent
-        scale: fitem.magnifyScale
-
-        Image {
-          id: folderIconImg
-          anchors.fill: parent
-          source: fitem.resolvedSource
-          sourceSize: Qt.size(root.iconSize * 4, root.iconSize * 4)
-          fillMode: Image.PreserveAspectFit
-          asynchronous: true
-          smooth: true
-          mipmap: true
-          visible: !fitem.isSymbolic
+      anchors.bottom: parent.bottom
+      anchors.bottomMargin: Math.round((fitem.height - root.baseIconArt) / 2)
+      width: root.baseIconArt * fitem.magnifyScale
+      height: width
+      source: {
+        var _tv = root.themeVersion
+        var iconName = fitem.icon || "folder"
+        if (iconName.indexOf("/") === 0 || iconName.indexOf("file://") === 0) return iconName
+        if (root.folderColor && root.folderColor !== "theme" && root.folderColor !== "auto") {
+          var themed = DockModel.resolveThemedFolderIcon(iconName, root.currentIconThemeName, root.folderColor)
+          if (themed && themed !== "") return themed
         }
-
-        Item {
-          anchors.fill: parent
-          visible: fitem.isSymbolic
-
-          Image {
-            id: symbolicImg
-            anchors.fill: parent
-            source: fitem.resolvedSource
-            sourceSize: Qt.size(root.iconSize * 4, root.iconSize * 4)
-            fillMode: Image.PreserveAspectFit
-            asynchronous: true
-            smooth: true
-            mipmap: true
-            visible: false
-          }
-
-          MultiEffect {
-            anchors.fill: symbolicImg
-            source: symbolicImg
-            colorization: 1.0
-            colorizationColor: fitem.symbolicColor
-          }
-        }
+        var p = Quickshell.iconPath(iconName, true)
+        if (p && p !== "") return p
+        return Quickshell.iconPath("folder", true)
       }
+      sourceSize: Qt.size(width * Screen.devicePixelRatio, height * Screen.devicePixelRatio)
+      visible: source !== ""
+      asynchronous: true
+      mipmap: true
+      smooth: true
     }
 
     // Active stack open indicator dot
@@ -996,6 +959,104 @@ Item {
       hovered: area.containsMouse
       blocked: !root.showTooltips || root.activeStackFolder !== ""
       x: (fitem.width - width) / 2
+      y: -height - Style.space(8)
+    }
+  }
+
+  // Removable Drive Item (macOS / Linux dynamic auto-mounted flash drive as a folder stack)
+  component DockDriveItem: Item {
+    id: ditem
+
+    property string dev: ""
+    property string mountpoint: ""
+    property string name: "USB Drive"
+    property string size: ""
+    property string space: ""
+    property string fstype: ""
+    property string icon: "folder"
+    property real homeCenter: 0
+
+    signal openStackRequested(string path, string name, real cx, real cy)
+    signal menuRequested(string dev, string mountpoint, string name, string space, real cx, real cy)
+
+    width: root.iconSlot * (root.waveHover ? ditem.magnifyScale : 1)
+    height: root.iconSlot
+
+    readonly property bool isOpen: root.activeStackFolder === ditem.mountpoint
+
+    property real magnifyScale: {
+      if (root.waveHover) return root.magnifyScaleAt(ditem.homeCenter)
+      if (root.hoverEffect === "off") return 1
+      return driveArea.containsMouse ? root.zoomPeak : 1
+    }
+
+    Behavior on magnifyScale {
+      NumberAnimation { duration: 110; easing.type: Easing.OutQuad }
+    }
+
+    Image {
+      id: driveIconImg
+      anchors.horizontalCenter: parent.horizontalCenter
+      anchors.bottom: parent.bottom
+      anchors.bottomMargin: Math.round((ditem.height - root.baseIconArt) / 2)
+      width: root.baseIconArt * ditem.magnifyScale
+      height: width
+      source: {
+        var _tv = root.themeVersion
+        var iconName = ditem.icon || "folder"
+        if (iconName.indexOf("/") === 0 || iconName.indexOf("file://") === 0) return iconName
+        if (root.folderColor && root.folderColor !== "theme" && root.folderColor !== "auto") {
+          var themed = DockModel.resolveThemedFolderIcon(iconName, root.currentIconThemeName, root.folderColor)
+          if (themed && themed !== "") return themed
+        }
+        var p = Quickshell.iconPath(iconName, true)
+        if (p && p !== "") return p
+        return Quickshell.iconPath("folder", true)
+      }
+      sourceSize: Qt.size(width * Screen.devicePixelRatio, height * Screen.devicePixelRatio)
+      visible: source !== ""
+      asynchronous: true
+      mipmap: true
+      smooth: true
+    }
+
+    // Active stack open indicator dot
+    Rectangle {
+      visible: ditem.isOpen
+      anchors.bottom: parent.bottom
+      anchors.bottomMargin: Style.space(1)
+      anchors.horizontalCenter: parent.horizontalCenter
+      width: Style.space(4)
+      height: Style.space(4)
+      radius: width / 2
+      color: Color.bar.active
+    }
+
+    MouseArea {
+      id: driveArea
+      anchors.fill: parent
+      hoverEnabled: true
+      acceptedButtons: Qt.LeftButton | Qt.RightButton
+      cursorShape: Qt.PointingHandCursor
+
+      onClicked: function(mouse) {
+        if (mouse.button === Qt.RightButton) {
+          var mappedPos = ditem.mapToItem(dockWindow.contentItem, mouse.x, mouse.y)
+          if (!mappedPos) return
+          ditem.menuRequested(ditem.dev, ditem.mountpoint, ditem.name, ditem.space, mappedPos.x, mappedPos.y)
+        } else {
+          var centerPos = ditem.mapToItem(dockWindow.contentItem, ditem.width / 2, 0)
+          if (!centerPos) return
+          ditem.openStackRequested(ditem.mountpoint, ditem.name, centerPos.x, centerPos.y)
+        }
+      }
+    }
+
+    HoverTooltip {
+      text: ditem.name + (ditem.space !== "" ? (" (USB • " + ditem.space + ")") : " (USB Folder)")
+      hovered: driveArea.containsMouse
+      blocked: !root.showTooltips || root.activeStackFolder !== "" || root.contextAppId === "__drive_context__"
+      x: (ditem.width - width) / 2
       y: -height - Style.space(8)
     }
   }
@@ -1087,7 +1148,6 @@ Item {
   readonly property real gapWidth: Style.space(root.itemSpacing)
   readonly property real separatorWidth: Style.space(1)
   readonly property int folderSlots: root.pinnedFolders ? root.pinnedFolders.length : 0
-  readonly property bool hasFolderSeparator: root.folderSlots > 0 && (root.pinnedSection.length > 0 || root.visibleRunningCount > 0)
 
   // Minimized-window preview tiles (macOS-style section on the dock's right).
   // In minimizeMode "all", a parked app's windows compress into ONE stacked
@@ -1128,9 +1188,12 @@ Item {
   // Left tile divider (pinned|tiles) renders only when pins precede the tiles.
   readonly property bool hasLeftTileSeparator: root.hasTiles && root.pinnedSection.length > 0
 
+  readonly property int driveSlots: root.showRemovableDrives ? root.mountedDrives.length : 0
+  readonly property bool hasFolderSeparator: (root.folderSlots > 0 || root.driveSlots > 0) && (root.pinnedSection.length > 0 || root.visibleRunningCount > 0 || root.hasTiles)
+
   // Width arithmetic total: hidden (fully-tiled) entries occupy zero width,
   // so the row-width and gap math must count only visible icons.
-  readonly property int visibleSlotTotal: root.appsSlots + root.pinnedSection.length + root.visibleRunningCount + root.folderSlots
+  readonly property int visibleSlotTotal: root.appsSlots + root.pinnedSection.length + root.visibleRunningCount + root.folderSlots + root.driveSlots
   readonly property int elementTotal: root.visibleSlotTotal
     + (root.hasSeparator ? 1 : 0)
     + (root.hasFolderSeparator ? 1 : 0)
@@ -1370,13 +1433,23 @@ Item {
   property string contextFolderPath: ""
   property string contextFolderName: ""
 
+  // ------------------------------------------------- removable drives state
+  property var mountedDrives: []
+  property string contextDriveDev: ""
+  property string contextDriveMount: ""
+  property string contextDriveName: ""
+  property string contextDriveSpace: ""
+
   // ------------------------------------------------- configuration options
+
+  property string alignment: "center" // "center" | "left" | "right"
 
   property bool autohide: true
   property bool intelligentAutohide: true
   property bool showAppsButton: true
   property bool showTooltips: true
   property bool showMinimizedTiles: true
+  property bool showRemovableDrives: true
   // "zoom" grows only the icon under the pointer and leaves the layout alone —
   // the behaviour this dock shipped with, and the default. "wave" is the
   // falloff: neighbours respond and the row carries the extra width. "off" is
@@ -1522,8 +1595,8 @@ Item {
         var cardH = dockCard.height > 0 ? (dockCard.height + Style.gapsOut * 2) : 60
         var monX = (mon && typeof mon.x === "number") ? mon.x : 0
         var monY = (mon && typeof mon.y === "number") ? mon.y : 0
-        var dockLeft = monX + (screenLogicalW - cardW) / 2
-        var dockRight = monX + (screenLogicalW + cardW) / 2
+        var dockLeft = monX + dockCard.x
+        var dockRight = dockLeft + cardW
         var dockTop = monY + screenLogicalH - cardH - 12
         var dockBottom = monY + screenLogicalH
 
@@ -1604,6 +1677,72 @@ Item {
     }
   }
 
+  Process {
+    id: removableDrivesScanner
+    command: ["python3", "-c", "import json, subprocess, os, sys\ntry:\n    res = subprocess.run(['lsblk', '-J', '-o', 'NAME,LABEL,MOUNTPOINTS,RM,HOTPLUG,SIZE,TYPE,FSTYPE,MODEL,TRAN'], capture_output=True, text=True)\n    data = json.loads(res.stdout) if res.returncode == 0 else {}\n    devices = []\n    seen = set()\n    def walk(devs):\n        for d in devs:\n            mps = d.get('mountpoints') or ([d.get('mountpoint')] if d.get('mountpoint') else [])\n            rm = bool(d.get('rm') or d.get('hotplug') or (d.get('tran') == 'usb'))\n            for mp in mps:\n                if not mp or mp in ['/', '/home', '/boot', '[SWAP]', '/var/log', '/var/cache/pacman/pkg']:\n                    continue\n                if rm or mp.startswith('/run/media/') or mp.startswith('/media/'):\n                    if mp in seen: continue\n                    seen.add(mp)\n                    label = d.get('label') or d.get('model') or os.path.basename(mp) or d.get('name')\n                    space_info = ''\n                    try:\n                        st = os.statvfs(mp)\n                        free_bytes = st.f_bavail * st.f_frsize\n                        total_bytes = st.f_blocks * st.f_frsize\n                        def fmt(b):\n                            return f'{b / (1024*1024):.1f} MB' if b < 1024*1024*1024 else f'{b / (1024*1024*1024):.1f} GB'\n                        space_info = f'{fmt(free_bytes)} free of {fmt(total_bytes)}'\n                    except Exception:\n                        pass\n                    fstype = str(d.get('fstype') or '').lower()\n                    icon = 'drive-removable-media'\n                    if fstype in ['iso9660', 'udf']:\n                        icon = 'media-optical'\n                    elif d.get('tran') == 'usb' or 'usb' in str(d.get('model') or '').lower():\n                        icon = 'drive-removable-media-usb'\n                    elif d.get('type') == 'disk':\n                        icon = 'drive-harddisk-usb'\n                    devices.append({'dev': '/dev/' + str(d.get('name') or ''), 'name': str(label).strip() if label else 'USB Drive', 'mountpoint': mp, 'size': d.get('size', ''), 'space': space_info, 'fstype': fstype, 'icon': icon})\n            if 'children' in d:\n                walk(d['children'])\n    if 'blockdevices' in data:\n        walk(data['blockdevices'])\n    print(json.dumps(devices))\nexcept Exception as e:\n    print('[]')\n"]
+    running: false
+    stdout: StdioCollector {
+      onStreamFinished: {
+        try {
+          var parsed = JSON.parse(this.text) || []
+          root.mountedDrives = Array.isArray(parsed) ? parsed : []
+        } catch (e) {
+          root.mountedDrives = []
+        }
+      }
+    }
+  }
+
+  Process {
+    id: ejectProc
+    property string dev: ""
+    property string mountpoint: ""
+    property string driveName: ""
+    command: ["python3", "-c", "import subprocess, sys\ndev = sys.argv[1] if len(sys.argv) > 1 else ''\nmp = sys.argv[2] if len(sys.argv) > 2 else ''\nname = sys.argv[3] if len(sys.argv) > 3 else 'Drive'\nsuccess = False\nif mp:\n    r = subprocess.run(['gio', 'mount', '-u', mp], capture_output=True)\n    if r.returncode == 0: success = True\nif not success and dev:\n    r = subprocess.run(['udisksctl', 'unmount', '-b', dev], capture_output=True)\n    if r.returncode == 0: success = True\nif not success and mp:\n    r = subprocess.run(['umount', mp], capture_output=True)\n    if r.returncode == 0: success = True\nif success:\n    subprocess.run(['notify-send', 'Device Safely Removed', f'{name} can now be safely disconnected.', '-i', 'drive-removable-media'])\nprint(success)\n", ejectProc.dev, ejectProc.mountpoint, ejectProc.driveName]
+    running: false
+    stdout: StdioCollector {
+      onStreamFinished: {
+        root.closeContext()
+        root.scanRemovableDrives()
+      }
+    }
+  }
+
+  Timer {
+    id: driveScanTimer
+    interval: 3000
+    repeat: true
+    running: root.showRemovableDrives
+    onTriggered: root.scanRemovableDrives()
+  }
+
+  function scanRemovableDrives() {
+    if (!root.showRemovableDrives) {
+      root.mountedDrives = []
+      return
+    }
+    if (!removableDrivesScanner.running) removableDrivesScanner.running = true
+  }
+
+  function openDriveContext(dev, mp, name, space, cx, cy) {
+    root.closeContext()
+    root.closeFolderStack()
+    root.contextAppId = "__drive_context__"
+    root.contextDriveDev = dev || ""
+    root.contextDriveMount = mp || ""
+    root.contextDriveName = name || "Drive"
+    root.contextDriveSpace = space || ""
+    root.contextX = cx
+    root.contextY = cy
+  }
+
+  function ejectDrive(dev, mountpoint, name) {
+    ejectProc.dev = dev || ""
+    ejectProc.mountpoint = mountpoint || ""
+    ejectProc.driveName = name || "Drive"
+    ejectProc.running = true
+  }
+
   function syncVisibility() {
     // Mode 1: Always Show
     if (!root.autohide) {
@@ -1661,7 +1800,10 @@ Item {
     path: root.configPath
     watchChanges: true
     atomicWrites: true
-    onLoaded: root.loadConfig()
+    onLoaded: {
+      root.loadConfig()
+      root.scanRemovableDrives()
+    }
     onFileChanged: configFile.reload()
   }
 
@@ -2018,11 +2160,14 @@ Item {
         parsed = {}
       }
     }
+    root.alignment = (parsed && (parsed.alignment || parsed.position)) ? String(parsed.alignment || parsed.position).toLowerCase() : "center"
+    if (root.alignment !== "left" && root.alignment !== "right") root.alignment = "center"
     root.autohide = parsed && parsed.autohide !== false
     root.intelligentAutohide = parsed && parsed.intelligentAutohide !== false
     root.showAppsButton = parsed && parsed.showAppsButton !== false
     root.showTooltips = parsed && parsed.showTooltips !== false
     root.showMinimizedTiles = parsed ? parsed.showMinimizedTiles !== false : true
+    root.showRemovableDrives = parsed ? parsed.showRemovableDrives !== false : true
     // Migrates the old boolean: an explicit magnification:false meant no growth.
     root.hoverEffect = parsed && typeof parsed.hoverEffect === "string"
       ? parsed.hoverEffect
@@ -2119,6 +2264,18 @@ Item {
     root.contextY = y
     root.settingsSubmenu = ""
     root.contextAppId = "__dock_settings__"
+  }
+
+  function setDockAlignment(align) {
+    var a = String(align || "").toLowerCase()
+    root.alignment = (a === "left" || a === "right") ? a : "center"
+    root.saveConfig()
+    if (root.intelligentAutohide) debounceOverlapTimer.restart()
+    root.syncVisibility()
+  }
+
+  function setDockPosition(pos) {
+    setDockAlignment(pos)
   }
 
   function setAutohideMode(mode) {
@@ -2768,6 +2925,26 @@ Item {
       }
       if (parked.length > 0) root.restoreWindow(root.oldestParked(parked), "")
     }
+
+    function toggleVisibility(): void {
+      root.dockVisible = !root.dockVisible
+    }
+
+    function reveal(): void {
+      root.dockVisible = true
+    }
+
+    function hide(): void {
+      root.dockVisible = false
+    }
+
+    function setAlignment(align: string): void {
+      root.setDockAlignment(align)
+    }
+
+    function setPosition(pos: string): void {
+      root.setDockPosition(pos)
+    }
   }
 
   // ------------------------------------------------- launch feedback
@@ -2831,11 +3008,14 @@ Item {
     } catch (e) {
       conf = {}
     }
+    conf.alignment = root.alignment || "center"
+    delete conf.position
     conf.autohide = root.autohide
     conf.intelligentAutohide = root.intelligentAutohide
     conf.showAppsButton = root.showAppsButton
     conf.showTooltips = root.showTooltips
     conf.showMinimizedTiles = root.showMinimizedTiles
+    conf.showRemovableDrives = root.showRemovableDrives
     conf.hoverEffect = root.hoverEffect
     delete conf.magnification
     conf.launchBounce = root.launchBounce
@@ -3253,10 +3433,17 @@ Item {
     // Bottom edge reveal strip — thin edge trigger with zero click-swallowing
     Item {
       id: revealStrip
-      anchors.left: parent.left
-      anchors.right: parent.right
       anchors.bottom: parent.bottom
       height: root.revealHeight
+      width: revealStripRect.width + Style.space(32)
+      x: {
+        if (root.alignment === "left") return Style.gapsOut * 2
+        if (root.alignment === "right") return parent.width - width - (Style.gapsOut * 2)
+        return Math.round((parent.width - width) / 2)
+      }
+      Behavior on x {
+        NumberAnimation { duration: 240; easing.type: Easing.OutCubic }
+      }
 
       HoverHandler {
         id: revealHover
@@ -3264,6 +3451,7 @@ Item {
       }
 
       Rectangle {
+        id: revealStripRect
         anchors.bottom: parent.bottom
         anchors.horizontalCenter: parent.horizontalCenter
         width: revealHover.hovered ? Style.space(48) : Style.space(24)
@@ -3359,11 +3547,19 @@ Item {
         onHoveredChanged: root.syncVisibility()
       }
 
-      anchors.horizontalCenter: parent.horizontalCenter
       anchors.bottom: parent.bottom
       anchors.bottomMargin: root.dockVisible ? Style.gapsOut : -(dockCard.height + Style.gapsOut + 10)
 
       Behavior on anchors.bottomMargin {
+        NumberAnimation { duration: 240; easing.type: Easing.OutCubic }
+      }
+
+      x: {
+        if (root.alignment === "left") return Style.gapsOut * 2
+        if (root.alignment === "right") return parent.width - width - (Style.gapsOut * 2)
+        return Math.round((parent.width - width) / 2)
+      }
+      Behavior on x {
         NumberAnimation { duration: 240; easing.type: Easing.OutCubic }
       }
 
@@ -3724,6 +3920,7 @@ Item {
         }
 
         Repeater {
+          id: runningRepeater
           model: root.runningSection
           delegate: DockItem {
             id: runningDockItem
@@ -3777,6 +3974,7 @@ Item {
           color: Util.alpha(root.dockForeground, 0.25)
         }
 
+        // Pinned Folder Stacks
         Repeater {
           id: foldersRepeater
           model: root.pinnedFolders
@@ -3794,6 +3992,32 @@ Item {
             }
             onMenuRequested: function(fpath, fname, cx, cy) {
               root.openFolderContext(fpath, fname, cx, cy)
+            }
+          }
+        }
+
+        // Dynamically Mounted USB Flash Drives (rendered as folder stacks)
+        Repeater {
+          id: drivesRepeater
+          model: root.showRemovableDrives ? root.mountedDrives : []
+          delegate: DockDriveItem {
+            dev: modelData.dev || ""
+            mountpoint: modelData.mountpoint || ""
+            name: modelData.name || "USB Drive"
+            size: modelData.size || ""
+            space: modelData.space || ""
+            fstype: modelData.fstype || ""
+            icon: modelData.icon || "folder"
+            homeCenter: root.slotHomeCenter(
+              root.appsSlots + root.pinnedSection.length + (root.hasLeftTileSeparator ? 1 : 0) + (root.hasSeparator ? 1 : 0) + root.tileElements + root.visibleRunningCount + (root.hasFolderSeparator ? 1 : 0) + root.pinnedFolders.length + index,
+              root.appsSlots + root.pinnedSection.length + root.visibleRunningCount + root.pinnedFolders.length + index,
+              (root.hasSeparator ? 1 : 0) + (root.hasFolderSeparator ? 1 : 0),
+              root.tilesFixedWidth)
+            onOpenStackRequested: function(fpath, fname, cx, cy) {
+              root.openFolderStack(fpath, fname, cx)
+            }
+            onMenuRequested: function(d, mp, n, s, cx, cy) {
+              root.openDriveContext(d, mp, n, s, cx, cy)
             }
           }
         }
@@ -3948,6 +4172,60 @@ Item {
         anchors.bottom: parent.bottom
         anchors.bottomMargin: contextMenu.contentBottomInset
 
+        // Removable Drive Context Menu
+        Column {
+          spacing: Style.space(1)
+          visible: root.contextAppId === "__drive_context__"
+
+          ContextRow {
+            text: root.contextDriveName
+            isHeader: true
+          }
+
+          ContextRow {
+            text: root.contextDriveSpace !== "" ? root.contextDriveSpace : root.contextDriveMount
+            textColor: Color.bar.textMuted
+            isHeader: true
+            visible: text !== ""
+          }
+
+          MenuDivider {}
+
+          ContextRow {
+            text: "Open in File Manager"
+            onTriggered: {
+              Util.execDetached("uwsm-app -- xdg-open " + Util.shellQuote(root.contextDriveMount))
+              root.closeContext()
+            }
+          }
+
+          ContextRow {
+            text: "Open in Terminal"
+            onTriggered: {
+              Util.execDetached("uwsm-app -- omarchy-terminal -d " + Util.shellQuote(root.contextDriveMount))
+              root.closeContext()
+            }
+          }
+
+          ContextRow {
+            text: "Copy Mount Path"
+            onTriggered: {
+              Util.execDetached("uwsm-app -- wl-copy " + Util.shellQuote(root.contextDriveMount))
+              root.closeContext()
+            }
+          }
+
+          MenuDivider {}
+
+          ContextRow {
+            text: "⏏ Safely Eject / Unmount"
+            textColor: Color.urgent || Color.bar.active
+            onTriggered: {
+              root.ejectDrive(root.contextDriveDev, root.contextDriveMount, root.contextDriveName)
+            }
+          }
+        }
+
         // Dock Settings Menu (when right-clicking leftmost Omarchy icon)
         Column {
           spacing: Style.space(1)
@@ -3969,6 +4247,11 @@ Item {
             }
 
             ContextRow {
+              text: "Placement & Alignment ›"
+              onTriggered: root.settingsSubmenu = "alignment"
+            }
+
+            ContextRow {
               text: "Behavior & Windows ›"
               onTriggered: root.settingsSubmenu = "behavior"
             }
@@ -3986,6 +4269,41 @@ Item {
             ContextRow {
               text: "Folders & Stacks ›"
               onTriggered: root.settingsSubmenu = "folders"
+            }
+          }
+
+          // Alignment Submenu Page
+          Column {
+            spacing: Style.space(1)
+            visible: root.settingsSubmenu === "alignment"
+
+            ContextRow {
+              text: "‹ Back"
+              textColor: Color.bar.active
+              onTriggered: root.settingsSubmenu = ""
+            }
+
+            ContextRow {
+              text: "Dock Alignment"
+              isHeader: true
+            }
+
+            ContextRow {
+              text: "Center (Default)"
+              checked: root.alignment === "center" || !root.alignment
+              onTriggered: root.setDockAlignment("center")
+            }
+
+            ContextRow {
+              text: "Left Aligned"
+              checked: root.alignment === "left"
+              onTriggered: root.setDockAlignment("left")
+            }
+
+            ContextRow {
+              text: "Right Aligned"
+              checked: root.alignment === "right"
+              onTriggered: root.setDockAlignment("right")
             }
           }
 
@@ -4236,6 +4554,16 @@ Item {
             ContextRow {
               text: "Urgent Sound: " + (root.urgentSoundName === "message-new-instant" ? "Message" : (root.urgentSoundName === "complete" ? "Complete" : (root.urgentSoundName === "dialog-information" ? "Information" : (root.urgentSoundName === "dialog-warning" ? "Warning" : (root.urgentSoundName === "phone-incoming-call" ? "Phone" : (root.urgentSoundName === "alarm-clock-elapsed" ? "Alarm" : (root.urgentSoundName === "none" ? "Mute" : "Bell"))))))) + " ›"
               onTriggered: root.settingsSubmenu = "urgent_sound"
+            }
+
+            ContextRow {
+              text: "Show Removable USB Drives"
+              checked: root.showRemovableDrives
+              onTriggered: {
+                root.showRemovableDrives = !root.showRemovableDrives
+                root.saveConfig()
+                root.scanRemovableDrives()
+              }
             }
           }
 

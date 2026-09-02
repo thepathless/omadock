@@ -223,10 +223,12 @@ Settings persist in `~/.config/omarchy/omadock.json` and are editable live:
 
 ```json
 {
+  "alignment": "center",
   "autohide": true,
   "intelligentAutohide": true,
   "minimizeMode": "active",
   "showMinimizedTiles": true,
+  "showRemovableDrives": true,
   "opacity": 1.0,
   "shape": "rounded",
   "bgColor": "theme",
@@ -256,10 +258,12 @@ Settings persist in `~/.config/omarchy/omadock.json` and are editable live:
 
 | Key | Type | Default | Description |
 | :--- | :--- | :--- | :--- |
+| `alignment` | `string` | `"center"` | Bottom placement: `"center"`, `"left"`, or `"right"`. |
 | `autohide` | `bool` | `true` | Enables dock autohiding on hover exit. |
 | `intelligentAutohide` | `bool` | `true` | Hides dock only when windows overlap its bounding box (AABB). |
 | `minimizeMode` | `string` | `"active"` | `"active"` (FIFO single), `"all"` (batch group), `"off"` (disabled). |
 | `showMinimizedTiles` | `bool` | `true` | Displays live screencopy preview tiles for parked windows. |
+| `showRemovableDrives` | `bool` | `true` | Automatically shows mounted USB flash drives / external media on the dock. |
 | `opacity` | `number \| str` | `1.0` | Background opacity: `"theme"`, `1.0`, `0.80`, `0.65`, `0.35`, `0.0`. |
 | `shape` | `string` | `"rounded"` | Dock geometry: `"rounded"`, `"round"` (pill), `"square"`, `"theme"`. |
 | `bgColor` | `string` | `"theme"` | `"theme"`, `"none"`, or custom hex string (`"#1e1e2e"`). |
@@ -275,6 +279,9 @@ Settings persist in `~/.config/omarchy/omadock.json` and are editable live:
 Omadock registers IPC commands callable directly by Quickshell. Add these keybinds to `~/.config/hypr/bindings.lua`:
 
 ```lua
+-- Toggle dock visibility
+o.bind("SUPER + D", "Toggle Omadock", "exec qs -p /usr/share/omarchy/shell ipc call omadock toggleVisibility")
+
 -- Minimize currently focused window to Omadock
 o.bind("SUPER + M", "Minimize focused window", "exec qs -p /usr/share/omarchy/shell ipc call omadock minimizeActive")
 
