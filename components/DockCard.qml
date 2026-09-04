@@ -15,19 +15,30 @@ Item {
   property alias cardHover: cardHover
   property alias row: row
   property alias pinnedRepeater: pinnedRepeater
+  property alias appGroupsRepeater: appGroupsRepeater
   property alias minimizedTilesRepeater: minimizedTilesRepeater
   property alias runningRepeater: runningRepeater
   property alias foldersRepeater: foldersRepeater
+  property alias drivesRepeater: drivesRepeater
 
   // Dimensions driven by dockCard
   width: dockCard.width
   height: dockCard.height
 
-  anchors.horizontalCenter: parent ? parent.horizontalCenter : undefined
   anchors.bottom: parent ? parent.bottom : undefined
   anchors.bottomMargin: (root && root.dockVisible) ? Style.gapsOut : -(dockCard.height + Style.gapsOut + 10)
 
   Behavior on anchors.bottomMargin {
+    NumberAnimation { duration: 240; easing.type: Easing.OutCubic }
+  }
+
+  x: {
+    if (!parent) return 0
+    if (root && root.alignment === "left") return Style.gapsOut * 2
+    if (root && root.alignment === "right") return parent.width - width - (Style.gapsOut * 2)
+    return Math.round((parent.width - width) / 2)
+  }
+  Behavior on x {
     NumberAnimation { duration: 240; easing.type: Easing.OutCubic }
   }
 
@@ -197,6 +208,25 @@ Item {
         }
       }
 
+      Repeater {
+        id: appGroupsRepeater
+        model: (root && root.appGroups) ? root.appGroups : []
+        delegate: DockAppGroupItem {
+          rootRef: cardWrapper.rootRef
+          groupData: modelData
+          homeCenter: root ? root.slotHomeCenter(
+            root.appsSlots + root.pinnedSection.length + index,
+            root.appsSlots + root.pinnedSection.length + index,
+            false) : 0
+          onOpenGroupRequested: function(gdata, cx, cy) {
+            if (root) root.openAppGroup(gdata, cx, cy)
+          }
+          onMenuRequested: function(gdata, cx, cy) {
+            if (root) root.openAppGroupContext(gdata, cx, cy)
+          }
+        }
+      }
+
       // Divider between pinned apps and the minimized-tile section.
       Rectangle {
         visible: root ? root.hasLeftTileSeparator : false
@@ -294,6 +324,32 @@ Item {
           }
           onMenuRequested: function(fpath, fname, cx, cy) {
             if (root) root.openFolderContext(fpath, fname, cx, cy)
+          }
+        }
+      }
+
+      Repeater {
+        id: drivesRepeater
+        model: (root && root.showRemovableDrives) ? root.mountedDrives : []
+        delegate: DockDriveItem {
+          rootRef: cardWrapper.rootRef
+          dev: modelData.dev || ""
+          mountpoint: modelData.mountpoint || ""
+          name: modelData.name || "USB Drive"
+          size: modelData.size || ""
+          space: modelData.space || ""
+          fstype: modelData.fstype || ""
+          icon: modelData.icon || "drive-removable-media"
+          homeCenter: root ? root.slotHomeCenter(
+            root.appsSlots + root.pinnedSection.length + root.groupSlots + (root.hasLeftTileSeparator ? 1 : 0) + (root.hasSeparator ? 1 : 0) + root.tileElements + root.visibleRunningCount + (root.hasFolderSeparator ? 1 : 0) + root.pinnedFolders.length + index,
+            root.appsSlots + root.pinnedSection.length + root.groupSlots + root.visibleRunningCount + root.pinnedFolders.length + index,
+            (root.hasSeparator ? 1 : 0) + (root.hasFolderSeparator ? 1 : 0),
+            root.tilesFixedWidth) : 0
+          onOpenStackRequested: function(fpath, fname, cx, cy) {
+            if (root) root.openFolderStack(fpath, fname, cx)
+          }
+          onMenuRequested: function(d, mp, n, s, cx, cy) {
+            if (root) root.openDriveContext(d, mp, n, s, cx, cy)
           }
         }
       }

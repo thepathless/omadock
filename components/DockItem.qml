@@ -61,6 +61,8 @@ Item {
     if (!root || !root.showUrgentHint) return false
     // Foreground Suppression Rule: An app currently focused in the foreground suppresses urgency bounce
     if (item.active || item.isFocused) return false
+    // Closed App Invariant: An app that is not running and not actively launching must never bounce
+    if (!item.running && !item.starting) return false
     if (item.appId && root.urgentMap && root.urgentMap[item.appId]) return true
     var list = item.windowList || []
     for (var i = 0; i < list.length; i++) {
@@ -117,8 +119,9 @@ Item {
     NumberAnimation { duration: 120 }
   }
 
-  readonly property bool bouncing: root ? ((item.starting && root.launchBounce) || (item.urgent && root.showUrgentHint)) : false
+  readonly property bool bouncing: root ? ((item.starting && root.launchBounce) || (item.urgent && (item.running || item.starting) && root.showUrgentHint)) : false
   onBouncingChanged: if (!item.bouncing) item.bounceY = 0
+  onRunningChanged: if (!item.running && !item.starting) item.bounceY = 0
 
   SequentialAnimation on bounceY {
     running: item.bouncing

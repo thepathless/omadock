@@ -4,7 +4,7 @@
 
 ### *A modern, fluid, zero-CPU application dock engineered for Omarchy Linux*
 
-[![Release](https://img.shields.io/badge/release-v3.1.16-6c7086?style=for-the-badge&logo=github&logoColor=white&labelColor=1e1e2e)](https://github.com/thepathless/omadock/releases)
+[![Release](https://img.shields.io/badge/release-v3.2.0-6c7086?style=for-the-badge&logo=github&logoColor=white&labelColor=1e1e2e)](https://github.com/thepathless/omadock/releases)
 [![Omarchy](https://img.shields.io/badge/omarchy-4.0.1+-cba6f7?style=for-the-badge&logo=archlinux&logoColor=white&labelColor=1e1e2e)](https://omarchy.org)
 [![Hyprland](https://img.shields.io/badge/compositor-Hyprland-89b4fa?style=for-the-badge&logo=wayland&logoColor=white&labelColor=1e1e2e)](https://hyprland.org)
 [![Quickshell](https://img.shields.io/badge/shell-Quickshell_Qt6-a6e3a1?style=for-the-badge&logo=qt&logoColor=white&labelColor=1e1e2e)](https://quickshell.org)
@@ -46,10 +46,13 @@ Crafted in the spirit of **Omakase (おまかせ)** — curated elegance and eff
 - **🔘 3-State Window Dots**: Instant visual indicator dots for active, visible, and minimized windows.
 - **🌊 Wave & Zoom Magnification**: Continuous cosine-falloff cursor growth with unmagnified geometry anchors.
 - **🪟 Visual Window Previews**: Minimized windows park directly on the dock as visual thumbnail cards.
+- **📁 App Folders & Groups**: Organize apps into smart folders with 2x2 live preview tiles, running indicators, and popover grids.
+- **💾 Zero-CPU Removable Drives**: Automatic detection of USB thumb drives and storage via kernel udev events, capacity tooltips, and safe ejection.
+- **📐 Flexible Dock Alignment**: Seamlessly position the dock `center`, `left`, or `right` with smooth cubic bezier animations.
 - **⚡ FreeDesktop Jump Lists**: Native desktop action menus (incognito tabs, new windows, custom actions).
-- **📁 Folder Stacks & Popovers**: 1-click popovers for recent files with automatic theme sync and color presets.
+- **📂 Folder Stacks & Popovers**: 1-click popovers for recent files with automatic theme sync and color presets.
 - **🔔 Attention Glow & Canberra Chimes**: Bouncing alerts and audio chimes for background notifications.
-- **🎯 Intelligent Zero-CPU Autohide**: Event-driven 2D Axis-Aligned Bounding Box (AABB) window overlap detection.
+- **🎯 Intelligent Zero-CPU Autohide**: Event-driven 2D Axis-Aligned Bounding Box (AABB) window overlap detection aware of all tiled and floating windows.
 - **🔄 Fluid Drag-and-Drop**: Drag pinned items to reorder with live real-time insertion markers.
 
 ---
@@ -256,8 +259,11 @@ Settings persist in `~/.config/omarchy/omadock.json` and are editable live:
 
 | Key | Type | Default | Description |
 | :--- | :--- | :--- | :--- |
+| `alignment` | `string` | `"center"` | Dock placement along screen edge: `"center"`, `"left"`, `"right"`. |
 | `autohide` | `bool` | `true` | Enables dock autohiding on hover exit. |
 | `intelligentAutohide` | `bool` | `true` | Hides dock only when windows overlap its bounding box (AABB). |
+| `showRemovableDrives` | `bool` | `true` | Auto-detect and display removable USB thumb drives and storage. |
+| `appGroups` | `array` | `[]` | App Folders / Groups configuration (name, custom icon, app ID list). |
 | `minimizeMode` | `string` | `"active"` | `"active"` (FIFO single), `"all"` (batch group), `"off"` (disabled). |
 | `showMinimizedTiles` | `bool` | `true` | Displays live screencopy preview tiles for parked windows. |
 | `opacity` | `number \| str` | `1.0` | Background opacity: `"theme"`, `1.0`, `0.80`, `0.65`, `0.35`, `0.0`. |
@@ -280,7 +286,16 @@ o.bind("SUPER + M", "Minimize focused window", "exec qs -p /usr/share/omarchy/sh
 
 -- Restore longest-parked window (FIFO)
 o.bind("SUPER + SHIFT + M", "Restore oldest minimized", "exec qs -p /usr/share/omarchy/shell ipc call omadock restoreLast")
+
+-- Toggle Dock Visibility
+o.bind("SUPER + D", "Toggle Omadock", "exec qs -p /usr/share/omarchy/shell ipc call omadock toggleVisibility")
 ```
+
+Additional IPC methods available:
+- `reveal`: Force dock to slide into view.
+- `hide`: Force dock to slide out of view.
+- `setAlignment("center" | "left" | "right")`: Change dock alignment dynamically.
+- `setPosition("bottom" | "top" | "left" | "right")`: Change dock edge position.
 
 > [!NOTE]
 > The `-p /usr/share/omarchy/shell` flag is mandatory to target the active Omarchy system shell instance.
