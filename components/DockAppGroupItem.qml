@@ -15,7 +15,7 @@ Item {
 
   readonly property string groupId: (groupData && groupData.id) ? groupData.id : ""
   readonly property string groupName: (groupData && groupData.name) ? groupData.name : "Folder"
-  readonly property var groupApps: (groupData && Array.isArray(groupData.apps)) ? groupData.apps : []
+  readonly property var groupApps: (groupData && DockModel.isList(groupData.apps)) ? DockModel.toArray(groupData.apps) : []
 
   signal openGroupRequested(var gdata, real cx, real cy)
   signal menuRequested(var gdata, real cx, real cy)
@@ -49,12 +49,7 @@ Item {
     return groupArea.containsMouse ? root.zoomPeak : 1
   }
 
-  readonly property real waveNudgeX: {
-    if (!root || !root.waveHover || gitem.magnifyScale <= 1.01) return 0
-    var dx = gitem.homeCenter - root.pointerX
-    if (Math.abs(dx) >= root.magnifyRange || Math.abs(dx) < 1) return 0
-    return Math.sign(dx) * (gitem.magnifyScale - 1) * Style.space(5)
-  }
+  readonly property real waveNudgeX: root ? root.waveOffsetAt(gitem.homeCenter) : 0
 
   Behavior on magnifyScale {
     NumberAnimation { duration: 110; easing.type: Easing.OutQuad }

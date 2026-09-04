@@ -32,12 +32,7 @@ Item {
     return area.containsMouse ? root.zoomPeak : 1
   }
 
-  readonly property real waveNudgeX: {
-    if (!root || !root.waveHover || fitem.magnifyScale <= 1.01) return 0
-    var dx = fitem.homeCenter - root.pointerX
-    if (Math.abs(dx) >= root.magnifyRange || Math.abs(dx) < 1) return 0
-    return Math.sign(dx) * (fitem.magnifyScale - 1) * Style.space(5)
-  }
+  readonly property real waveNudgeX: root ? root.waveOffsetAt(fitem.homeCenter) : 0
 
   readonly property string resolvedSource: {
     var _tv = root ? root.themeVersion : 0

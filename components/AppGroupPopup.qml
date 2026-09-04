@@ -13,7 +13,7 @@ BorderSurface {
   property var targetWindow: root ? root.contentItemRef : null
 
   readonly property var activeGroup: root ? root.activeAppGroupData : null
-  readonly property var appList: (activeGroup && Array.isArray(activeGroup.apps)) ? activeGroup.apps : []
+  readonly property var appList: (activeGroup && DockModel.isList(activeGroup.apps)) ? DockModel.toArray(activeGroup.apps) : []
 
   visible: root ? (root.activeAppGroupId !== "" && root.dockVisible) : false
   opacity: (root && root.activeAppGroupId !== "" && root.dockVisible) ? 1 : 0

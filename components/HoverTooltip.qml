@@ -48,12 +48,10 @@ BorderSurface {
     id: bubbleLabel
     x: bubble.contentLeftInset
     y: bubble.contentTopInset
-    width: bubble.width - bubble.contentLeftInset - bubble.contentRightInset
     text: bubble.text
     textFormat: Text.PlainText
     color: Color.tooltip.text
     font.family: Style.font.family
     font.pixelSize: Style.font.caption
-    horizontalAlignment: Text.AlignHCenter
   }
 }

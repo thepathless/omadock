@@ -113,7 +113,7 @@ Item {
   readonly property bool hasSeparator: (root.pinnedSection.length > 0 || root.hasTiles) && root.visibleRunningCount > 0
   readonly property real gapWidth: Style.space(root.itemSpacing)
   readonly property real separatorWidth: Style.space(1)
-  readonly property int groupSlots: (root.appGroups && Array.isArray(root.appGroups)) ? root.appGroups.length : 0
+  readonly property int groupSlots: (root.appGroups && DockModel.isList(root.appGroups)) ? root.appGroups.length : 0
   readonly property int folderSlots: root.pinnedFolders ? root.pinnedFolders.length : 0
   readonly property int driveSlots: (root.showRemovableDrives && root.mountedDrives) ? root.mountedDrives.length : 0
   readonly property bool hasFolderSeparator: (root.folderSlots > 0 || root.driveSlots > 0) && (root.pinnedSection.length > 0 || root.groupSlots > 0 || root.hasTiles || root.visibleRunningCount > 0)
@@ -209,6 +209,20 @@ Item {
 
   function magnifyScaleAt(homeCenter) {
     return 1 + (root.magnifyPeak - 1) * root.magnifyAt(homeCenter)
+  }
+
+  // macOS integral-based offset — closed-form solution for uniform gap spacing.
+  // Integral of (scale(t) - 1) from 0 to |d| for raised cosine evaluates to:
+  //   (peak-1)/2 * (|d| + R/π * sin(π*|d|/R))
+  function waveOffsetAt(homeCenter) {
+    if (!root.waveHover) return 0
+    var d = homeCenter - root.pointerX
+    var absd = Math.abs(d)
+    var R = root.magnifyRange
+    var peak = root.magnifyPeak
+    if (absd >= R) return Math.sign(d) * (peak - 1) * R / 2
+    if (absd < 0.5) return 0
+    return Math.sign(d) * ((peak - 1) / 2) * (absd + (R / Math.PI) * Math.sin(Math.PI * absd / R))
   }
 
   // ------------------------------------------------- contrast
@@ -667,7 +681,7 @@ Item {
       onStreamFinished: {
         try {
           var parsed = JSON.parse(this.text) || []
-          root.mountedDrives = Array.isArray(parsed) ? parsed : []
+          root.mountedDrives = DockModel.isList(parsed) ? parsed : []
         } catch (e) {
           root.mountedDrives = []
         }
@@ -834,7 +848,7 @@ Item {
     for (var i = 0; i < groups.length; i++) {
       var g = groups[i]
       if (g && g.id === groupId) {
-        var curApps = Array.isArray(g.apps) ? g.apps.slice() : []
+        var curApps = DockModel.toArray(g.apps)
         if (curApps.indexOf(appId) < 0) curApps.push(appId)
         next.push({ id: g.id, name: g.name, icon: g.icon, apps: curApps, cols: g.cols || 3 })
       } else {
@@ -899,7 +913,7 @@ Item {
     for (var i = 0; i < groups.length; i++) {
       var g = groups[i]
       if (g && g.id === groupId) {
-        var curApps = Array.isArray(g.apps) ? g.apps.slice() : []
+        var curApps = DockModel.toArray(g.apps)
         var filtered = []
         for (var a = 0; a < curApps.length; a++) {
           if (curApps[a] !== appId) filtered.push(curApps[a])
@@ -939,7 +953,7 @@ Item {
     for (var i = 0; i < groups.length; i++) {
       var g = groups[i]
       if (g && g.id === groupId) {
-        extractedApps = Array.isArray(g.apps) ? g.apps : []
+        extractedApps = DockModel.toArray(g.apps)
       } else {
         next.push(g)
       }
@@ -1393,7 +1407,7 @@ Item {
     root.alignment = (parsed && (parsed.alignment || parsed.position)) ? String(parsed.alignment || parsed.position).toLowerCase() : "center"
     if (root.alignment !== "left" && root.alignment !== "right") root.alignment = "center"
     root.showRemovableDrives = parsed ? parsed.showRemovableDrives !== false : true
-    if (parsed && Array.isArray(parsed.appGroups)) {
+    if (parsed && DockModel.isList(parsed.appGroups)) {
       root.appGroups = parsed.appGroups
     } else {
       root.appGroups = []
@@ -1439,7 +1453,7 @@ Item {
     root.tooltipDelay = parsed && typeof parsed.tooltipDelay === "number"
       ? Math.max(0, Math.min(5000, Math.round(parsed.tooltipDelay)))
       : 450
-    if (parsed && Array.isArray(parsed.pinnedFolders)) {
+    if (parsed && DockModel.isList(parsed.pinnedFolders)) {
       root.pinnedFolders = parsed.pinnedFolders
     } else {
       root.pinnedFolders = [

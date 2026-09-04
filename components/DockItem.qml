@@ -51,12 +51,7 @@ Item {
     return (area.containsMouse && !item.isDragging) ? root.zoomPeak : 1
   }
 
-  readonly property real waveNudgeX: {
-    if (!root || !root.waveHover || item.magnifyScale <= 1.01) return 0
-    var dx = item.homeCenter - root.pointerX
-    if (Math.abs(dx) >= root.magnifyRange || Math.abs(dx) < 1) return 0
-    return Math.sign(dx) * (item.magnifyScale - 1) * Style.space(5)
-  }
+  readonly property real waveNudgeX: root ? root.waveOffsetAt(item.homeCenter) : 0
 
   readonly property bool isDropTarget: (root && root.dropTargetAppId === item.appId && root.dragAppId !== item.appId)
 

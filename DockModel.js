@@ -24,6 +24,10 @@ function stripDesktop(id) {
   return value.replace(/\.desktop$/i, "")
 }
 
+function isList(v) {
+  return Array.isArray(v) || (v != null && typeof v === "object" && typeof v.length === "number")
+}
+
 function toArray(list) {
   if (Array.isArray(list)) return list
   if (!list || typeof list === "string" || typeof list === "function") return []
@@ -283,7 +287,7 @@ function parsePinned(raw) {
   }
   if (!parsed || typeof parsed !== "object") return []
 
-  var arr = Array.isArray(parsed) ? parsed : (Array.isArray(parsed.pinned) ? parsed.pinned : [])
+  var arr = isList(parsed) ? parsed : (isList(parsed.pinned) ? parsed.pinned : [])
   var out = []
   var seen = {}
   for (var i = 0; i < arr.length; i++) {

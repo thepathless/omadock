@@ -4,7 +4,7 @@
 
 ### *A modern, fluid, zero-CPU application dock engineered for Omarchy Linux*
 
-[![Release](https://img.shields.io/badge/release-v3.2.1-6c7086?style=for-the-badge&logo=github&logoColor=white&labelColor=1e1e2e)](https://github.com/thepathless/omadock/releases)
+[![Release](https://img.shields.io/badge/release-v3.3.0-6c7086?style=for-the-badge&logo=github&logoColor=white&labelColor=1e1e2e)](https://github.com/thepathless/omadock/releases)
 [![Omarchy](https://img.shields.io/badge/omarchy-4.0.1+-cba6f7?style=for-the-badge&logo=archlinux&logoColor=white&labelColor=1e1e2e)](https://omarchy.org)
 [![Hyprland](https://img.shields.io/badge/compositor-Hyprland-89b4fa?style=for-the-badge&logo=wayland&logoColor=white&labelColor=1e1e2e)](https://hyprland.org)
 [![Quickshell](https://img.shields.io/badge/shell-Quickshell_Qt6-a6e3a1?style=for-the-badge&logo=qt&logoColor=white&labelColor=1e1e2e)](https://quickshell.org)
@@ -278,17 +278,27 @@ Settings persist in `~/.config/omarchy/omadock.json` and are editable live:
 
 ## ⌨️ Keyboard Shortcuts via IPC
 
-Omadock registers IPC commands callable directly by Quickshell. Add these keybinds to `~/.config/hypr/bindings.lua`:
+Omadock registers IPC commands callable directly by Quickshell.
+
+### Automated Setup (Recommended)
+Run the bundled setup script to automatically configure all keybindings:
+```bash
+~/.config/omarchy/plugins/omadock/setup.sh
+```
+
+### Manual Setup
+Add these keybinds to `~/.config/hypr/bindings.lua`:
 
 ```lua
+-- Toggle Dock Visibility
+o.bind("SUPER + D", "Toggle Omadock", "exec qs -p /usr/share/omarchy/shell ipc call omadock toggleVisibility")
+
 -- Minimize currently focused window to Omadock
 o.bind("SUPER + M", "Minimize focused window", "exec qs -p /usr/share/omarchy/shell ipc call omadock minimizeActive")
 
 -- Restore longest-parked window (FIFO)
+hl.unbind("SUPER + SHIFT + M")
 o.bind("SUPER + SHIFT + M", "Restore oldest minimized", "exec qs -p /usr/share/omarchy/shell ipc call omadock restoreLast")
-
--- Toggle Dock Visibility
-o.bind("SUPER + D", "Toggle Omadock", "exec qs -p /usr/share/omarchy/shell ipc call omadock toggleVisibility")
 ```
 
 Additional IPC methods available:

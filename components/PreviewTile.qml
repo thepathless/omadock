@@ -56,12 +56,7 @@ Item {
     }
   }
 
-  readonly property real waveNudgeX: {
-    if (!root || !root.waveHover || tile.magnifyScale <= 1.01) return 0
-    var dx = tile.homeCenter - root.pointerX
-    if (Math.abs(dx) >= root.magnifyRange || Math.abs(dx) < 1) return 0
-    return Math.sign(dx) * (tile.magnifyScale - 1) * Style.space(5)
-  }
+  readonly property real waveNudgeX: root ? root.waveOffsetAt(tile.homeCenter) : 0
 
   width: root ? root.tileWidth : 0
   height: root ? root.tileHeight : 0

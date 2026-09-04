@@ -31,12 +31,7 @@ Item {
     NumberAnimation { duration: 110; easing.type: Easing.OutQuad }
   }
 
-  readonly property real waveNudgeX: {
-    if (!root || !root.waveHover || btn.magnifyScale <= 1.01) return 0
-    var dx = btn.homeCenter - root.pointerX
-    if (Math.abs(dx) >= root.magnifyRange || Math.abs(dx) < 1) return 0
-    return Math.sign(dx) * (btn.magnifyScale - 1) * Style.space(5)
-  }
+  readonly property real waveNudgeX: root ? root.waveOffsetAt(btn.homeCenter) : 0
 
   width: root ? root.iconSlot : 0
   height: root ? root.iconSlot : 0

@@ -36,12 +36,7 @@ Item {
     return driveArea.containsMouse ? root.zoomPeak : 1
   }
 
-  readonly property real waveNudgeX: {
-    if (!root || !root.waveHover || ditem.magnifyScale <= 1.01) return 0
-    var dx = ditem.homeCenter - root.pointerX
-    if (Math.abs(dx) >= root.magnifyRange || Math.abs(dx) < 1) return 0
-    return Math.sign(dx) * (ditem.magnifyScale - 1) * Style.space(5)
-  }
+  readonly property real waveNudgeX: root ? root.waveOffsetAt(ditem.homeCenter) : 0
 
   readonly property string resolvedSource: {
     var _tv = root ? root.themeVersion : 0
