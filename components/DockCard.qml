@@ -182,7 +182,8 @@ Item {
       onHoveredChanged: if (root) root.syncVisibility()
     }
 
-    width: (root ? root.baseRowWidth : row.implicitWidth) + contentLeftInset + contentRightInset
+    width: Math.max(root ? root.baseRowWidth : 0, row.implicitWidth) + contentLeftInset + contentRightInset
+    Behavior on width { NumberAnimation { duration: 110; easing.type: Easing.OutQuad } }
     height: row.implicitHeight + contentTopInset + contentBottomInset
 
     // Click on card padding dismisses context menu
@@ -322,8 +323,8 @@ Item {
           // hidden (fully-tiled) entry occupies zero width in the Row.
           readonly property int visibleIdx: root ? root.visibleRunningSlotBefore(index) : 0
           homeCenter: root ? root.slotHomeCenter(
-            root.appsSlots + root.pinnedSection.length + (root.hasLeftTileSeparator ? 1 : 0) + (root.hasSeparator ? 1 : 0) + root.tileElements + visibleIdx,
-            root.appsSlots + root.pinnedSection.length + visibleIdx,
+            root.appsSlots + root.pinnedSection.length + root.groupSlots + (root.hasLeftTileSeparator ? 1 : 0) + (root.hasSeparator ? 1 : 0) + root.tileElements + visibleIdx,
+            root.appsSlots + root.pinnedSection.length + root.groupSlots + visibleIdx,
             root.hasSeparator,
             root.tilesFixedWidth) : 0
           pinned: false
@@ -372,8 +373,8 @@ Item {
           name: modelData.name || "Folder"
           icon: modelData.icon || DockModel.folderIconFor(modelData.path, "")
           homeCenter: root ? root.slotHomeCenter(
-            root.appsSlots + root.pinnedSection.length + (root.hasLeftTileSeparator ? 1 : 0) + (root.hasSeparator ? 1 : 0) + root.tileElements + root.visibleRunningCount + (root.hasFolderSeparator ? 1 : 0) + index,
-            root.appsSlots + root.pinnedSection.length + root.visibleRunningCount + index,
+            root.appsSlots + root.pinnedSection.length + root.groupSlots + (root.hasLeftTileSeparator ? 1 : 0) + (root.hasSeparator ? 1 : 0) + root.tileElements + root.visibleRunningCount + (root.hasFolderSeparator ? 1 : 0) + index,
+            root.appsSlots + root.pinnedSection.length + root.groupSlots + root.visibleRunningCount + index,
             (root.hasSeparator ? 1 : 0) + (root.hasFolderSeparator ? 1 : 0),
             root.tilesFixedWidth) : 0
           onOpenStackRequested: function(fpath, fname, cx, cy) {

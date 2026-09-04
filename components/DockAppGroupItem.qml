@@ -101,8 +101,20 @@ Item {
         border.width: 1
         border.color: Util.alpha(root ? root.dockForeground : Color.bar.border, 0.28)
 
+        // Empty folder fallback icon
+        Image {
+          visible: gitem.groupApps.length === 0
+          anchors.centerIn: parent
+          width: Math.round(parent.width * 0.55)
+          height: width
+          source: Quickshell.iconPath("folder", true)
+          fillMode: Image.PreserveAspectFit
+          smooth: true
+        }
+
         // 2x2 Mini Icons Grid Preview
         Grid {
+          visible: gitem.groupApps.length > 0
           anchors.centerIn: parent
           columns: 2
           rows: 2
@@ -123,6 +135,10 @@ Item {
               }
 
               readonly property string miniSource: {
+                if (root && root.appLibrary) {
+                  var src = DockModel.resolveAppIcon(root.appLibrary, root.appRows, modelData)
+                  if (src) return src
+                }
                 var p = Quickshell.iconPath(miniCell.appIconName, true)
                 if (p && p !== "") return p
                 return Quickshell.iconPath("application-x-executable", true)
@@ -150,6 +166,7 @@ Item {
     anchors.bottom: parent.bottom
     anchors.bottomMargin: Style.space(1)
     anchors.horizontalCenter: parent.horizontalCenter
+    transform: Translate { x: gitem.waveNudgeX }
     width: Style.space(4)
     height: Style.space(4)
     radius: width / 2

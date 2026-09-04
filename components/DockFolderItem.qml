@@ -111,6 +111,7 @@ Item {
     anchors.bottom: parent.bottom
     anchors.bottomMargin: Style.space(1)
     anchors.horizontalCenter: parent.horizontalCenter
+    transform: Translate { x: fitem.waveNudgeX }
     width: Style.space(4)
     height: Style.space(4)
     radius: width / 2

@@ -223,7 +223,7 @@ Item {
   readonly property real dynamicActiveWidth: totalWindowCount >= 5 ? Style.space(9) : Style.space(12)
   readonly property real dynamicSpacing: totalWindowCount >= 5 ? Style.space(2) : Style.space(3)
 
-  // Fixed at the slot bottom, never scaled or pushed out of the dock.
+  // Fixed at the slot bottom, synchronized laterally with wave displacement.
   Row {
     id: indicatorRow
     anchors.horizontalCenter: parent.horizontalCenter
@@ -232,6 +232,8 @@ Item {
     spacing: item.dynamicSpacing
     visible: item.running
     z: 2
+
+    transform: Translate { x: item.waveNudgeX }
 
     Repeater {
       model: item.maxVisibleDots

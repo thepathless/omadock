@@ -117,44 +117,60 @@ BorderSurface {
           border.color: Color.accent
           border.width: 1
 
-          TextInput {
-            id: nameInput
-            anchors.left: parent.left
-            anchors.right: commitBtn.left
-            anchors.leftMargin: Style.space(4)
-            anchors.rightMargin: Style.space(4)
-            anchors.verticalCenter: parent.verticalCenter
-            color: Color.menu.text
-            font.family: Style.font.family
-            font.pixelSize: Style.font.caption
-            font.bold: true
-            selectByMouse: true
-            onAccepted: {
-              if (root && appGroupPopup.activeGroup) {
-                root.updateAppGroupName(appGroupPopup.activeGroup.id, text)
-              }
-              appGroupPopup.isEditingName = false
-            }
-          }
+          FocusScope {
+            anchors.fill: parent
+            focus: appGroupPopup.isEditingName
 
-          Text {
-            id: commitBtn
-            anchors.right: parent.right
-            anchors.rightMargin: Style.space(4)
-            anchors.verticalCenter: parent.verticalCenter
-            text: "✓"
-            textFormat: Text.PlainText
-            color: Color.accent
-            font.bold: true
-            font.pixelSize: Style.font.caption
-            MouseArea {
-              anchors.fill: parent
-              cursorShape: Qt.PointingHandCursor
-              onClicked: {
+            TextInput {
+              id: nameInput
+              anchors.left: parent.left
+              anchors.right: commitBtn.left
+              anchors.leftMargin: Style.space(4)
+              anchors.rightMargin: Style.space(4)
+              anchors.verticalCenter: parent.verticalCenter
+              color: Color.menu.text
+              font.family: Style.font.family
+              font.pixelSize: Style.font.caption
+              font.bold: true
+              selectByMouse: true
+              activeFocusOnPress: true
+              focus: true
+              Keys.onReturnPressed: {
                 if (root && appGroupPopup.activeGroup) {
-                  root.updateAppGroupName(appGroupPopup.activeGroup.id, nameInput.text)
+                  root.updateAppGroupName(appGroupPopup.activeGroup.id, text)
                 }
                 appGroupPopup.isEditingName = false
+              }
+              Keys.onEscapePressed: {
+                appGroupPopup.isEditingName = false
+              }
+              onAccepted: {
+                if (root && appGroupPopup.activeGroup) {
+                  root.updateAppGroupName(appGroupPopup.activeGroup.id, text)
+                }
+                appGroupPopup.isEditingName = false
+              }
+            }
+
+            Text {
+              id: commitBtn
+              anchors.right: parent.right
+              anchors.rightMargin: Style.space(4)
+              anchors.verticalCenter: parent.verticalCenter
+              text: "✓"
+              textFormat: Text.PlainText
+              color: Color.accent
+              font.bold: true
+              font.pixelSize: Style.font.caption
+              MouseArea {
+                anchors.fill: parent
+                cursorShape: Qt.PointingHandCursor
+                onClicked: {
+                  if (root && appGroupPopup.activeGroup) {
+                    root.updateAppGroupName(appGroupPopup.activeGroup.id, nameInput.text)
+                  }
+                  appGroupPopup.isEditingName = false
+                }
               }
             }
           }
@@ -332,24 +348,23 @@ BorderSurface {
 
           readonly property string appIdStr: String(modelData || "")
           readonly property var deskEntry: root ? DockModel.entryFor(root.appRows, appCell.appIdStr) : null
-          readonly property string appName: (deskEntry && deskEntry.name) ? deskEntry.name : appCell.appIdStr
+          readonly property string appName: (root && root.appLibrary) ? DockModel.resolveAppName(root.appLibrary, root.appRows, appCell.appIdStr) : ((deskEntry && deskEntry.name) ? deskEntry.name : appCell.appIdStr)
           readonly property string appIconName: (deskEntry && deskEntry.icon) ? deskEntry.icon : appCell.appIdStr
 
           readonly property string appIconSource: {
+            if (root && root.appLibrary) {
+              var src = DockModel.resolveAppIcon(root.appLibrary, root.appRows, appCell.appIdStr)
+              if (src) return src
+            }
             var p = Quickshell.iconPath(appCell.appIconName, true)
             if (p && p !== "") return p
             return Quickshell.iconPath("application-x-executable", true)
           }
 
           readonly property bool isRunning: {
-            if (!root || !root.runningSection) return false
-            var running = root.runningSection || []
-            for (var r = 0; r < running.length; r++) {
-              if (running[r] && (running[r].appId === appCell.appIdStr || DockModel.isAppMatch(running[r].appId, appCell.appIdStr))) {
-                if (running[r].running) return true
-              }
-            }
-            return false
+            if (!root) return false
+            var entry = root.entryForId(appCell.appIdStr)
+            return entry ? entry.running === true : false
           }
 
           HoverHandler {

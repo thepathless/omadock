@@ -75,10 +75,11 @@ Item {
   readonly property real magnifyRange: root.iconSlot * 2.2
   readonly property real baseIconArt: root.iconSize - Style.space(4)
 
-  // The card's own handler, lifted into window coordinates. Both terms move
-  // together as the card grows, so their sum stays the physical pointer.
+  // The card's own handler, measured in local row coordinates.
+  // Using local row coordinates makes wave magnification 100% immune to window
+  // width, screen resolution, dock alignment, and monitor geometry.
   readonly property real pointerX: cardHover.hovered
-    ? dockCardComp.x + cardHover.point.position.x
+    ? (cardHover.point.position.x - (dockCard ? dockCard.contentLeftInset : 0))
     : -1e6
 
   readonly property int appsSlots: root.showAppsButton ? 1 : 0
@@ -185,8 +186,7 @@ Item {
 
   function slotHomeCenter(elementIndex, slotsBefore, sepCount, extraLeftWidth) {
     var seps = (typeof sepCount === "number") ? sepCount : (sepCount ? 1 : 0)
-    return root.baseRowLeft
-      + elementIndex * root.gapWidth
+    return elementIndex * root.gapWidth
       + slotsBefore * root.iconSlot
       + seps * root.separatorWidth
       + (extraLeftWidth || 0)
@@ -289,11 +289,12 @@ Item {
   property string _minimizedSig: ""
   readonly property var pinnedSection: root.dockModel.pinned || []
   readonly property var runningSection: root.dockModel.running || []
+  readonly property var groupedSection: root.dockModel.grouped || []
 
   function refreshDock() {
     root.dockModel = root.shell && root.shell.appLibrary
       ? DockModel.buildEntries(root.pinnedIds, (ToplevelManager.toplevels ? ToplevelManager.toplevels.values : []), root.appRows,
-                               root.shell.appLibrary, root.hyprToplevelFor, root.minimizedWorkspace, root.minimizedOrigins)
+                               root.shell.appLibrary, root.hyprToplevelFor, root.minimizedWorkspace, root.minimizedOrigins, root.appGroups)
       : { pinned: [], running: [] }
     root.rescanMinimizedWindows()
     root.pruneLaunching()
@@ -2456,6 +2457,11 @@ Item {
       if (root.runningSection[i].appId === appId || DockModel.isAppMatch(root.runningSection[i].appId, appId))
         return root.runningSection[i]
     }
+    var grouped = root.groupedSection || []
+    for (i = 0; i < grouped.length; i++) {
+      if (grouped[i].appId === appId || DockModel.isAppMatch(grouped[i].appId, appId))
+        return grouped[i]
+    }
     return null
   }
 
@@ -2684,9 +2690,9 @@ Item {
     screen: root.dockScreen
     color: "transparent"
     WlrLayershell.namespace: "omadock"
-    WlrLayershell.layer: WlrLayer.Top
-    WlrLayershell.keyboardFocus: WlrKeyboardFocus.None
-    exclusionMode: (!root.autohide) ? ExclusionMode.Normal : ExclusionMode.Ignore
+    WlrLayershell.keyboardFocus: (appGroupPopupComp && appGroupPopupComp.isEditingName)
+      ? WlrKeyboardFocus.OnDemand
+      : WlrKeyboardFocus.None
     exclusiveZone: (!root.autohide) ? Math.round(dockCard.height + Style.gapsOut * 2) : 0
     anchors {
       bottom: true
