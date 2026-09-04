@@ -20,10 +20,10 @@ BorderSurface {
   Behavior on opacity { NumberAnimation { duration: 120 } }
 
   z: 100
-  color: Color.menu.background
-  borderSpec: Border.surfaceSpec("menu", "border", Color.menu.border, 1)
-  radius: Style.cornerRadius
-  padding: Style.space(6)
+  color: Util.alpha(Color.menu.background, 0.94)
+  borderSpec: Border.flat(Util.alpha(root ? root.dockForeground : Color.menu.border, 0.22), 1.5)
+  radius: Style.space(20)
+  padding: Style.space(12)
 
   property bool isEditingName: false
   property bool showSettings: false
@@ -33,168 +33,51 @@ BorderSurface {
   }
 
   readonly property int cols: (activeGroup && activeGroup.cols) ? activeGroup.cols : Math.min(4, Math.max(2, appList.length <= 4 ? 2 : (appList.length <= 9 ? 3 : 4)))
-  readonly property real cellWidth: Style.space(72)
-  readonly property real cellHeight: Style.space(74)
-  readonly property real contentW: Math.max(Style.space(240), (cols * cellWidth) + ((cols - 1) * Style.space(4)) + contentLeftInset + contentRightInset + Style.space(12))
+  readonly property real cellWidth: Style.space(76)
+  readonly property real cellHeight: Style.space(80)
+  readonly property real contentW: Math.max(Style.space(260), (cols * cellWidth) + ((cols - 1) * Style.space(6)) + contentLeftInset + contentRightInset + Style.space(16))
   readonly property real contentH: mainColumn.implicitHeight + contentTopInset + contentBottomInset
 
   width: (root && root.activeAppGroupId !== "") ? contentW : 0
   height: (root && root.activeAppGroupId !== "") ? contentH : 0
 
+  anchors.horizontalCenter: parent ? parent.horizontalCenter : undefined
   anchors.bottom: targetCard ? targetCard.top : undefined
-  anchors.bottomMargin: Style.space(6)
-  x: Math.max(Style.gapsOut, Math.min((targetWindow ? targetWindow.width : 1920) - width - Style.gapsOut, (root ? root.activeAppGroupX : 0) - width / 2))
+  anchors.bottomMargin: Style.space(24)
 
   Column {
     id: mainColumn
-    spacing: Style.space(4)
+    spacing: Style.space(6)
     width: parent.width - appGroupPopup.contentLeftInset - appGroupPopup.contentRightInset
     anchors.horizontalCenter: parent.horizontalCenter
     anchors.top: parent.top
     anchors.topMargin: appGroupPopup.contentTopInset
 
-    // Group Header with inline rename and settings toggle
-    Row {
+    // Symmetrical Android/iOS Folder Header
+    Item {
       width: parent.width
-      height: Style.space(26)
-      spacing: Style.space(6)
+      height: Style.space(32)
 
-      // Title & Inline Rename Container
-      Item {
-        width: parent.width - countBadge.width - settingsBtn.width - Style.space(14)
-        height: parent.height
-        anchors.verticalCenter: parent.verticalCenter
-
-        HoverHandler { id: titleHover }
-
-        MouseArea {
-          anchors.fill: parent
-          enabled: !appGroupPopup.isEditingName
-          cursorShape: Qt.PointingHandCursor
-          onClicked: {
-            appGroupPopup.isEditingName = true
-            nameInput.text = (appGroupPopup.activeGroup && appGroupPopup.activeGroup.name) ? appGroupPopup.activeGroup.name : "Folder"
-            nameInput.forceActiveFocus()
-            nameInput.selectAll()
-          }
-        }
-
-        // Normal View: Title with click to rename
-        Row {
-          visible: !appGroupPopup.isEditingName
-          anchors.fill: parent
-          spacing: Style.space(4)
-
-          Text {
-            anchors.verticalCenter: parent.verticalCenter
-            text: (appGroupPopup.activeGroup && appGroupPopup.activeGroup.name) ? appGroupPopup.activeGroup.name : "App Group"
-            textFormat: Text.PlainText
-            color: titleHover.hovered ? Color.accent : Color.menu.text
-            font.family: Style.font.family
-            font.pixelSize: Style.font.caption
-            font.bold: true
-            elide: Text.ElideRight
-            maximumLineCount: 1
-          }
-
-          Text {
-            anchors.verticalCenter: parent.verticalCenter
-            visible: titleHover.hovered
-            text: "✎"
-            textFormat: Text.PlainText
-            color: Color.accent
-            font.family: Style.font.family
-            font.pixelSize: Style.font.caption
-          }
-        }
-
-        // Inline Name Input Field
-        Rectangle {
-          visible: appGroupPopup.isEditingName
-          anchors.fill: parent
-          radius: Style.space(4)
-          color: Util.alpha(Color.bar.background, 0.45)
-          border.color: Color.accent
-          border.width: 1
-
-          FocusScope {
-            anchors.fill: parent
-            focus: appGroupPopup.isEditingName
-
-            TextInput {
-              id: nameInput
-              anchors.left: parent.left
-              anchors.right: commitBtn.left
-              anchors.leftMargin: Style.space(4)
-              anchors.rightMargin: Style.space(4)
-              anchors.verticalCenter: parent.verticalCenter
-              color: Color.menu.text
-              font.family: Style.font.family
-              font.pixelSize: Style.font.caption
-              font.bold: true
-              selectByMouse: true
-              activeFocusOnPress: true
-              focus: true
-              Keys.onReturnPressed: {
-                if (root && appGroupPopup.activeGroup) {
-                  root.updateAppGroupName(appGroupPopup.activeGroup.id, text)
-                }
-                appGroupPopup.isEditingName = false
-              }
-              Keys.onEscapePressed: {
-                appGroupPopup.isEditingName = false
-              }
-              onAccepted: {
-                if (root && appGroupPopup.activeGroup) {
-                  root.updateAppGroupName(appGroupPopup.activeGroup.id, text)
-                }
-                appGroupPopup.isEditingName = false
-              }
-            }
-
-            Text {
-              id: commitBtn
-              anchors.right: parent.right
-              anchors.rightMargin: Style.space(4)
-              anchors.verticalCenter: parent.verticalCenter
-              text: "✓"
-              textFormat: Text.PlainText
-              color: Color.accent
-              font.bold: true
-              font.pixelSize: Style.font.caption
-              MouseArea {
-                anchors.fill: parent
-                cursorShape: Qt.PointingHandCursor
-                onClicked: {
-                  if (root && appGroupPopup.activeGroup) {
-                    root.updateAppGroupName(appGroupPopup.activeGroup.id, nameInput.text)
-                  }
-                  appGroupPopup.isEditingName = false
-                }
-              }
-            }
-          }
-        }
-      }
-
-      // App Count Badge
+      // App Count Badge (left-aligned)
       Text {
         id: countBadge
+        anchors.left: parent.left
         anchors.verticalCenter: parent.verticalCenter
-        text: String(appGroupPopup.appList.length)
+        text: String(appGroupPopup.appList.length) + (appGroupPopup.appList.length === 1 ? " app" : " apps")
         textFormat: Text.PlainText
-        color: Util.alpha(Color.menu.text, 0.5)
+        color: Util.alpha(Color.menu.text, 0.45)
         font.family: Style.font.family
-        font.pixelSize: Style.font.caption
+        font.pixelSize: Math.max(10, Style.font.caption - 1)
       }
 
-      // Settings Toggle Button
+      // Folder Settings Toggle Button (right-aligned)
       Rectangle {
         id: settingsBtn
+        anchors.right: parent.right
         anchors.verticalCenter: parent.verticalCenter
-        width: Style.space(22)
-        height: Style.space(22)
-        radius: Style.space(4)
+        width: Style.space(24)
+        height: Style.space(24)
+        radius: Style.space(6)
         color: appGroupPopup.showSettings ? Util.alpha(Color.bar.active, 0.22) : (settingsHover.hovered ? Util.alpha(Color.menu.text, 0.12) : "transparent")
 
         HoverHandler { id: settingsHover }
@@ -215,6 +98,149 @@ BorderSurface {
           onClicked: {
             appGroupPopup.showSettings = !appGroupPopup.showSettings
             if (appGroupPopup.isEditingName) appGroupPopup.isEditingName = false
+          }
+        }
+      }
+
+      // Centered Title & Inline Rename Container
+      Item {
+        anchors.centerIn: parent
+        width: Math.min(parent.width - Style.space(110), Math.max(Style.space(120), titleRow.implicitWidth + Style.space(16)))
+        height: parent.height
+
+        HoverHandler { id: titleHover }
+
+        MouseArea {
+          anchors.fill: parent
+          enabled: !appGroupPopup.isEditingName
+          cursorShape: Qt.PointingHandCursor
+          onClicked: {
+            appGroupPopup.isEditingName = true
+            nameInput.text = (appGroupPopup.activeGroup && appGroupPopup.activeGroup.name) ? appGroupPopup.activeGroup.name : "Folder"
+            Qt.callLater(function() {
+              nameInput.forceActiveFocus()
+              nameInput.selectAll()
+            })
+          }
+        }
+
+        // View Mode: Centered title with hover edit pencil
+        Row {
+          id: titleRow
+          visible: !appGroupPopup.isEditingName
+          anchors.centerIn: parent
+          spacing: Style.space(5)
+
+          Text {
+            anchors.verticalCenter: parent.verticalCenter
+            text: (appGroupPopup.activeGroup && appGroupPopup.activeGroup.name) ? appGroupPopup.activeGroup.name : "Folder"
+            textFormat: Text.PlainText
+            color: titleHover.hovered ? Color.accent : Color.menu.text
+            font.family: Style.font.family
+            font.pixelSize: Style.font.body + 2
+            font.bold: true
+            elide: Text.ElideRight
+            maximumLineCount: 1
+          }
+
+          Text {
+            anchors.verticalCenter: parent.verticalCenter
+            visible: titleHover.hovered
+            text: "✎"
+            textFormat: Text.PlainText
+            color: Color.accent
+            font.family: Style.font.family
+            font.pixelSize: Style.font.caption
+          }
+        }
+
+        // Inline Name Input Field with reliable focus & commit
+        Rectangle {
+          visible: appGroupPopup.isEditingName
+          anchors.fill: parent
+          radius: Style.space(6)
+          color: Util.alpha(Color.bar.background, 0.65)
+          border.color: Color.accent
+          border.width: 1.5
+
+          FocusScope {
+            anchors.fill: parent
+            focus: appGroupPopup.isEditingName
+
+            TextInput {
+              id: nameInput
+              anchors.left: parent.left
+              anchors.right: commitBtn.left
+              anchors.leftMargin: Style.space(8)
+              anchors.rightMargin: Style.space(4)
+              anchors.verticalCenter: parent.verticalCenter
+              color: Color.menu.text
+              font.family: Style.font.family
+              font.pixelSize: Style.font.body
+              font.bold: true
+              selectByMouse: true
+              activeFocusOnPress: true
+              focus: true
+              cursorVisible: activeFocus
+
+              onActiveFocusChanged: {
+                if (!activeFocus && appGroupPopup.isEditingName) {
+                  if (root && appGroupPopup.activeGroup && text.trim() !== "") {
+                    root.updateAppGroupName(appGroupPopup.activeGroup.id, text.trim())
+                  }
+                  appGroupPopup.isEditingName = false
+                }
+              }
+
+              Keys.onReturnPressed: {
+                if (root && appGroupPopup.activeGroup && text.trim() !== "") {
+                  root.updateAppGroupName(appGroupPopup.activeGroup.id, text.trim())
+                }
+                appGroupPopup.isEditingName = false
+              }
+              Keys.onEscapePressed: {
+                appGroupPopup.isEditingName = false
+              }
+              onAccepted: {
+                if (root && appGroupPopup.activeGroup && text.trim() !== "") {
+                  root.updateAppGroupName(appGroupPopup.activeGroup.id, text.trim())
+                }
+                appGroupPopup.isEditingName = false
+              }
+            }
+
+            Rectangle {
+              id: commitBtn
+              anchors.right: parent.right
+              anchors.rightMargin: Style.space(4)
+              anchors.verticalCenter: parent.verticalCenter
+              width: Style.space(22)
+              height: Style.space(22)
+              radius: Style.space(4)
+              color: commitHover.hovered ? Color.accent : Util.alpha(Color.accent, 0.22)
+
+              HoverHandler { id: commitHover }
+
+              Text {
+                anchors.centerIn: parent
+                text: "✓"
+                textFormat: Text.PlainText
+                color: commitHover.hovered ? "#ffffff" : Color.accent
+                font.bold: true
+                font.pixelSize: Style.font.caption
+              }
+
+              MouseArea {
+                anchors.fill: parent
+                cursorShape: Qt.PointingHandCursor
+                onClicked: {
+                  if (root && appGroupPopup.activeGroup && nameInput.text.trim() !== "") {
+                    root.updateAppGroupName(appGroupPopup.activeGroup.id, nameInput.text.trim())
+                  }
+                  appGroupPopup.isEditingName = false
+                }
+              }
+            }
           }
         }
       }
@@ -334,7 +360,7 @@ BorderSurface {
       id: appsGrid
       visible: appGroupPopup.appList.length > 0
       columns: appGroupPopup.cols
-      spacing: Style.space(4)
+      spacing: Style.space(6)
       anchors.horizontalCenter: parent.horizontalCenter
 
       Repeater {
@@ -343,8 +369,9 @@ BorderSurface {
           id: appCell
           width: appGroupPopup.cellWidth
           height: appGroupPopup.cellHeight
-          radius: Style.space(4)
-          color: cellHover.hovered ? Util.alpha(Color.bar.active, 0.16) : "transparent"
+          radius: Style.space(12)
+          color: cellHover.hovered ? Util.alpha(Color.bar.active, 0.20) : "transparent"
+          Behavior on color { ColorAnimation { duration: 120 } }
 
           readonly property string appIdStr: String(modelData || "")
           readonly property var deskEntry: root ? DockModel.entryFor(root.appRows, appCell.appIdStr) : null
@@ -438,14 +465,14 @@ BorderSurface {
             width: parent.width - Style.space(4)
 
             Item {
-              width: Style.space(38)
-              height: Style.space(38)
+              width: Style.space(42)
+              height: Style.space(42)
               anchors.horizontalCenter: parent.horizontalCenter
 
               Image {
                 anchors.fill: parent
                 source: appCell.appIconSource
-                sourceSize: Qt.size(Style.space(76), Style.space(76))
+                sourceSize: Qt.size(Style.space(84), Style.space(84))
                 fillMode: Image.PreserveAspectFit
                 asynchronous: true
                 smooth: true

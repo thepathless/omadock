@@ -121,7 +121,7 @@ Item {
     return Math.round((parent.width - width) / 2)
   }
   Behavior on x {
-    NumberAnimation { duration: 240; easing.type: Easing.OutCubic }
+    NumberAnimation { duration: 110; easing.type: Easing.OutQuad }
   }
 
   opacity: (root && root.dockVisible) ? 1 : 0
@@ -177,9 +177,18 @@ Item {
     padding: Style.space(5)
     z: 1
 
-    HoverHandler {
-      id: cardHover
-      onHoveredChanged: if (root) root.syncVisibility()
+    Item {
+      id: dockHoverArea
+      anchors.left: parent.left
+      anchors.right: parent.right
+      anchors.bottom: parent.bottom
+      anchors.top: parent.top
+      anchors.topMargin: -Math.round(root ? (root.iconSlot * 0.75) : 32)
+
+      HoverHandler {
+        id: cardHover
+        onHoveredChanged: if (root) root.syncVisibility()
+      }
     }
 
     width: Math.max(root ? root.baseRowWidth : 0, row.implicitWidth) + contentLeftInset + contentRightInset

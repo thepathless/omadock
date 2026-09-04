@@ -31,9 +31,13 @@ Item {
     NumberAnimation { duration: 110; easing.type: Easing.OutQuad }
   }
 
-  readonly property real waveNudgeX: root ? root.waveOffsetAt(btn.homeCenter) : 0
+  readonly property real waveNudgeX: 0
 
-  width: root ? root.iconSlot : 0
+  width: {
+    if (!root) return 0
+    if (root.waveHover) return Math.round(root.iconSlot * (1 + (btn.magnifyScale - 1) * 0.70))
+    return root.iconSlot
+  }
   height: root ? root.iconSlot : 0
   z: Math.round(btn.magnifyScale * 100)
 
@@ -45,7 +49,6 @@ Item {
     font.pixelSize: btn.glyphSize
     color: area.containsMouse ? Color.accent : btn.glyphColor
     scale: btn.magnifyScale * (area.pressed ? 0.92 : 1.0)
-    transform: Translate { x: btn.waveNudgeX }
     Behavior on color { ColorAnimation { duration: 120 } }
   }
 

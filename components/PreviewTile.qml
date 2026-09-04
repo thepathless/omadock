@@ -56,9 +56,13 @@ Item {
     }
   }
 
-  readonly property real waveNudgeX: root ? root.waveOffsetAt(tile.homeCenter) : 0
+  readonly property real waveNudgeX: 0
 
-  width: root ? root.tileWidth : 0
+  width: {
+    if (!root) return 0
+    if (root.waveHover) return Math.round(root.tileWidth * (1 + (tile.magnifyScale - 1) * 0.70))
+    return root.tileWidth
+  }
   height: root ? root.tileHeight : 0
   z: Math.round(tile.magnifyScale * 100)
   anchors.verticalCenter: parent ? parent.verticalCenter : undefined
@@ -69,7 +73,6 @@ Item {
     anchors.fill: parent
     scale: tile.magnifyScale
     transformOrigin: Item.Bottom
-    transform: Translate { x: tile.waveNudgeX }
 
     // Stacked-card layers behind grouped tiles hint at the count.
     Rectangle {

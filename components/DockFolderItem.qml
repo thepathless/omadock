@@ -19,7 +19,11 @@ Item {
   signal openStackRequested(string path, string name, real cx, real cy)
   signal menuRequested(string path, string name, real cx, real cy)
 
-  width: root ? root.iconSlot : 0
+  width: {
+    if (!root) return 0
+    if (root.waveHover) return Math.round(root.iconSlot * (1 + (fitem.magnifyScale - 1) * 0.70))
+    return root.iconSlot
+  }
   height: root ? root.iconSlot : 0
   z: Math.round(fitem.magnifyScale * 100)
 
@@ -32,7 +36,7 @@ Item {
     return area.containsMouse ? root.zoomPeak : 1
   }
 
-  readonly property real waveNudgeX: root ? root.waveOffsetAt(fitem.homeCenter) : 0
+  readonly property real waveNudgeX: 0
 
   readonly property string resolvedSource: {
     var _tv = root ? root.themeVersion : 0
@@ -65,7 +69,6 @@ Item {
       anchors.bottomMargin: Math.round((iconSlot.height - height) / 2)
       scale: fitem.magnifyScale
       transformOrigin: Item.Bottom
-      transform: Translate { x: fitem.waveNudgeX }
 
       Image {
         id: folderIconImg

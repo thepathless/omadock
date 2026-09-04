@@ -32,10 +32,14 @@ Item {
   signal dragDropped(string appId)
   signal wheelScrolled(string appId, int direction)
 
-  // macOS-style dock layout: Slots maintain constant unmagnified width so the
-  // dock shelf background never expands or twitches horizontally. The icon artwork
-  // magnifies upwards with natural z-layering and subtle fisheye horizontal offset.
-  width: root ? root.iconSlot : 0
+  // macOS-style dock layout: Slots expand naturally in Row to create space for
+  // magnified icons. The layout engine pushes neighboring items outward smoothly
+  // while keeping indicators and drop targets perfectly centered without manual transforms.
+  width: {
+    if (!root) return 0
+    if (root.waveHover) return Math.round(root.iconSlot * (1 + (item.magnifyScale - 1) * 0.70))
+    return root.iconSlot
+  }
   height: root ? root.iconSlot : 0
   z: Math.round(item.magnifyScale * 100)
 
@@ -51,7 +55,7 @@ Item {
     return (area.containsMouse && !item.isDragging) ? root.zoomPeak : 1
   }
 
-  readonly property real waveNudgeX: root ? root.waveOffsetAt(item.homeCenter) : 0
+  readonly property real waveNudgeX: 0
 
   readonly property bool isDropTarget: (root && root.dropTargetAppId === item.appId && root.dragAppId !== item.appId)
 
@@ -150,8 +154,7 @@ Item {
     Behavior on scale { NumberAnimation { duration: 90; easing.type: Easing.OutQuad } }
 
     transform: [
-      Translate { y: item.bounceY },
-      Translate { x: item.waveNudgeX }
+      Translate { y: item.bounceY }
     ]
 
     // Drop target halo for creating an App Folder
@@ -232,8 +235,6 @@ Item {
     spacing: item.dynamicSpacing
     visible: item.running
     z: 2
-
-    transform: Translate { x: item.waveNudgeX }
 
     Repeater {
       model: item.maxVisibleDots

@@ -20,7 +20,11 @@ Item {
   signal openGroupRequested(var gdata, real cx, real cy)
   signal menuRequested(var gdata, real cx, real cy)
 
-  width: root ? root.iconSlot : 0
+  width: {
+    if (!root) return 0
+    if (root.waveHover) return Math.round(root.iconSlot * (1 + (gitem.magnifyScale - 1) * 0.70))
+    return root.iconSlot
+  }
   height: root ? root.iconSlot : 0
   z: Math.round(gitem.magnifyScale * 100)
 
@@ -49,7 +53,7 @@ Item {
     return groupArea.containsMouse ? root.zoomPeak : 1
   }
 
-  readonly property real waveNudgeX: root ? root.waveOffsetAt(gitem.homeCenter) : 0
+  readonly property real waveNudgeX: 0
 
   Behavior on magnifyScale {
     NumberAnimation { duration: 110; easing.type: Easing.OutQuad }
@@ -71,7 +75,6 @@ Item {
       anchors.bottomMargin: gitem.hasRunningApps ? Style.space(5) : Math.round((iconSlot.height - height) / 2)
       scale: gitem.magnifyScale
       transformOrigin: Item.Bottom
-      transform: Translate { x: gitem.waveNudgeX }
 
       // Drop target halo
       Rectangle {
@@ -166,7 +169,6 @@ Item {
     anchors.bottom: parent.bottom
     anchors.bottomMargin: Style.space(1)
     anchors.horizontalCenter: parent.horizontalCenter
-    transform: Translate { x: gitem.waveNudgeX }
     width: Style.space(4)
     height: Style.space(4)
     radius: width / 2

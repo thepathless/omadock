@@ -75,11 +75,11 @@ Item {
   readonly property real magnifyRange: root.iconSlot * 2.2
   readonly property real baseIconArt: root.iconSize - Style.space(4)
 
-  // The card's own handler, measured in local row coordinates.
-  // Using local row coordinates makes wave magnification 100% immune to window
-  // width, screen resolution, dock alignment, and monitor geometry.
+  // Scene-anchored pointer coordinate measured against unmagnified rest frame.
+  // Using scenePosition minus baseRowLeft decouples the mouse position from dock
+  // width animations and recentering shifts, completely eliminating acoustic feedback jitter.
   readonly property real pointerX: cardHover.hovered
-    ? (cardHover.point.position.x - (dockCard ? dockCard.contentLeftInset : 0))
+    ? (cardHover.point.scenePosition.x - root.baseRowLeft)
     : -1e6
 
   readonly property int appsSlots: root.showAppsButton ? 1 : 0
@@ -211,18 +211,9 @@ Item {
     return 1 + (root.magnifyPeak - 1) * root.magnifyAt(homeCenter)
   }
 
-  // macOS integral-based offset — closed-form solution for uniform gap spacing.
-  // Integral of (scale(t) - 1) from 0 to |d| for raised cosine evaluates to:
-  //   (peak-1)/2 * (|d| + R/π * sin(π*|d|/R))
+  // Layout slot expansion handles spacing naturally; manual translation nudges are deprecated.
   function waveOffsetAt(homeCenter) {
-    if (!root.waveHover) return 0
-    var d = homeCenter - root.pointerX
-    var absd = Math.abs(d)
-    var R = root.magnifyRange
-    var peak = root.magnifyPeak
-    if (absd >= R) return Math.sign(d) * (peak - 1) * R / 2
-    if (absd < 0.5) return 0
-    return Math.sign(d) * ((peak - 1) / 2) * (absd + (R / Math.PI) * Math.sin(Math.PI * absd / R))
+    return 0
   }
 
   // ------------------------------------------------- contrast
@@ -448,7 +439,7 @@ Item {
   // the behaviour this dock shipped with, and the default. "wave" is the
   // falloff: neighbours respond and the row carries the extra width. "off" is
   // no hover growth at all.
-  property string hoverEffect: "zoom"
+  property string hoverEffect: "wave"
   readonly property bool waveHover: root.hoverEffect === "wave"
   property bool launchBounce: true
   property bool advancedTooltips: true
@@ -2691,7 +2682,7 @@ Item {
     color: "transparent"
     WlrLayershell.namespace: "omadock"
     WlrLayershell.keyboardFocus: (appGroupPopupComp && appGroupPopupComp.isEditingName)
-      ? WlrKeyboardFocus.OnDemand
+      ? WlrKeyboardFocus.Exclusive
       : WlrKeyboardFocus.None
     exclusiveZone: (!root.autohide) ? Math.round(dockCard.height + Style.gapsOut * 2) : 0
     anchors {
@@ -2750,6 +2741,15 @@ Item {
       id: globalDismiss
       width: (root.contextAppId !== "" || root.activeStackFolder !== "" || root.activeAppGroupId !== "" || root.dragAppId !== "") ? dockWindow.width : 0
       height: (root.contextAppId !== "" || root.activeStackFolder !== "" || root.activeAppGroupId !== "" || root.dragAppId !== "") ? dockWindow.height : 0
+
+      // iOS/Android-style subtle dark backdrop scrim when an app folder is open
+      Rectangle {
+        anchors.fill: parent
+        color: Qt.rgba(0, 0, 0, 0.38)
+        opacity: (root.activeAppGroupId !== "") ? 1 : 0
+        Behavior on opacity { NumberAnimation { duration: 140 } }
+      }
+
       MouseArea {
         anchors.fill: parent
         z: -1
