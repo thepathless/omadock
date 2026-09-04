@@ -23,8 +23,9 @@ Item {
   signal openStackRequested(string path, string name, real cx, real cy)
   signal menuRequested(string dev, string mountpoint, string name, string space, real cx, real cy)
 
-  width: root ? (root.iconSlot * (root.waveHover ? ditem.magnifyScale : 1)) : 0
+  width: root ? root.iconSlot : 0
   height: root ? root.iconSlot : 0
+  z: Math.round(ditem.magnifyScale * 100)
 
   readonly property bool isOpen: root ? root.activeStackFolder === ditem.mountpoint : false
 
@@ -33,6 +34,13 @@ Item {
     if (root.waveHover) return root.magnifyScaleAt(ditem.homeCenter)
     if (root.hoverEffect === "off") return 1
     return driveArea.containsMouse ? root.zoomPeak : 1
+  }
+
+  readonly property real waveNudgeX: {
+    if (!root || !root.waveHover || ditem.magnifyScale <= 1.01) return 0
+    var dx = ditem.homeCenter - root.pointerX
+    if (Math.abs(dx) >= root.magnifyRange || Math.abs(dx) < 1) return 0
+    return Math.sign(dx) * (ditem.magnifyScale - 1) * Style.space(5)
   }
 
   readonly property string resolvedSource: {
@@ -72,8 +80,12 @@ Item {
       id: iconContainer
       width: root ? root.iconSize : 0
       height: root ? root.iconSize : 0
-      anchors.centerIn: parent
+      anchors.horizontalCenter: parent.horizontalCenter
+      anchors.bottom: parent.bottom
+      anchors.bottomMargin: Math.round((iconSlot.height - height) / 2)
       scale: ditem.magnifyScale
+      transformOrigin: Item.Bottom
+      transform: Translate { x: ditem.waveNudgeX }
 
       Image {
         id: driveIconImg

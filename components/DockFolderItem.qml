@@ -19,8 +19,9 @@ Item {
   signal openStackRequested(string path, string name, real cx, real cy)
   signal menuRequested(string path, string name, real cx, real cy)
 
-  width: root ? (root.iconSlot * (root.waveHover ? fitem.magnifyScale : 1)) : 0
+  width: root ? root.iconSlot : 0
   height: root ? root.iconSlot : 0
+  z: Math.round(fitem.magnifyScale * 100)
 
   readonly property bool isOpen: root ? root.activeStackFolder === fitem.folderPath : false
 
@@ -29,6 +30,13 @@ Item {
     if (root.waveHover) return root.magnifyScaleAt(fitem.homeCenter)
     if (root.hoverEffect === "off") return 1
     return area.containsMouse ? root.zoomPeak : 1
+  }
+
+  readonly property real waveNudgeX: {
+    if (!root || !root.waveHover || fitem.magnifyScale <= 1.01) return 0
+    var dx = fitem.homeCenter - root.pointerX
+    if (Math.abs(dx) >= root.magnifyRange || Math.abs(dx) < 1) return 0
+    return Math.sign(dx) * (fitem.magnifyScale - 1) * Style.space(5)
   }
 
   readonly property string resolvedSource: {
@@ -57,8 +65,12 @@ Item {
       id: iconContainer
       width: root ? root.iconSize : 0
       height: root ? root.iconSize : 0
-      anchors.centerIn: parent
+      anchors.horizontalCenter: parent.horizontalCenter
+      anchors.bottom: parent.bottom
+      anchors.bottomMargin: Math.round((iconSlot.height - height) / 2)
       scale: fitem.magnifyScale
+      transformOrigin: Item.Bottom
+      transform: Translate { x: fitem.waveNudgeX }
 
       Image {
         id: folderIconImg

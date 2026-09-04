@@ -32,10 +32,12 @@ Item {
   signal dragDropped(string appId)
   signal wheelScrolled(string appId, int direction)
 
-  // Only the wave lets a slot grow; zoom keeps the layout still and simply
-  // draws its icon larger.
-  width: root ? (root.iconSlot * (root.waveHover ? item.magnifyScale : 1)) : 0
+  // macOS-style dock layout: Slots maintain constant unmagnified width so the
+  // dock shelf background never expands or twitches horizontally. The icon artwork
+  // magnifies upwards with natural z-layering and subtle fisheye horizontal offset.
+  width: root ? root.iconSlot : 0
   height: root ? root.iconSlot : 0
+  z: Math.round(item.magnifyScale * 100)
 
   property bool isDragging: false
   property bool _dragJustEnded: false
@@ -48,6 +50,15 @@ Item {
     if (root.hoverEffect === "off") return 1
     return (area.containsMouse && !item.isDragging) ? root.zoomPeak : 1
   }
+
+  readonly property real waveNudgeX: {
+    if (!root || !root.waveHover || item.magnifyScale <= 1.01) return 0
+    var dx = item.homeCenter - root.pointerX
+    if (Math.abs(dx) >= root.magnifyRange || Math.abs(dx) < 1) return 0
+    return Math.sign(dx) * (item.magnifyScale - 1) * Style.space(5)
+  }
+
+  readonly property bool isDropTarget: (root && root.dropTargetAppId === item.appId && root.dragAppId !== item.appId)
 
   Behavior on magnifyScale {
     NumberAnimation { duration: 110; easing.type: Easing.OutQuad }
@@ -143,8 +154,28 @@ Item {
     transformOrigin: Item.Bottom
     Behavior on scale { NumberAnimation { duration: 90; easing.type: Easing.OutQuad } }
 
-    transform: Translate {
-      y: item.bounceY
+    transform: [
+      Translate { y: item.bounceY },
+      Translate { x: item.waveNudgeX }
+    ]
+
+    // Drop target halo for creating an App Folder
+    Rectangle {
+      visible: item.isDropTarget
+      anchors.centerIn: parent
+      width: (root ? root.baseIconArt : 32) + Style.space(8)
+      height: width
+      radius: Style.space(6)
+      color: Util.alpha(Color.bar.active, 0.22)
+      border.color: Color.bar.active
+      border.width: 1.5
+      z: -1
+      SequentialAnimation on opacity {
+        running: item.isDropTarget
+        loops: Animation.Infinite
+        NumberAnimation { from: 0.5; to: 1.0; duration: 350; easing.type: Easing.InOutQuad }
+        NumberAnimation { from: 1.0; to: 0.5; duration: 350; easing.type: Easing.InOutQuad }
+      }
     }
 
     // Sits on the dock floor and grows upward, so a magnified icon never
@@ -304,7 +335,7 @@ Item {
     }
 
     onPressed: function(mouse) {
-      if (mouse.button === Qt.LeftButton && item.pinned) {
+      if (mouse.button === Qt.LeftButton && (item.pinned || item.running)) {
         item.dragStartX = mouse.x
         item.isDragging = false
         item._dragJustEnded = false
@@ -312,7 +343,7 @@ Item {
     }
 
     onPositionChanged: function(mouse) {
-      if (area.pressed && mouse.buttons & Qt.LeftButton && item.pinned) {
+      if (area.pressed && mouse.buttons & Qt.LeftButton && (item.pinned || item.running)) {
         var dist = Math.abs(mouse.x - item.dragStartX)
         if (!item.isDragging && dist > 8) {
           item.isDragging = true

@@ -21,6 +21,88 @@ Item {
   property alias foldersRepeater: foldersRepeater
   property alias drivesRepeater: drivesRepeater
 
+  function handleDragMoved(aid, mx) {
+    if (!root) return
+    root.dropBeforeId = ""
+    root.dropTargetAppId = ""
+    root.dropTargetGroupId = ""
+
+    // 1. Check if hovering over any existing App Group
+    var gCount = appGroupsRepeater ? appGroupsRepeater.count : 0
+    for (var g = 0; g < gCount; g++) {
+      var grp = appGroupsRepeater.itemAt(g)
+      if (!grp || !grp.visible) continue
+      var grpGlobalX = row.x + grp.x
+      var grpCenter = grpGlobalX + grp.width / 2
+      if (Math.abs(mx - grpCenter) < (grp.width * 0.45)) {
+        root.dropTargetGroupId = grp.groupId
+        return
+      }
+    }
+
+    // 2. Check if hovering over the center body of another pinned icon to create a folder
+    var count = pinnedRepeater ? pinnedRepeater.count : 0
+    for (var i = 0; i < count; i++) {
+      var child = pinnedRepeater.itemAt(i)
+      if (!child || !child.visible || child.appId === aid) continue
+      var childGlobalX = row.x + child.x
+      var childCenter = childGlobalX + child.width / 2
+      if (Math.abs(mx - childCenter) < (child.width * 0.38)) {
+        root.dropTargetAppId = child.appId
+        return
+      }
+    }
+
+    // 3. Reorder insertion marker between pinned icons
+    var found = false
+    for (var j = 0; j < count; j++) {
+      var ch = pinnedRepeater.itemAt(j)
+      if (!ch || !ch.visible) continue
+      var chX = row.x + ch.x
+      var chCenter = chX + ch.width / 2
+      if (mx < chCenter) {
+        root.dropBeforeId = ch.appId
+        root.dropIndicatorX = chX - Style.space(1)
+        found = true
+        break
+      }
+    }
+    if (!found && count > 0) {
+      for (var k = count - 1; k >= 0; k--) {
+        var lastChild = pinnedRepeater.itemAt(k)
+        if (lastChild && lastChild.visible) {
+          root.dropBeforeId = ""
+          root.dropIndicatorX = row.x + lastChild.x + lastChild.width + Style.space(1)
+          break
+        }
+      }
+    }
+  }
+
+  function handleDragDropped(aid) {
+    if (!root) return
+    var dragId = root.dragAppId
+    var targetGroupId = root.dropTargetGroupId
+    var targetAppId = root.dropTargetAppId
+    var beforeId = root.dropBeforeId
+
+    root.dragAppId = ""
+    root.dropBeforeId = ""
+    root.dropTargetGroupId = ""
+    root.dropTargetAppId = ""
+
+    if (dragId !== "") {
+      if (targetGroupId !== "") {
+        root.addAppToGroup(targetGroupId, dragId)
+      } else if (targetAppId !== "" && targetAppId !== dragId) {
+        root.createAppGroupFromDrop(targetAppId, dragId)
+      } else {
+        root.setPinned(DockModel.reorderPinned(root.pinnedIds, dragId, beforeId))
+      }
+    }
+    root.syncVisibility()
+  }
+
   // Dimensions driven by dockCard
   width: dockCard.width
   height: dockCard.height
@@ -100,7 +182,7 @@ Item {
       onHoveredChanged: if (root) root.syncVisibility()
     }
 
-    width: row.implicitWidth + contentLeftInset + contentRightInset
+    width: (root ? root.baseRowWidth : row.implicitWidth) + contentLeftInset + contentRightInset
     height: row.implicitHeight + contentTopInset + contentBottomInset
 
     // Click on card padding dismisses context menu
@@ -164,47 +246,12 @@ Item {
             if (root) {
               root.dragAppId = aid
               root.dropBeforeId = ""
+              root.dropTargetAppId = ""
+              root.dropTargetGroupId = ""
             }
           }
-          onDragMoved: function(aid, mx) {
-            if (!root) return
-            root.dropBeforeId = ""
-            var count = pinnedRepeater.count
-            var found = false
-            for (var i = 0; i < count; i++) {
-              var child = pinnedRepeater.itemAt(i)
-              if (!child || !child.visible) continue
-              var childGlobalX = row.x + child.x
-              var childCenter = childGlobalX + child.width / 2
-              if (mx < childCenter) {
-                root.dropBeforeId = child.appId
-                root.dropIndicatorX = childGlobalX - Style.space(1)
-                found = true
-                break
-              }
-            }
-            if (!found && count > 0) {
-              for (var j = count - 1; j >= 0; j--) {
-                var lastChild = pinnedRepeater.itemAt(j)
-                if (lastChild && lastChild.visible) {
-                  root.dropBeforeId = ""
-                  root.dropIndicatorX = row.x + lastChild.x + lastChild.width + Style.space(1)
-                  break
-                }
-              }
-            }
-          }
-          onDragDropped: function(aid) {
-            if (!root) return
-            var dragId = root.dragAppId
-            var beforeId = root.dropBeforeId
-            root.dragAppId = ""
-            root.dropBeforeId = ""
-            if (dragId !== "") {
-              root.setPinned(DockModel.reorderPinned(root.pinnedIds, dragId, beforeId))
-            }
-            root.syncVisibility()
-          }
+          onDragMoved: function(aid, mx) { cardWrapper.handleDragMoved(aid, mx) }
+          onDragDropped: function(aid) { cardWrapper.handleDragDropped(aid) }
         }
       }
 
@@ -285,6 +332,16 @@ Item {
           onNewWindowRequested: function(aid) { if (root) root.launchApp(aid, null) }
           onMenuRequested: function(aid, cx, cy) { if (root) root.openContext(aid, cx, cy) }
           onWheelScrolled: function(aid, dir) { if (root) root.cycleApp(aid, dir) }
+          onDragStarted: function(aid) {
+            if (root) {
+              root.dragAppId = aid
+              root.dropBeforeId = ""
+              root.dropTargetAppId = ""
+              root.dropTargetGroupId = ""
+            }
+          }
+          onDragMoved: function(aid, mx) { cardWrapper.handleDragMoved(aid, mx) }
+          onDragDropped: function(aid) { cardWrapper.handleDragDropped(aid) }
 
           // When an unpinned app has ALL its windows minimized and tiles are
           // showing, the tile section already represents it — hide the icon
@@ -357,7 +414,7 @@ Item {
 
     // Drop indicator line
     Rectangle {
-      visible: (root && root.dragAppId !== "") ? true : false
+      visible: (root && root.dragAppId !== "" && root.dropTargetAppId === "" && root.dropTargetGroupId === "") ? true : false
       x: root ? root.dropIndicatorX : 0
       anchors.verticalCenter: row.verticalCenter
       width: Style.space(2)

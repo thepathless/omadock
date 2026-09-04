@@ -379,6 +379,8 @@ Item {
 
   property string dragAppId: ""
   property string dropBeforeId: ""
+  property string dropTargetAppId: ""
+  property string dropTargetGroupId: ""
   property real dropIndicatorX: 0
 
   // ------------------------------------------------- context menu
@@ -777,11 +779,11 @@ Item {
   }
 
   function createAppGroupFromRunning() {
-    var running = root.runningSection || []
+    var all = (root.pinnedSection || []).concat(root.runningSection || [])
     var ids = []
-    for (var i = 0; i < running.length; i++) {
-      if (running[i] && running[i].appId && ids.indexOf(running[i].appId) < 0) {
-        ids.push(running[i].appId)
+    for (var i = 0; i < all.length; i++) {
+      if (all[i] && all[i].running && all[i].appId && ids.indexOf(all[i].appId) < 0) {
+        ids.push(all[i].appId)
       }
     }
     if (ids.length === 0) return
@@ -789,11 +791,171 @@ Item {
       id: "group_" + Date.now(),
       name: "Group " + (root.appGroups ? (root.appGroups.length + 1) : 1),
       icon: "folder",
-      apps: ids
+      apps: ids,
+      cols: 3
     }
-    var groups = (root.appGroups || []).concat([newGroup])
-    root.appGroups = groups
+    root.appGroups = (root.appGroups || []).concat([newGroup])
     root.saveConfig()
+  }
+
+  function createAppGroupFromDrop(targetAppId, draggedAppId) {
+    if (!targetAppId || !draggedAppId || targetAppId === draggedAppId) return
+    var targetEntry = DockModel.entryFor(root.appRows, targetAppId)
+    var folderName = "Folder"
+    if (targetEntry && targetEntry.name) {
+      folderName = targetEntry.name + " & more"
+    }
+
+    var newGroup = {
+      id: "group_" + Date.now(),
+      name: folderName,
+      icon: "folder",
+      apps: [targetAppId, draggedAppId],
+      cols: 3
+    }
+    root.appGroups = (root.appGroups || []).concat([newGroup])
+
+    // Remove grouped items from pinnedIds so they now live inside the folder
+    var pins = root.pinnedIds || []
+    var nextPins = []
+    for (var p = 0; p < pins.length; p++) {
+      if (pins[p] !== targetAppId && pins[p] !== draggedAppId) {
+        nextPins.push(pins[p])
+      }
+    }
+    root.setPinned(nextPins)
+    root.saveConfig()
+  }
+
+  function addAppToGroup(groupId, appId) {
+    if (!groupId || !appId) return
+    var groups = root.appGroups || []
+    var next = []
+    for (var i = 0; i < groups.length; i++) {
+      var g = groups[i]
+      if (g && g.id === groupId) {
+        var curApps = Array.isArray(g.apps) ? g.apps.slice() : []
+        if (curApps.indexOf(appId) < 0) curApps.push(appId)
+        next.push({ id: g.id, name: g.name, icon: g.icon, apps: curApps, cols: g.cols || 3 })
+      } else {
+        next.push(g)
+      }
+    }
+    root.appGroups = next
+
+    // Remove from pinnedIds if it was pinned
+    var pins = root.pinnedIds || []
+    var nextPins = []
+    for (var p = 0; p < pins.length; p++) {
+      if (pins[p] !== appId) nextPins.push(pins[p])
+    }
+    root.setPinned(nextPins)
+    root.saveConfig()
+  }
+
+  function updateAppGroupName(groupId, newName) {
+    if (!groupId || !newName) return
+    var groups = root.appGroups || []
+    var next = []
+    for (var i = 0; i < groups.length; i++) {
+      var g = groups[i]
+      if (g && g.id === groupId) {
+        next.push({ id: g.id, name: newName.trim(), icon: g.icon, apps: g.apps, cols: g.cols || 3 })
+      } else {
+        next.push(g)
+      }
+    }
+    root.appGroups = next
+    if (root.activeAppGroupData && root.activeAppGroupData.id === groupId) {
+      root.activeAppGroupData = Object.assign({}, root.activeAppGroupData, { name: newName.trim() })
+    }
+    root.saveConfig()
+  }
+
+  function updateAppGroupColumns(groupId, cols) {
+    if (!groupId || !cols) return
+    var groups = root.appGroups || []
+    var next = []
+    var c = Math.max(2, Math.min(4, cols))
+    for (var i = 0; i < groups.length; i++) {
+      var g = groups[i]
+      if (g && g.id === groupId) {
+        next.push({ id: g.id, name: g.name, icon: g.icon, apps: g.apps, cols: c })
+      } else {
+        next.push(g)
+      }
+    }
+    root.appGroups = next
+    if (root.activeAppGroupData && root.activeAppGroupData.id === groupId) {
+      root.activeAppGroupData = Object.assign({}, root.activeAppGroupData, { cols: c })
+    }
+    root.saveConfig()
+  }
+
+  function removeAppFromGroup(groupId, appId) {
+    if (!groupId || !appId) return
+    var groups = root.appGroups || []
+    var next = []
+    for (var i = 0; i < groups.length; i++) {
+      var g = groups[i]
+      if (g && g.id === groupId) {
+        var curApps = Array.isArray(g.apps) ? g.apps.slice() : []
+        var filtered = []
+        for (var a = 0; a < curApps.length; a++) {
+          if (curApps[a] !== appId) filtered.push(curApps[a])
+        }
+        if (filtered.length > 0) {
+          next.push({ id: g.id, name: g.name, icon: g.icon, apps: filtered, cols: g.cols || 3 })
+        }
+      } else {
+        next.push(g)
+      }
+    }
+    root.appGroups = next
+
+    // Restore removed app to pinned items
+    var pins = root.pinnedIds || []
+    if (pins.indexOf(appId) < 0) {
+      pins.push(appId)
+      root.setPinned(pins)
+    }
+    root.saveConfig()
+    if (root.activeAppGroupId === groupId) {
+      // Refresh active group data
+      var foundGroup = null
+      for (var j = 0; j < next.length; j++) {
+        if (next[j].id === groupId) { foundGroup = next[j]; break }
+      }
+      if (foundGroup) root.activeAppGroupData = foundGroup
+      else root.closeAppGroup()
+    }
+  }
+
+  function ungroupAppGroup(groupId) {
+    if (!groupId) return
+    var groups = root.appGroups || []
+    var next = []
+    var extractedApps = []
+    for (var i = 0; i < groups.length; i++) {
+      var g = groups[i]
+      if (g && g.id === groupId) {
+        extractedApps = Array.isArray(g.apps) ? g.apps : []
+      } else {
+        next.push(g)
+      }
+    }
+    root.appGroups = next
+
+    // Restore all extracted apps back to pinnedIds
+    var pins = (root.pinnedIds || []).slice()
+    for (var e = 0; e < extractedApps.length; e++) {
+      if (pins.indexOf(extractedApps[e]) < 0) {
+        pins.push(extractedApps[e])
+      }
+    }
+    root.setPinned(pins)
+    root.saveConfig()
+    if (root.activeAppGroupId === groupId) root.closeAppGroup()
   }
 
   function removeAppGroup(groupId) {

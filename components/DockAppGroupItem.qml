@@ -20,10 +20,12 @@ Item {
   signal openGroupRequested(var gdata, real cx, real cy)
   signal menuRequested(var gdata, real cx, real cy)
 
-  width: root ? (root.iconSlot * (root.waveHover ? gitem.magnifyScale : 1)) : 0
+  width: root ? root.iconSlot : 0
   height: root ? root.iconSlot : 0
+  z: Math.round(gitem.magnifyScale * 100)
 
   readonly property bool isOpen: root ? root.activeAppGroupId === gitem.groupId : false
+  readonly property bool isDropTarget: (root && (root.dropTargetGroupId === gitem.groupId || root.dropTargetAppId === gitem.groupId))
 
   // Check if any app in this group is currently running
   readonly property bool hasRunningApps: {
@@ -47,6 +49,13 @@ Item {
     return groupArea.containsMouse ? root.zoomPeak : 1
   }
 
+  readonly property real waveNudgeX: {
+    if (!root || !root.waveHover || gitem.magnifyScale <= 1.01) return 0
+    var dx = gitem.homeCenter - root.pointerX
+    if (Math.abs(dx) >= root.magnifyRange || Math.abs(dx) < 1) return 0
+    return Math.sign(dx) * (gitem.magnifyScale - 1) * Style.space(5)
+  }
+
   Behavior on magnifyScale {
     NumberAnimation { duration: 110; easing.type: Easing.OutQuad }
   }
@@ -62,8 +71,31 @@ Item {
       id: iconContainer
       width: root ? root.iconSize : 0
       height: root ? root.iconSize : 0
-      anchors.centerIn: parent
+      anchors.horizontalCenter: parent.horizontalCenter
+      anchors.bottom: parent.bottom
+      anchors.bottomMargin: gitem.hasRunningApps ? Style.space(5) : Math.round((iconSlot.height - height) / 2)
       scale: gitem.magnifyScale
+      transformOrigin: Item.Bottom
+      transform: Translate { x: gitem.waveNudgeX }
+
+      // Drop target halo
+      Rectangle {
+        visible: gitem.isDropTarget
+        anchors.centerIn: parent
+        width: parent.width + Style.space(8)
+        height: width
+        radius: Style.space(6)
+        color: Util.alpha(Color.bar.active, 0.22)
+        border.color: Color.bar.active
+        border.width: 1.5
+        z: -1
+        SequentialAnimation on opacity {
+          running: gitem.isDropTarget
+          loops: Animation.Infinite
+          NumberAnimation { from: 0.5; to: 1.0; duration: 350; easing.type: Easing.InOutQuad }
+          NumberAnimation { from: 1.0; to: 0.5; duration: 350; easing.type: Easing.InOutQuad }
+        }
+      }
 
       // Frosted Folder Tile Container (macOS / iOS Launchpad Folder style)
       Rectangle {

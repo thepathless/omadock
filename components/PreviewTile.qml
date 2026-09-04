@@ -56,18 +56,25 @@ Item {
     }
   }
 
-  width: root ? root.tileWidth * (root.waveHover ? tile.magnifyScale : 1) : 0
+  readonly property real waveNudgeX: {
+    if (!root || !root.waveHover || tile.magnifyScale <= 1.01) return 0
+    var dx = tile.homeCenter - root.pointerX
+    if (Math.abs(dx) >= root.magnifyRange || Math.abs(dx) < 1) return 0
+    return Math.sign(dx) * (tile.magnifyScale - 1) * Style.space(5)
+  }
+
+  width: root ? root.tileWidth : 0
   height: root ? root.tileHeight : 0
+  z: Math.round(tile.magnifyScale * 100)
   anchors.verticalCenter: parent ? parent.verticalCenter : undefined
   opacity: (root && root.dockVisible) ? 1 : 0
 
-  // Zoom mode scales this visual stack in place (the preview overlaps
-  // neighbors exactly like magnified app icons); wave mode grows the
-  // tile itself, so the wrapper stays at scale 1 there.
   Item {
     id: tileVisual
     anchors.fill: parent
-    scale: (root && root.waveHover) ? 1 : tile.magnifyScale
+    scale: tile.magnifyScale
+    transformOrigin: Item.Bottom
+    transform: Translate { x: tile.waveNudgeX }
 
     // Stacked-card layers behind grouped tiles hint at the count.
     Rectangle {

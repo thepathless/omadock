@@ -31,8 +31,16 @@ Item {
     NumberAnimation { duration: 110; easing.type: Easing.OutQuad }
   }
 
-  width: root ? (root.iconSlot * (root.waveHover ? btn.magnifyScale : 1)) : 0
+  readonly property real waveNudgeX: {
+    if (!root || !root.waveHover || btn.magnifyScale <= 1.01) return 0
+    var dx = btn.homeCenter - root.pointerX
+    if (Math.abs(dx) >= root.magnifyRange || Math.abs(dx) < 1) return 0
+    return Math.sign(dx) * (btn.magnifyScale - 1) * Style.space(5)
+  }
+
+  width: root ? root.iconSlot : 0
   height: root ? root.iconSlot : 0
+  z: Math.round(btn.magnifyScale * 100)
 
   Text {
     anchors.centerIn: parent
@@ -42,6 +50,7 @@ Item {
     font.pixelSize: btn.glyphSize
     color: area.containsMouse ? Color.accent : btn.glyphColor
     scale: btn.magnifyScale * (area.pressed ? 0.92 : 1.0)
+    transform: Translate { x: btn.waveNudgeX }
     Behavior on color { ColorAnimation { duration: 120 } }
   }
 
