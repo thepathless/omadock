@@ -152,6 +152,7 @@ BorderSurface {
           width: appGroupPopup.cellWidth
           height: appGroupPopup.cellHeight
 
+          readonly property var root: appGroupPopup.root
           readonly property string appId: String(modelData || "")
           readonly property string appName: root ? DockModel.resolveAppName(root.appLibrary, root.appRows, cellItem.appId) : cellItem.appId
           readonly property string appIconSrc: {
