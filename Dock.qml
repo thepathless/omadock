@@ -2688,7 +2688,7 @@ Item {
       left: true
       right: true
     }
-    implicitHeight: 650
+    implicitHeight: Math.max(650, Math.round((root.dockScreen ? root.dockScreen.height : 1080) - Style.space(36)))
 
     mask: Region {
       item: dockCardComp.dockCard

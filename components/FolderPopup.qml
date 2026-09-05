@@ -21,6 +21,10 @@ BorderSurface {
   radius: Style.cornerRadius
   padding: Style.space(4)
 
+  readonly property real maxAllowedHeight: targetCard
+    ? Math.max(240, targetCard.y - Style.space(16))
+    : (parent ? (parent.height - Style.space(80)) : 500)
+
   readonly property real rowWidth: (root && root.activeStackFolder !== "")
     ? root.menuContentWidth(stackColumn)
     : 0
@@ -29,17 +33,15 @@ BorderSurface {
     ? rowWidth + contentLeftInset + contentRightInset
     : 0
   height: (root && root.activeStackFolder !== "")
-    ? stackColumn.implicitHeight + contentTopInset + contentBottomInset
+    ? Math.min(maxAllowedHeight, stackColumn.implicitHeight + contentTopInset + contentBottomInset)
     : 0
 
   anchors.bottom: targetCard ? targetCard.top : undefined
   anchors.bottomMargin: Style.space(6)
   x: Math.max(Style.gapsOut, Math.min((targetWindow ? targetWindow.width : 1920) - width - Style.gapsOut, (root ? root.activeStackX : 0) - width / 2))
 
-  Column {
-    id: stackColumn
-    spacing: Style.space(2)
-
+  Flickable {
+    id: stackFlickable
     anchors.left: parent.left
     anchors.leftMargin: folderStackPopover.contentLeftInset
     anchors.right: parent.right
@@ -48,6 +50,28 @@ BorderSurface {
     anchors.topMargin: folderStackPopover.contentTopInset
     anchors.bottom: parent.bottom
     anchors.bottomMargin: folderStackPopover.contentBottomInset
+
+    contentWidth: width
+    contentHeight: stackColumn.implicitHeight
+    clip: true
+    boundsBehavior: Flickable.StopAtBounds
+    flickableDirection: Flickable.VerticalFlick
+    interactive: contentHeight > height
+
+    WheelHandler {
+      target: stackFlickable
+      onWheel: function(event) {
+        if (event.angleDelta.y === 0) return
+        var step = Style.space(32)
+        var dy = event.angleDelta.y > 0 ? -step : step
+        stackFlickable.contentY = Math.max(0, Math.min(stackFlickable.contentHeight - stackFlickable.height, stackFlickable.contentY + dy))
+      }
+    }
+
+    Column {
+      id: stackColumn
+      width: parent.width
+      spacing: Style.space(2)
 
     ContextRow {
       text: ((root ? root.activeStackName : "") || "Folder") + ((root && root.activeStackTotalCount > 0) ? (" (" + root.activeStackTotalCount + ")") : "")
@@ -110,4 +134,5 @@ BorderSurface {
       }
     }
   }
+}
 }
