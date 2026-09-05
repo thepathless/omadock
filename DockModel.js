@@ -351,9 +351,9 @@ function reorderPinned(pinnedIds, appId, insertBeforeId) {
   if (insertBeforeId && stripDesktop(insertBeforeId) === id) return arr
 
   var fromIdx = arr.indexOf(id)
-  if (fromIdx < 0) return arr
-
-  arr.splice(fromIdx, 1)
+  if (fromIdx >= 0) {
+    arr.splice(fromIdx, 1)
+  }
 
   if (!insertBeforeId) {
     arr.push(id)

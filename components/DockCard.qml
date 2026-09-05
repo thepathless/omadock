@@ -85,6 +85,7 @@ Item {
     var targetGroupId = root.dropTargetGroupId
     var targetAppId = root.dropTargetAppId
     var beforeId = root.dropBeforeId
+    var sourceGroupId = root.dragSourceGroupId
 
     root.dragAppId = ""
     root.dropBeforeId = ""
@@ -92,6 +93,15 @@ Item {
     root.dropTargetAppId = ""
 
     if (dragId !== "") {
+      if (sourceGroupId !== "") {
+        if (targetGroupId === sourceGroupId) {
+          root.dragSourceGroupId = ""
+          root.syncVisibility()
+          return
+        }
+        root.removeAppFromGroup(sourceGroupId, dragId)
+      }
+
       if (targetGroupId !== "") {
         root.addAppToGroup(targetGroupId, dragId)
       } else if (targetAppId !== "" && targetAppId !== dragId) {
@@ -99,6 +109,9 @@ Item {
       } else {
         root.setPinned(DockModel.reorderPinned(root.pinnedIds, dragId, beforeId))
       }
+      root.dragSourceGroupId = ""
+    } else {
+      root.dragSourceGroupId = ""
     }
     root.syncVisibility()
   }
@@ -195,6 +208,7 @@ Item {
           root.dropBeforeId = ""
           root.dropTargetAppId = ""
           root.dropTargetGroupId = ""
+          root.dragSourceGroupId = ""
           root.syncVisibility()
         }
       }

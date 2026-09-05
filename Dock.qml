@@ -379,6 +379,7 @@ Item {
   property string dropBeforeId: ""
   property string dropTargetAppId: ""
   property string dropTargetGroupId: ""
+  property string dragSourceGroupId: ""
   property real dropIndicatorX: 0
 
   // ------------------------------------------------- context menu
@@ -894,10 +895,12 @@ Item {
     root.saveConfig()
   }
 
-  function removeAppFromGroup(groupId, appId) {
+  function removeAppFromGroup(groupId, appId, insertBeforeId) {
     if (!groupId || !appId) return
     var groups = root.appGroups || []
     var next = []
+    var remainingApps = []
+
     for (var i = 0; i < groups.length; i++) {
       var g = groups[i]
       if (g && g.id === groupId) {
@@ -906,7 +909,8 @@ Item {
         for (var a = 0; a < curApps.length; a++) {
           if (curApps[a] !== appId) filtered.push(curApps[a])
         }
-        if (filtered.length > 0) {
+        remainingApps = filtered
+        if (filtered.length > 1) {
           next.push({ id: g.id, name: g.name, icon: g.icon, apps: filtered, cols: g.cols || 3 })
         }
       } else {
@@ -915,15 +919,40 @@ Item {
     }
     root.appGroups = next
 
-    // Restore removed app to pinned items
-    var pins = root.pinnedIds || []
-    if (pins.indexOf(appId) < 0) {
-      pins.push(appId)
-      root.setPinned(pins)
+    var pins = (root.pinnedIds || []).slice()
+
+    // If remaining length === 1, dissolve group: extract single remaining app into pinnedIds
+    if (remainingApps.length === 1) {
+      var lastApp = remainingApps[0]
+      if (pins.indexOf(lastApp) < 0) {
+        pins.push(lastApp)
+      }
+      if (root.activeAppGroupId === groupId) {
+        root.closeAppGroup()
+      }
+    } else if (remainingApps.length === 0) {
+      if (root.activeAppGroupId === groupId) {
+        root.closeAppGroup()
+      }
     }
+
+    // Restore removed app to pinned items if not dragging (e.g. context menu ungroup)
+    if (!root.dragSourceGroupId) {
+      if (pins.indexOf(appId) < 0) {
+        if (insertBeforeId) {
+          var toIdx = pins.indexOf(DockModel.stripDesktop(insertBeforeId))
+          if (toIdx >= 0) pins.splice(toIdx, 0, appId)
+          else pins.push(appId)
+        } else {
+          pins.push(appId)
+        }
+      }
+    }
+
+    root.setPinned(pins)
     root.saveConfig()
-    if (root.activeAppGroupId === groupId) {
-      // Refresh active group data
+
+    if (remainingApps.length > 1 && root.activeAppGroupId === groupId) {
       var foundGroup = null
       for (var j = 0; j < next.length; j++) {
         if (next[j].id === groupId) { foundGroup = next[j]; break }
@@ -2763,6 +2792,9 @@ Item {
           if (root.dragAppId !== "") {
             root.dragAppId = ""
             root.dropBeforeId = ""
+            root.dropTargetAppId = ""
+            root.dropTargetGroupId = ""
+            root.dragSourceGroupId = ""
             root.syncVisibility()
           }
         }

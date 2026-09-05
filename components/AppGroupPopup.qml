@@ -162,12 +162,19 @@ BorderSurface {
             return Quickshell.iconPath("application-x-executable", true)
           }
 
+          property real dragStartX: 0
+          property real dragStartY: 0
+          property bool isDragging: false
+          property bool _dragJustEnded: false
+
           Rectangle {
             id: cellBg
             anchors.fill: parent
             radius: Style.cornerRadius
             color: cellHover.hovered ? Util.alpha(Color.menu.text, 0.08) : "transparent"
+            opacity: cellItem.isDragging ? 0.35 : 1.0
             Behavior on color { ColorAnimation { duration: 100 } }
+            Behavior on opacity { NumberAnimation { duration: 100 } }
 
             Column {
               anchors.centerIn: parent
@@ -202,16 +209,79 @@ BorderSurface {
             HoverHandler { id: cellHover }
 
             MouseArea {
+              id: cellMouseArea
               anchors.fill: parent
-              cursorShape: Qt.PointingHandCursor
+              cursorShape: cellItem.isDragging ? Qt.ClosedHandCursor : Qt.PointingHandCursor
               acceptedButtons: Qt.LeftButton | Qt.RightButton
+
+              onPressed: function(mouse) {
+                if (mouse.button === Qt.LeftButton) {
+                  cellItem.dragStartX = mouse.x
+                  cellItem.dragStartY = mouse.y
+                  cellItem.isDragging = false
+                  cellItem._dragJustEnded = false
+                }
+              }
+
+              onPositionChanged: function(mouse) {
+                if (cellMouseArea.pressed && (mouse.buttons & Qt.LeftButton)) {
+                  var dx = mouse.x - cellItem.dragStartX
+                  var dy = mouse.y - cellItem.dragStartY
+                  var dist = Math.sqrt(dx * dx + dy * dy)
+                  if (!cellItem.isDragging && dist > 10) {
+                    cellItem.isDragging = true
+                    if (root && appGroupPopup.activeGroup) {
+                      root.dragAppId = cellItem.appId
+                      root.dragSourceGroupId = appGroupPopup.activeGroup.id
+                      root.dropBeforeId = ""
+                      root.dropTargetAppId = ""
+                      root.dropTargetGroupId = ""
+                    }
+                  }
+                  if (cellItem.isDragging && root && root.dockCardComp) {
+                    var cardPt = cellItem.mapToItem(root.dockCardComp, mouse.x, mouse.y)
+                    root.dockCardComp.handleDragMoved(cellItem.appId, cardPt.x)
+                  }
+                }
+              }
+
+              onReleased: function(mouse) {
+                if (cellItem.isDragging) {
+                  cellItem.isDragging = false
+                  cellItem._dragJustEnded = true
+                  if (root && root.dockCardComp) {
+                    root.dockCardComp.handleDragDropped(cellItem.appId)
+                  }
+                  if (root) {
+                    root.closeAppGroup()
+                  }
+                }
+              }
+
+              onCanceled: {
+                if (cellItem.isDragging) {
+                  cellItem.isDragging = false
+                  cellItem._dragJustEnded = true
+                  if (root && root.dockCardComp) {
+                    root.dockCardComp.handleDragDropped(cellItem.appId)
+                  }
+                  if (root) {
+                    root.closeAppGroup()
+                  }
+                }
+              }
+
               onClicked: function(mouse) {
+                if (cellItem._dragJustEnded) {
+                  cellItem._dragJustEnded = false
+                  return
+                }
                 if (mouse.button === Qt.RightButton) {
                   // Right click: ungroup this app from the folder
                   if (root && appGroupPopup.activeGroup) {
                     root.removeAppFromGroup(appGroupPopup.activeGroup.id, cellItem.appId)
                   }
-                } else {
+                } else if (mouse.button === Qt.LeftButton) {
                   // Left click: launch or focus app
                   if (root) {
                     root.activate(cellItem.appId)
