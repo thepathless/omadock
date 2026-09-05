@@ -25,7 +25,7 @@ function stripDesktop(id) {
 }
 
 function isList(v) {
-  return Array.isArray(v) || (v != null && typeof v === "object" && typeof v.length === "number")
+  return Array.isArray(v) || (v !== null && typeof v === "object" && typeof v.length === "number");
 }
 
 function toArray(list) {
@@ -850,4 +850,3 @@ function resolveAppName(appLibrary, appRows, appId) {
   }
   return id
 }
-

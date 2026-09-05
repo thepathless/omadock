@@ -32,14 +32,9 @@ Item {
   signal dragDropped(string appId)
   signal wheelScrolled(string appId, int direction)
 
-  // macOS-style dock layout: Slots expand naturally in Row to create space for
-  // magnified icons. The layout engine pushes neighboring items outward smoothly
-  // while keeping indicators and drop targets perfectly centered without manual transforms.
-  width: {
-    if (!root) return 0
-    if (root.waveHover) return Math.round(root.iconSlot * (1 + (item.magnifyScale - 1) * 0.70))
-    return root.iconSlot
-  }
+  // Only the wave lets a slot grow; zoom keeps the layout still and simply
+  // draws its icon larger.
+  width: root ? (root.iconSlot * (root.waveHover ? item.magnifyScale : 1)) : 0
   height: root ? root.iconSlot : 0
   z: Math.round(item.magnifyScale * 100)
 
@@ -48,16 +43,13 @@ Item {
   property real dragStartX: 0
   property real bounceY: 0
   property real homeCenter: 0
+  readonly property bool isDropTarget: (root && root.dropTargetAppId === item.appId && root.dragAppId !== item.appId)
   property real magnifyScale: {
     if (!root) return 1
     if (root.waveHover) return root.magnifyScaleAt(item.homeCenter)
     if (root.hoverEffect === "off") return 1
     return (area.containsMouse && !item.isDragging) ? root.zoomPeak : 1
   }
-
-  readonly property real waveNudgeX: 0
-
-  readonly property bool isDropTarget: (root && root.dropTargetAppId === item.appId && root.dragAppId !== item.appId)
 
   Behavior on magnifyScale {
     NumberAnimation { duration: 110; easing.type: Easing.OutQuad }
@@ -71,8 +63,6 @@ Item {
     if (!root || !root.showUrgentHint) return false
     // Foreground Suppression Rule: An app currently focused in the foreground suppresses urgency bounce
     if (item.active || item.isFocused) return false
-    // Closed App Invariant: An app that is not running and not actively launching must never bounce
-    if (!item.running && !item.starting) return false
     if (item.appId && root.urgentMap && root.urgentMap[item.appId]) return true
     var list = item.windowList || []
     for (var i = 0; i < list.length; i++) {
@@ -129,9 +119,8 @@ Item {
     NumberAnimation { duration: 120 }
   }
 
-  readonly property bool bouncing: root ? ((item.starting && root.launchBounce) || (item.urgent && (item.running || item.starting) && root.showUrgentHint)) : false
+  readonly property bool bouncing: root ? ((item.starting && root.launchBounce) || (item.urgent && root.showUrgentHint)) : false
   onBouncingChanged: if (!item.bouncing) item.bounceY = 0
-  onRunningChanged: if (!item.running && !item.starting) item.bounceY = 0
 
   SequentialAnimation on bounceY {
     running: item.bouncing
@@ -153,17 +142,17 @@ Item {
     transformOrigin: Item.Bottom
     Behavior on scale { NumberAnimation { duration: 90; easing.type: Easing.OutQuad } }
 
-    transform: [
-      Translate { y: item.bounceY }
-    ]
+    transform: Translate {
+      y: item.bounceY
+    }
 
     // Drop target halo for creating an App Folder
     Rectangle {
       visible: item.isDropTarget
-      anchors.centerIn: parent
-      width: (root ? root.baseIconArt : 32) + Style.space(8)
+      anchors.centerIn: iconImg
+      width: (root ? root.baseIconArt : 32) * item.magnifyScale + Style.space(8)
       height: width
-      radius: Style.space(6)
+      radius: root ? root.effectiveCardRadius : Style.cornerRadius
       color: Util.alpha(Color.bar.active, 0.22)
       border.color: Color.bar.active
       border.width: 1.5
@@ -226,7 +215,7 @@ Item {
   readonly property real dynamicActiveWidth: totalWindowCount >= 5 ? Style.space(9) : Style.space(12)
   readonly property real dynamicSpacing: totalWindowCount >= 5 ? Style.space(2) : Style.space(3)
 
-  // Fixed at the slot bottom, synchronized laterally with wave displacement.
+  // Fixed at the slot bottom, never scaled or pushed out of the dock.
   Row {
     id: indicatorRow
     anchors.horizontalCenter: parent.horizontalCenter

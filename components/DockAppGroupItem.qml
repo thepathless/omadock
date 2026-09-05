@@ -20,31 +20,39 @@ Item {
   signal openGroupRequested(var gdata, real cx, real cy)
   signal menuRequested(var gdata, real cx, real cy)
 
-  width: {
-    if (!root) return 0
-    if (root.waveHover) return Math.round(root.iconSlot * (1 + (gitem.magnifyScale - 1) * 0.70))
-    return root.iconSlot
-  }
+  width: root ? (root.iconSlot * (root.waveHover ? gitem.magnifyScale : 1)) : 0
   height: root ? root.iconSlot : 0
   z: Math.round(gitem.magnifyScale * 100)
 
   readonly property bool isOpen: root ? root.activeAppGroupId === gitem.groupId : false
   readonly property bool isDropTarget: (root && (root.dropTargetGroupId === gitem.groupId || root.dropTargetAppId === gitem.groupId))
 
-  // Check if any app in this group is currently running
-  readonly property bool hasRunningApps: {
-    if (!root || !root.runningSection) return false
+  // Check running / active / window stats for apps in this group
+  readonly property var groupRunningInfo: {
+    var hasRun = false
+    var hasActive = false
+    var count = 0
+    if (!root) return { running: false, active: false, count: 0 }
     var running = root.runningSection || []
+    var grouped = root.groupedSection || []
+    var all = running.concat(grouped)
     for (var a = 0; a < gitem.groupApps.length; a++) {
       var aid = gitem.groupApps[a]
-      for (var r = 0; r < running.length; r++) {
-        if (running[r] && (running[r].appId === aid || DockModel.isAppMatch(running[r].appId, aid))) {
-          if (running[r].running) return true
+      for (var r = 0; r < all.length; r++) {
+        var ent = all[r]
+        if (ent && (ent.appId === aid || DockModel.isAppMatch(ent.appId, aid))) {
+          if (ent.running) {
+            hasRun = true
+            count += (ent.windows || 1)
+            if (ent.appId === root.activeId) hasActive = true
+          }
         }
       }
     }
-    return false
+    return { running: hasRun, active: hasActive, count: count }
   }
+
+  readonly property bool hasRunningApps: groupRunningInfo.running
 
   property real magnifyScale: {
     if (!root) return 1
@@ -52,8 +60,6 @@ Item {
     if (root.hoverEffect === "off") return 1
     return groupArea.containsMouse ? root.zoomPeak : 1
   }
-
-  readonly property real waveNudgeX: 0
 
   Behavior on magnifyScale {
     NumberAnimation { duration: 110; easing.type: Easing.OutQuad }
@@ -82,7 +88,7 @@ Item {
         anchors.centerIn: parent
         width: parent.width + Style.space(8)
         height: width
-        radius: Style.space(6)
+        radius: root ? root.effectiveCardRadius : Style.cornerRadius
         color: Util.alpha(Color.bar.active, 0.22)
         border.color: Color.bar.active
         border.width: 1.5
@@ -99,10 +105,10 @@ Item {
       Rectangle {
         id: folderTile
         anchors.fill: parent
-        radius: Math.round(width * 0.26)
+        radius: root ? root.effectiveCardRadius : Style.cornerRadius
         color: Util.alpha(Color.bar.background, 0.65)
+        border.color: Color.bar.border
         border.width: 1
-        border.color: Util.alpha(root ? root.dockForeground : Color.bar.border, 0.28)
 
         // Empty folder fallback icon
         Image {
@@ -164,15 +170,30 @@ Item {
   }
 
   // Running indicator dot underneath the folder if any child app is running
-  Rectangle {
-    visible: gitem.hasRunningApps
+  // 3-state running indicator row underneath the folder if any child app is running
+  Row {
+    id: indicatorRow
+    anchors.horizontalCenter: parent.horizontalCenter
     anchors.bottom: parent.bottom
     anchors.bottomMargin: Style.space(1)
-    anchors.horizontalCenter: parent.horizontalCenter
-    width: Style.space(4)
-    height: Style.space(4)
-    radius: width / 2
-    color: gitem.isOpen ? Color.bar.active : Util.alpha(root ? root.dockForeground : Color.bar.text, 0.75)
+    spacing: Style.space(2)
+    visible: gitem.hasRunningApps
+
+    Repeater {
+      model: Math.min(3, Math.max(1, gitem.groupRunningInfo.count))
+      delegate: Rectangle {
+        width: (gitem.groupRunningInfo.active && index === 0) ? Style.space(12) : Style.space(4)
+        height: Style.space(4)
+        radius: height / 2
+        color: (gitem.groupRunningInfo.active && index === 0) || gitem.isOpen
+          ? Color.bar.active
+          : Util.alpha(root ? root.dockForeground : Color.bar.text, 0.88)
+        border.color: Qt.rgba(0, 0, 0, 0.45)
+        border.width: 1
+        Behavior on width { NumberAnimation { duration: 140; easing.type: Easing.OutQuad } }
+        Behavior on color { ColorAnimation { duration: 120 } }
+      }
+    }
   }
 
   MouseArea {

@@ -75,11 +75,10 @@ Item {
   readonly property real magnifyRange: root.iconSlot * 2.2
   readonly property real baseIconArt: root.iconSize - Style.space(4)
 
-  // Scene-anchored pointer coordinate measured against unmagnified rest frame.
-  // Using scenePosition minus baseRowLeft decouples the mouse position from dock
-  // width animations and recentering shifts, completely eliminating acoustic feedback jitter.
+  // The card's own handler, lifted into window coordinates. Both terms move
+  // together as the card grows, so their sum stays the physical pointer.
   readonly property real pointerX: cardHover.hovered
-    ? (cardHover.point.scenePosition.x - root.baseRowLeft)
+    ? dockCardComp.x + cardHover.point.position.x
     : -1e6
 
   readonly property int appsSlots: root.showAppsButton ? 1 : 0
@@ -186,7 +185,8 @@ Item {
 
   function slotHomeCenter(elementIndex, slotsBefore, sepCount, extraLeftWidth) {
     var seps = (typeof sepCount === "number") ? sepCount : (sepCount ? 1 : 0)
-    return elementIndex * root.gapWidth
+    return root.baseRowLeft
+      + elementIndex * root.gapWidth
       + slotsBefore * root.iconSlot
       + seps * root.separatorWidth
       + (extraLeftWidth || 0)
@@ -876,6 +876,10 @@ Item {
       root.activeAppGroupData = Object.assign({}, root.activeAppGroupData, { name: newName.trim() })
     }
     root.saveConfig()
+  }
+
+  function renameAppGroup(groupId, newName) {
+    root.updateAppGroupName(groupId, newName)
   }
 
   function updateAppGroupColumns(groupId, cols) {
@@ -2012,7 +2016,7 @@ Item {
 
     var next = {}
     var dropped = false
-    var allEntries = root.pinnedSection.concat(root.runningSection)
+    var allEntries = root.pinnedSection.concat(root.runningSection).concat(root.groupedSection || [])
 
     for (var i = 0; i < keys.length; i++) {
       var key = keys[i]
@@ -2077,7 +2081,7 @@ Item {
       changed = true
     }
 
-    var allEntries = root.pinnedSection.concat(root.runningSection)
+    var allEntries = root.pinnedSection.concat(root.runningSection).concat(root.groupedSection || [])
     var targetEntries = []
 
     // Find entries matching address or appId
@@ -2681,10 +2685,12 @@ Item {
     screen: root.dockScreen
     color: "transparent"
     WlrLayershell.namespace: "omadock"
+    WlrLayershell.layer: WlrLayer.Top
     WlrLayershell.keyboardFocus: (appGroupPopupComp && appGroupPopupComp.isEditingName)
-      ? WlrKeyboardFocus.Exclusive
+      ? WlrKeyboardFocus.OnDemand
       : WlrKeyboardFocus.None
-    exclusiveZone: (!root.autohide) ? Math.round(dockCard.height + Style.gapsOut * 2) : 0
+    exclusionMode: (!root.autohide) ? ExclusionMode.Normal : ExclusionMode.Ignore
+    exclusiveZone: (!root.autohide) ? Math.round((dockCardComp ? dockCardComp.dockCard.height : 0) + Style.gapsOut * 2) : 0
     anchors {
       bottom: true
       left: true
@@ -2706,17 +2712,10 @@ Item {
     // Bottom edge reveal strip — thin edge trigger with zero click-swallowing
     Item {
       id: revealStrip
+      anchors.left: parent.left
+      anchors.right: parent.right
       anchors.bottom: parent.bottom
       height: root.revealHeight
-      width: revealStripRect.width + Style.space(32)
-      x: {
-        if (root.alignment === "left") return Style.gapsOut * 2
-        if (root.alignment === "right") return parent.width - width - (Style.gapsOut * 2)
-        return Math.round((parent.width - width) / 2)
-      }
-      Behavior on x {
-        NumberAnimation { duration: 240; easing.type: Easing.OutCubic }
-      }
 
       HoverHandler {
         id: revealHover
@@ -2726,7 +2725,14 @@ Item {
       Rectangle {
         id: revealStripRect
         anchors.bottom: parent.bottom
-        anchors.horizontalCenter: parent.horizontalCenter
+        x: {
+          if (root.alignment === "left") return Style.gapsOut * 2 + Style.space(16)
+          if (root.alignment === "right") return parent.width - width - (Style.gapsOut * 2) - Style.space(16)
+          return Math.round((parent.width - width) / 2)
+        }
+        Behavior on x {
+          NumberAnimation { duration: 240; easing.type: Easing.OutCubic }
+        }
         width: revealHover.hovered ? Style.space(48) : Style.space(24)
         height: Style.space(3)
         radius: height / 2
@@ -2741,14 +2747,6 @@ Item {
       id: globalDismiss
       width: (root.contextAppId !== "" || root.activeStackFolder !== "" || root.activeAppGroupId !== "" || root.dragAppId !== "") ? dockWindow.width : 0
       height: (root.contextAppId !== "" || root.activeStackFolder !== "" || root.activeAppGroupId !== "" || root.dragAppId !== "") ? dockWindow.height : 0
-
-      // iOS/Android-style subtle dark backdrop scrim when an app folder is open
-      Rectangle {
-        anchors.fill: parent
-        color: Qt.rgba(0, 0, 0, 0.38)
-        opacity: (root.activeAppGroupId !== "") ? 1 : 0
-        Behavior on opacity { NumberAnimation { duration: 140 } }
-      }
 
       MouseArea {
         anchors.fill: parent

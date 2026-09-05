@@ -31,15 +31,8 @@ Item {
     NumberAnimation { duration: 110; easing.type: Easing.OutQuad }
   }
 
-  readonly property real waveNudgeX: 0
-
-  width: {
-    if (!root) return 0
-    if (root.waveHover) return Math.round(root.iconSlot * (1 + (btn.magnifyScale - 1) * 0.70))
-    return root.iconSlot
-  }
+  width: root ? (root.iconSlot * (root.waveHover ? btn.magnifyScale : 1)) : 0
   height: root ? root.iconSlot : 0
-  z: Math.round(btn.magnifyScale * 100)
 
   Text {
     anchors.centerIn: parent

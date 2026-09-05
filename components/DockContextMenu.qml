@@ -170,7 +170,7 @@ BorderSurface {
         Repeater {
           model: (root && root.appGroups) ? root.appGroups : []
           delegate: ContextRow {
-            text: (modelData.name || "Group") + " (" + (modelData.apps ? modelData.apps.length : 0) + " apps) ✕"
+            text: (modelData.name || "Group") + " (" + (modelData.apps ? modelData.apps.length : 0) + " apps) - Remove"
             danger: true
             onTriggered: {
               if (root) {
@@ -1142,7 +1142,7 @@ BorderSurface {
       MenuDivider {}
 
       ContextRow {
-        text: "⏏ Safely Eject / Unmount"
+        text: "Safely Eject / Unmount"
         textColor: Color.urgent || Color.bar.active
         onTriggered: {
           if (root) {

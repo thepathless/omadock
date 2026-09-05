@@ -109,19 +109,14 @@ Item {
 
   anchors.bottom: parent ? parent.bottom : undefined
   anchors.bottomMargin: (root && root.dockVisible) ? Style.gapsOut : -(dockCard.height + Style.gapsOut + 10)
+  anchors.horizontalCenter: (!root || root.alignment === "center" || !root.alignment) ? parent.horizontalCenter : undefined
+  anchors.left: (root && root.alignment === "left") ? parent.left : undefined
+  anchors.leftMargin: (root && root.alignment === "left") ? (Style.gapsOut * 2) : 0
+  anchors.right: (root && root.alignment === "right") ? parent.right : undefined
+  anchors.rightMargin: (root && root.alignment === "right") ? (Style.gapsOut * 2) : 0
 
   Behavior on anchors.bottomMargin {
     NumberAnimation { duration: 240; easing.type: Easing.OutCubic }
-  }
-
-  x: {
-    if (!parent) return 0
-    if (root && root.alignment === "left") return Style.gapsOut * 2
-    if (root && root.alignment === "right") return parent.width - width - (Style.gapsOut * 2)
-    return Math.round((parent.width - width) / 2)
-  }
-  Behavior on x {
-    NumberAnimation { duration: 110; easing.type: Easing.OutQuad }
   }
 
   opacity: (root && root.dockVisible) ? 1 : 0
@@ -177,22 +172,12 @@ Item {
     padding: Style.space(5)
     z: 1
 
-    Item {
-      id: dockHoverArea
-      anchors.left: parent.left
-      anchors.right: parent.right
-      anchors.bottom: parent.bottom
-      anchors.top: parent.top
-      anchors.topMargin: -Math.round(root ? (root.iconSlot * 0.75) : 32)
-
-      HoverHandler {
-        id: cardHover
-        onHoveredChanged: if (root) root.syncVisibility()
-      }
+    HoverHandler {
+      id: cardHover
+      onHoveredChanged: if (root) root.syncVisibility()
     }
 
-    width: Math.max(root ? root.baseRowWidth : 0, row.implicitWidth) + contentLeftInset + contentRightInset
-    Behavior on width { NumberAnimation { duration: 110; easing.type: Easing.OutQuad } }
+    width: row.implicitWidth + contentLeftInset + contentRightInset
     height: row.implicitHeight + contentTopInset + contentBottomInset
 
     // Click on card padding dismisses context menu
@@ -206,6 +191,8 @@ Item {
         if (root && root.dragAppId !== "") {
           root.dragAppId = ""
           root.dropBeforeId = ""
+          root.dropTargetAppId = ""
+          root.dropTargetGroupId = ""
           root.syncVisibility()
         }
       }
@@ -334,7 +321,7 @@ Item {
           homeCenter: root ? root.slotHomeCenter(
             root.appsSlots + root.pinnedSection.length + root.groupSlots + (root.hasLeftTileSeparator ? 1 : 0) + (root.hasSeparator ? 1 : 0) + root.tileElements + visibleIdx,
             root.appsSlots + root.pinnedSection.length + root.groupSlots + visibleIdx,
-            root.hasSeparator,
+            (root.hasLeftTileSeparator ? 1 : 0) + (root.hasSeparator ? 1 : 0),
             root.tilesFixedWidth) : 0
           pinned: false
           active: root ? (modelData.appId === root.activeId) : false
@@ -384,7 +371,7 @@ Item {
           homeCenter: root ? root.slotHomeCenter(
             root.appsSlots + root.pinnedSection.length + root.groupSlots + (root.hasLeftTileSeparator ? 1 : 0) + (root.hasSeparator ? 1 : 0) + root.tileElements + root.visibleRunningCount + (root.hasFolderSeparator ? 1 : 0) + index,
             root.appsSlots + root.pinnedSection.length + root.groupSlots + root.visibleRunningCount + index,
-            (root.hasSeparator ? 1 : 0) + (root.hasFolderSeparator ? 1 : 0),
+            (root.hasLeftTileSeparator ? 1 : 0) + (root.hasSeparator ? 1 : 0) + (root.hasFolderSeparator ? 1 : 0),
             root.tilesFixedWidth) : 0
           onOpenStackRequested: function(fpath, fname, cx, cy) {
             if (root) root.openFolderStack(fpath, fname, cx)
@@ -410,7 +397,7 @@ Item {
           homeCenter: root ? root.slotHomeCenter(
             root.appsSlots + root.pinnedSection.length + root.groupSlots + (root.hasLeftTileSeparator ? 1 : 0) + (root.hasSeparator ? 1 : 0) + root.tileElements + root.visibleRunningCount + (root.hasFolderSeparator ? 1 : 0) + root.pinnedFolders.length + index,
             root.appsSlots + root.pinnedSection.length + root.groupSlots + root.visibleRunningCount + root.pinnedFolders.length + index,
-            (root.hasSeparator ? 1 : 0) + (root.hasFolderSeparator ? 1 : 0),
+            (root.hasLeftTileSeparator ? 1 : 0) + (root.hasSeparator ? 1 : 0) + (root.hasFolderSeparator ? 1 : 0),
             root.tilesFixedWidth) : 0
           onOpenStackRequested: function(fpath, fname, cx, cy) {
             if (root) root.openFolderStack(fpath, fname, cx)

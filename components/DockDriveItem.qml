@@ -23,7 +23,7 @@ Item {
   signal openStackRequested(string path, string name, real cx, real cy)
   signal menuRequested(string dev, string mountpoint, string name, string space, real cx, real cy)
 
-  width: root ? root.iconSlot : 0
+  width: root ? (root.iconSlot * (root.waveHover ? ditem.magnifyScale : 1)) : 0
   height: root ? root.iconSlot : 0
   z: Math.round(ditem.magnifyScale * 100)
 
@@ -35,8 +35,6 @@ Item {
     if (root.hoverEffect === "off") return 1
     return driveArea.containsMouse ? root.zoomPeak : 1
   }
-
-  readonly property real waveNudgeX: root ? root.waveOffsetAt(ditem.homeCenter) : 0
 
   readonly property string resolvedSource: {
     var _tv = root ? root.themeVersion : 0
@@ -55,9 +53,9 @@ Item {
 
   readonly property bool isSymbolic: resolvedSource.indexOf("-symbolic.svg") >= 0 || resolvedSource.indexOf("symbolic") >= 0
   readonly property color symbolicColor: {
-    if (root && root.folderColor === "white") return "#ffffff"
-    if (root && root.folderColor === "black") return "#111111"
-    return (Color.bar.background.hslLightness < 0.5 || Color.background.hslLightness < 0.5) ? "#ffffff" : "#111111"
+    if (root && root.folderColor === "white") return Color.bar.text
+    if (root && root.folderColor === "black") return Color.bar.background
+    return Color.bar.text
   }
 
   Behavior on magnifyScale {
@@ -80,7 +78,6 @@ Item {
       anchors.bottomMargin: Math.round((iconSlot.height - height) / 2)
       scale: ditem.magnifyScale
       transformOrigin: Item.Bottom
-      transform: Translate { x: ditem.waveNudgeX }
 
       Image {
         id: driveIconImg
@@ -126,7 +123,6 @@ Item {
     anchors.bottom: parent.bottom
     anchors.bottomMargin: Style.space(1)
     anchors.horizontalCenter: parent.horizontalCenter
-    transform: Translate { x: ditem.waveNudgeX }
     width: Style.space(4)
     height: Style.space(4)
     radius: width / 2
