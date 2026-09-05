@@ -75,10 +75,9 @@ Item {
   readonly property real magnifyRange: root.iconSlot * 2.2
   readonly property real baseIconArt: root.iconSize - Style.space(4)
 
-  // The card's own handler, lifted into window coordinates. Both terms move
-  // together as the card grows, so their sum stays the physical pointer.
+  // The card's own handler in dockCard-local coordinates.
   readonly property real pointerX: cardHover.hovered
-    ? dockCardComp.x + cardHover.point.position.x
+    ? cardHover.point.position.x
     : -1e6
 
   readonly property int appsSlots: root.showAppsButton ? 1 : 0
@@ -173,15 +172,8 @@ Item {
     + (root.hasTiles ? root.tileCount * root.tileWidth : 0)
     + Math.max(0, root.elementTotal - 1) * root.gapWidth
 
-  // Where the row starts based on dock alignment (center, left, right).
-  readonly property real baseRowLeft: {
-    var cardW = root.baseRowWidth + (dockCard ? dockCard.contentLeftInset : 0) + (dockCard ? dockCard.contentRightInset : 0)
-    var cardX = 0
-    if (root.alignment === "left") cardX = Style.gapsOut * 2
-    else if (root.alignment === "right") cardX = (dockWindow ? dockWindow.width : 1920) - cardW - (Style.gapsOut * 2)
-    else cardX = ((dockWindow ? dockWindow.width : 1920) - cardW) / 2
-    return cardX + (dockCard ? dockCard.contentLeftInset : 0)
-  }
+  // Where the row starts within the card (card-local coordinates).
+  readonly property real baseRowLeft: dockCard ? dockCard.contentLeftInset : Style.space(5)
 
   function slotHomeCenter(elementIndex, slotsBefore, sepCount, extraLeftWidth) {
     var seps = (typeof sepCount === "number") ? sepCount : (sepCount ? 1 : 0)
@@ -667,7 +659,7 @@ Item {
 
   Process {
     id: removableDrivesScanner
-    command: ["python3", "-c", "import json, subprocess, os, sys\ntry:\n    res = subprocess.run(['lsblk', '-J', '-o', 'NAME,LABEL,MOUNTPOINTS,RM,HOTPLUG,SIZE,TYPE,FSTYPE,MODEL,TRAN'], capture_output=True, text=True)\n    data = json.loads(res.stdout) if res.returncode == 0 else {}\n    devices = []\n    seen = set()\n    def walk(devs):\n        for d in devs:\n            mps = d.get('mountpoints') or ([d.get('mountpoint')] if d.get('mountpoint') else [])\n            rm = bool(d.get('rm') or d.get('hotplug') or (d.get('tran') == 'usb'))\n            for mp in mps:\n                if not mp or mp in ['/', '/home', '/boot', '[SWAP]', '/var/log', '/var/cache/pacman/pkg']:\n                    continue\n                if rm or mp.startswith('/run/media/') or mp.startswith('/media/'):\n                    if mp in seen: continue\n                    seen.add(mp)\n                    label = d.get('label') or d.get('model') or os.path.basename(mp) or d.get('name')\n                    space_info = ''\n                    try:\n                        st = os.statvfs(mp)\n                        free_bytes = st.f_bavail * st.f_frsize\n                        total_bytes = st.f_blocks * st.f_frsize\n                        def fmt(b):\n                            return f'{b / (1024*1024):.1f} MB' if b < 1024*1024*1024 else f'{b / (1024*1024*1024):.1f} GB'\n                        space_info = f'{fmt(free_bytes)} free of {fmt(total_bytes)}'\n                    except Exception:\n                        pass\n                    fstype = str(d.get('fstype') or '').lower()\n                    icon = 'drive-removable-media'\n                    if fstype in ['iso9660', 'udf']:\n                        icon = 'media-optical'\n                    elif d.get('tran') == 'usb' or 'usb' in str(d.get('model') or '').lower():\n                        icon = 'drive-removable-media-usb'\n                    elif d.get('type') == 'disk':\n                        icon = 'drive-harddisk-usb'\n                    devices.append({'dev': '/dev/' + str(d.get('name') or ''), 'name': str(label).strip() if label else 'USB Drive', 'mountpoint': mp, 'size': d.get('size', ''), 'space': space_info, 'fstype': fstype, 'icon': icon})\n            if 'children' in d:\n                walk(d['children'])\n    if 'blockdevices' in data:\n        walk(data['blockdevices'])\n    print(json.dumps(devices))\nexcept Exception as e:\n    print('[]')\n"]
+    command: ["python3", "-c", "import json, subprocess, os, sys\ntry:\n    res = subprocess.run(['lsblk', '-J', '-o', 'NAME,LABEL,MOUNTPOINTS,RM,HOTPLUG,SIZE,TYPE,FSTYPE,MODEL,TRAN'], capture_output=True, text=True)\n    data = json.loads(res.stdout) if res.returncode == 0 else {}\n    devices = []\n    seen = set()\n    def walk(devs):\n        for d in devs:\n            mps = d.get('mountpoints') or ([d.get('mountpoint')] if d.get('mountpoint') else [])\n            rm = bool(d.get('rm') or d.get('hotplug') or (d.get('tran') == 'usb'))\n            for mp in mps:\n                if not mp or mp in ['/', '/home', '/boot', '[SWAP]', '/var/log', '/var/cache/pacman/pkg']:\n                    continue\n                if rm or mp.startswith('/run/media/') or mp.startswith('/media/'):\n                    if mp in seen: continue\n                    seen.add(mp)\n                    label = d.get('label') or d.get('model') or os.path.basename(mp) or d.get('name')\n                    space_info = ''\n                    try:\n                        st = os.statvfs(mp)\n                        free_bytes = st.f_bavail * st.f_frsize\n                        total_bytes = st.f_blocks * st.f_frsize\n                        def fmt(b):\n                            return f'{b / (1024*1024):.1f} MB' if b < 1024*1024*1024 else f'{b / (1024*1024*1024):.1f} GB'\n                        space_info = f'{fmt(free_bytes)} free of {fmt(total_bytes)}'\n                    except Exception:\n                        pass\n                    fstype = str(d.get('fstype') or '').lower()\n                    is_usb = (d.get('tran') == 'usb') or rm or ('usb' in str(d.get('model') or '').lower())\n                    if is_usb:\n                        icon = 'drive-removable-media-usb'\n                    elif fstype in ['iso9660', 'udf']:\n                        icon = 'media-optical'\n                    elif d.get('type') == 'disk':\n                        icon = 'drive-harddisk-usb'\n                    else:\n                        icon = 'drive-removable-media'\n                    devices.append({'dev': '/dev/' + str(d.get('name') or ''), 'name': str(label).strip() if label else 'USB Drive', 'mountpoint': mp, 'size': d.get('size', ''), 'space': space_info, 'fstype': fstype, 'icon': icon})\n            if 'children' in d:\n                walk(d['children'])\n    if 'blockdevices' in data:\n        walk(data['blockdevices'])\n    print(json.dumps(devices))\nexcept Exception as e:\n    print('[]')\n"]
     running: false
     stdout: StdioCollector {
       onStreamFinished: {

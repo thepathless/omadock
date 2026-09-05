@@ -107,7 +107,7 @@ Item {
         anchors.fill: parent
         radius: root ? root.effectiveCardRadius : Style.cornerRadius
         color: Util.alpha(Color.bar.background, 0.65)
-        border.color: Color.bar.border
+        border.color: Util.alpha(Color.menu.border, 0.65)
         border.width: 1
 
         // Empty folder fallback icon

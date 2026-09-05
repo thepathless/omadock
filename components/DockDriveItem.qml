@@ -1,5 +1,4 @@
 import QtQuick
-import QtQuick.Effects
 import Quickshell
 import qs.Commons
 import qs.Ui
@@ -38,24 +37,21 @@ Item {
 
   readonly property string resolvedSource: {
     var _tv = root ? root.themeVersion : 0
-    var iconName = ditem.icon || "drive-removable-media"
+    var iconName = ditem.icon || "drive-removable-media-usb"
     if (iconName.indexOf("/") === 0 || iconName.indexOf("file://") === 0) return iconName
-    if (root && root.folderColor && root.folderColor !== "theme" && root.folderColor !== "auto") {
-      var themed = DockModel.resolveThemedFolderIcon(iconName, root.currentIconThemeName, root.folderColor)
-      if (themed && themed !== "") return themed
-    }
     var p = Quickshell.iconPath(iconName, true)
+    if (p && p !== "") return p
+    p = Quickshell.iconPath("drive-removable-media-usb", true)
     if (p && p !== "") return p
     p = Quickshell.iconPath("drive-removable-media", true)
     if (p && p !== "") return p
+    p = Quickshell.iconPath("media-removable", true)
+    if (p && p !== "") return p
+    p = Quickshell.iconPath("usb-pendrive", true)
+    if (p && p !== "") return p
+    p = Quickshell.iconPath("drive-harddisk-usb", true)
+    if (p && p !== "") return p
     return Quickshell.iconPath("folder", true)
-  }
-
-  readonly property bool isSymbolic: resolvedSource.indexOf("-symbolic.svg") >= 0 || resolvedSource.indexOf("symbolic") >= 0
-  readonly property color symbolicColor: {
-    if (root && root.folderColor === "white") return Color.bar.text
-    if (root && root.folderColor === "black") return Color.bar.background
-    return Color.bar.text
   }
 
   Behavior on magnifyScale {
@@ -69,51 +65,20 @@ Item {
     anchors.horizontalCenter: parent.horizontalCenter
     anchors.verticalCenter: parent.verticalCenter
 
-    Item {
-      id: iconContainer
-      width: root ? root.iconSize : 0
-      height: root ? root.iconSize : 0
+    Image {
+      id: driveIconImg
       anchors.horizontalCenter: parent.horizontalCenter
       anchors.bottom: parent.bottom
-      anchors.bottomMargin: Math.round((iconSlot.height - height) / 2)
-      scale: ditem.magnifyScale
-      transformOrigin: Item.Bottom
-
-      Image {
-        id: driveIconImg
-        anchors.fill: parent
-        source: ditem.resolvedSource
-        sourceSize: Qt.size((root ? root.iconSize : 36) * 4, (root ? root.iconSize : 36) * 4)
-        fillMode: Image.PreserveAspectFit
-        asynchronous: true
-        smooth: true
-        mipmap: true
-        visible: !ditem.isSymbolic
-      }
-
-      Item {
-        anchors.fill: parent
-        visible: ditem.isSymbolic
-
-        Image {
-          id: symbolicImg
-          anchors.fill: parent
-          source: ditem.resolvedSource
-          sourceSize: Qt.size((root ? root.iconSize : 36) * 4, (root ? root.iconSize : 36) * 4)
-          fillMode: Image.PreserveAspectFit
-          asynchronous: true
-          smooth: true
-          mipmap: true
-          visible: false
-        }
-
-        MultiEffect {
-          anchors.fill: symbolicImg
-          source: symbolicImg
-          colorization: 1.0
-          colorizationColor: ditem.symbolicColor
-        }
-      }
+      anchors.bottomMargin: Math.round((iconSlot.height - (root ? root.baseIconArt : 32)) / 2)
+      width: (root ? root.baseIconArt : 32) * ditem.magnifyScale
+      height: width
+      source: ditem.resolvedSource
+      sourceSize: Qt.size(width * Screen.devicePixelRatio, height * Screen.devicePixelRatio)
+      fillMode: Image.PreserveAspectFit
+      asynchronous: true
+      smooth: true
+      mipmap: true
+      visible: source !== ""
     }
   }
 

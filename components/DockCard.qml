@@ -109,11 +109,13 @@ Item {
 
   anchors.bottom: parent ? parent.bottom : undefined
   anchors.bottomMargin: (root && root.dockVisible) ? Style.gapsOut : -(dockCard.height + Style.gapsOut + 10)
-  anchors.horizontalCenter: (!root || root.alignment === "center" || !root.alignment) ? parent.horizontalCenter : undefined
-  anchors.left: (root && root.alignment === "left") ? parent.left : undefined
-  anchors.leftMargin: (root && root.alignment === "left") ? (Style.gapsOut * 2) : 0
-  anchors.right: (root && root.alignment === "right") ? parent.right : undefined
-  anchors.rightMargin: (root && root.alignment === "right") ? (Style.gapsOut * 2) : 0
+
+  x: {
+    if (!parent) return 0
+    if (root && root.alignment === "left") return Style.gapsOut * 2
+    if (root && root.alignment === "right") return parent.width - width - (Style.gapsOut * 2)
+    return Math.round((parent.width - width) / 2)
+  }
 
   Behavior on anchors.bottomMargin {
     NumberAnimation { duration: 240; easing.type: Easing.OutCubic }
@@ -160,7 +162,7 @@ Item {
 
     readonly property real effectiveBorderWidth: 1.5
     readonly property color effectiveBorderColor: {
-      if (!root) return Color.bar.border
+      if (!root) return Util.alpha(Color.menu.border, 0.48)
       // Specular Frosted Glass Rim: Crisp highlight with high alpha for contrast on dark and light surfaces
       if (root.effectiveDockOpacity < 0.25 || root.dockBgColor === "none") return Util.alpha(root.dockForeground, 0.48)
       return Util.alpha(root.dockForeground, Math.max(0.24, root.effectiveDockOpacity * 0.35))
