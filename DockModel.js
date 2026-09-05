@@ -850,3 +850,23 @@ function resolveAppName(appLibrary, appRows, appId) {
   }
   return id
 }
+
+function resolveDriveIcon(iconName, themeName) {
+  var name = String(iconName || "drive-removable-media-usb").trim()
+  if (name.indexOf("/") === 0 || name.indexOf("file://") === 0) return name
+
+  var devMap = {
+    "drive-removable-media-usb": "/usr/share/icons/Yaru/256x256/devices/drive-removable-media-usb.png",
+    "usb-pendrive": "/usr/share/icons/Yaru/256x256/devices/drive-removable-media-usb.png",
+    "drive-removable-media": "/usr/share/icons/Yaru/256x256/devices/drive-removable-media.png",
+    "media-removable": "/usr/share/icons/Yaru/256x256/devices/drive-removable-media.png",
+    "drive-harddisk-usb": "/usr/share/icons/Yaru/256x256/devices/drive-harddisk-usb.png",
+    "media-optical": "/usr/share/icons/Yaru/256x256/devices/media-optical.png"
+  }
+
+  if (devMap[name]) {
+    return "file://" + devMap[name]
+  }
+
+  return "file:///usr/share/icons/Yaru/256x256/devices/drive-removable-media-usb.png"
+}

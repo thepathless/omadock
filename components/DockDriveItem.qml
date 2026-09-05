@@ -39,19 +39,9 @@ Item {
     var _tv = root ? root.themeVersion : 0
     var iconName = ditem.icon || "drive-removable-media-usb"
     if (iconName.indexOf("/") === 0 || iconName.indexOf("file://") === 0) return iconName
-    var p = Quickshell.iconPath(iconName, true)
-    if (p && p !== "") return p
-    p = Quickshell.iconPath("drive-removable-media-usb", true)
-    if (p && p !== "") return p
-    p = Quickshell.iconPath("drive-removable-media", true)
-    if (p && p !== "") return p
-    p = Quickshell.iconPath("media-removable", true)
-    if (p && p !== "") return p
-    p = Quickshell.iconPath("usb-pendrive", true)
-    if (p && p !== "") return p
-    p = Quickshell.iconPath("drive-harddisk-usb", true)
-    if (p && p !== "") return p
-    return Quickshell.iconPath("folder", true)
+    var fileUri = DockModel.resolveDriveIcon(iconName, root ? root.currentIconThemeName : "Yaru")
+    if (fileUri && fileUri !== "") return fileUri
+    return "file:///usr/share/icons/Yaru/256x256/devices/drive-removable-media-usb.png"
   }
 
   Behavior on magnifyScale {
@@ -73,7 +63,10 @@ Item {
       width: (root ? root.baseIconArt : 32) * ditem.magnifyScale
       height: width
       source: ditem.resolvedSource
-      sourceSize: Qt.size(width * Screen.devicePixelRatio, height * Screen.devicePixelRatio)
+      sourceSize: Qt.size(
+        Math.max(32, Math.round((root ? root.iconSize : 36) * 4)),
+        Math.max(32, Math.round((root ? root.iconSize : 36) * 4))
+      )
       fillMode: Image.PreserveAspectFit
       asynchronous: true
       smooth: true
