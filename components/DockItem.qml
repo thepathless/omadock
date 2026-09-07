@@ -36,12 +36,14 @@ Item {
   // draws its icon larger.
   width: root ? (root.iconSlot * (root.waveHover ? item.magnifyScale : 1)) : 0
   height: root ? root.iconSlot : 0
+  z: Math.round(item.magnifyScale * 100)
 
   property bool isDragging: false
   property bool _dragJustEnded: false
   property real dragStartX: 0
   property real bounceY: 0
   property real homeCenter: 0
+  readonly property bool isDropTarget: (root && root.dropTargetAppId === item.appId && root.dragAppId !== item.appId)
   property real magnifyScale: {
     if (!root) return 1
     if (root.waveHover) return root.magnifyScaleAt(item.homeCenter)
@@ -142,6 +144,25 @@ Item {
 
     transform: Translate {
       y: item.bounceY
+    }
+
+    // Drop target halo for creating an App Folder
+    Rectangle {
+      visible: item.isDropTarget
+      anchors.centerIn: iconImg
+      width: (root ? root.baseIconArt : 32) * item.magnifyScale + Style.space(8)
+      height: width
+      radius: root ? root.effectiveCardRadius : Style.cornerRadius
+      color: Util.alpha(Color.bar.active, 0.22)
+      border.color: Color.bar.active
+      border.width: 1.5
+      z: -1
+      SequentialAnimation on opacity {
+        running: item.isDropTarget
+        loops: Animation.Infinite
+        NumberAnimation { from: 0.5; to: 1.0; duration: 350; easing.type: Easing.InOutQuad }
+        NumberAnimation { from: 1.0; to: 0.5; duration: 350; easing.type: Easing.InOutQuad }
+      }
     }
 
     // Sits on the dock floor and grows upward, so a magnified icon never
@@ -301,7 +322,7 @@ Item {
     }
 
     onPressed: function(mouse) {
-      if (mouse.button === Qt.LeftButton && item.pinned) {
+      if (mouse.button === Qt.LeftButton && (item.pinned || item.running)) {
         item.dragStartX = mouse.x
         item.isDragging = false
         item._dragJustEnded = false
@@ -309,7 +330,7 @@ Item {
     }
 
     onPositionChanged: function(mouse) {
-      if (area.pressed && mouse.buttons & Qt.LeftButton && item.pinned) {
+      if (area.pressed && mouse.buttons & Qt.LeftButton && (item.pinned || item.running)) {
         var dist = Math.abs(mouse.x - item.dragStartX)
         if (!item.isDragging && dist > 8) {
           item.isDragging = true

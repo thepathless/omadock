@@ -72,6 +72,11 @@ BorderSurface {
         }
 
         ContextRow {
+          text: "Placement & Alignment ›"
+          onTriggered: { if (root) root.settingsSubmenu = "alignment" }
+        }
+
+        ContextRow {
           text: "Behavior & Windows ›"
           onTriggered: { if (root) root.settingsSubmenu = "behavior" }
         }
@@ -89,6 +94,90 @@ BorderSurface {
         ContextRow {
           text: "Folders & Stacks ›"
           onTriggered: { if (root) root.settingsSubmenu = "folders" }
+        }
+
+        ContextRow {
+          text: "App Folders & Groups ›"
+          onTriggered: { if (root) root.settingsSubmenu = "app_groups" }
+        }
+      }
+
+      // Placement & Alignment Category Page
+      Column {
+        spacing: Style.space(1)
+        visible: root ? root.settingsSubmenu === "alignment" : false
+
+        ContextRow {
+          text: "‹ Back"
+          textColor: Color.bar.active
+          onTriggered: { if (root) root.settingsSubmenu = "" }
+        }
+
+        ContextRow {
+          text: "Dock Alignment"
+          isHeader: true
+        }
+
+        ContextRow {
+          text: "Center (Default)"
+          checked: root ? (root.alignment === "center" || !root.alignment) : true
+          onTriggered: { if (root) root.setDockAlignment("center") }
+        }
+
+        ContextRow {
+          text: "Left Aligned"
+          checked: root ? root.alignment === "left" : false
+          onTriggered: { if (root) root.setDockAlignment("left") }
+        }
+
+        ContextRow {
+          text: "Right Aligned"
+          checked: root ? root.alignment === "right" : false
+          onTriggered: { if (root) root.setDockAlignment("right") }
+        }
+      }
+
+      // App Folders & Groups Category Page
+      Column {
+        spacing: Style.space(1)
+        visible: root ? root.settingsSubmenu === "app_groups" : false
+
+        ContextRow {
+          text: "‹ Back"
+          textColor: Color.bar.active
+          onTriggered: { if (root) root.settingsSubmenu = "" }
+        }
+
+        ContextRow {
+          text: "App Folders & Groups"
+          isHeader: true
+        }
+
+        ContextRow {
+          text: "+ Create Group from Running Apps..."
+          textColor: Color.bar.active
+          onTriggered: {
+            if (root) {
+              root.createAppGroupFromRunning()
+              root.settingsSubmenu = ""
+              root.closeContext()
+            }
+          }
+        }
+
+        MenuDivider {}
+
+        Repeater {
+          model: (root && root.appGroups) ? root.appGroups : []
+          delegate: ContextRow {
+            text: (modelData.name || "Group") + " (" + (modelData.apps ? modelData.apps.length : 0) + " apps) - Remove"
+            danger: true
+            onTriggered: {
+              if (root) {
+                root.removeAppGroup(modelData.id)
+              }
+            }
+          }
         }
       }
 
@@ -166,6 +255,20 @@ BorderSurface {
           text: "Home (~/)"
           checked: root ? root.isFolderPinned("~") : false
           onTriggered: { if (root) root.toggleFolderPin("~", "Home", "user-home") }
+        }
+
+        MenuDivider {}
+
+        ContextRow {
+          text: "Show Removable USB Drives"
+          checked: root ? root.showRemovableDrives : true
+          onTriggered: {
+            if (root) {
+              root.showRemovableDrives = !root.showRemovableDrives
+              root.saveConfig()
+              root.scanRemovableDrives()
+            }
+          }
         }
       }
 
@@ -987,10 +1090,113 @@ BorderSurface {
       }
     }
 
+    // Removable Drive Context Menu
+    Column {
+      spacing: Style.space(2)
+      visible: root ? root.contextAppId === "__drive_context__" : false
+
+      ContextRow {
+        text: (root ? root.contextDriveName : "") || "USB Drive"
+        isHeader: true
+      }
+
+      ContextRow {
+        text: root ? (root.contextDriveSpace !== "" ? root.contextDriveSpace : root.contextDriveMount) : ""
+        textColor: Util.alpha(Color.menu.text, 0.6)
+        isHeader: true
+        visible: text !== ""
+      }
+
+      MenuDivider {}
+
+      ContextRow {
+        text: "Open in File Manager"
+        onTriggered: {
+          if (root) {
+            Util.execDetached("uwsm-app -- xdg-open " + Util.shellQuote(root.contextDriveMount))
+            root.closeContext()
+          }
+        }
+      }
+
+      ContextRow {
+        text: "Open in Terminal"
+        onTriggered: {
+          if (root) {
+            Util.execDetached("uwsm-app -- omarchy-terminal -d " + Util.shellQuote(root.contextDriveMount))
+            root.closeContext()
+          }
+        }
+      }
+
+      ContextRow {
+        text: "Copy Mount Path"
+        onTriggered: {
+          if (root) {
+            Util.execDetached("uwsm-app -- wl-copy " + Util.shellQuote(root.contextDriveMount))
+            root.closeContext()
+          }
+        }
+      }
+
+      MenuDivider {}
+
+      ContextRow {
+        text: "Safely Eject / Unmount"
+        textColor: Color.urgent || Color.bar.active
+        onTriggered: {
+          if (root) {
+            root.ejectDrive(root.contextDriveDev, root.contextDriveMount, root.contextDriveName)
+          }
+        }
+      }
+    }
+
+    // App Group Context Menu
+    Column {
+      spacing: Style.space(2)
+      visible: root ? root.contextAppId === "__app_group_context__" : false
+
+      ContextRow {
+        text: (root && root.contextAppGroupData) ? root.contextAppGroupData.name : "App Group"
+        isHeader: true
+      }
+
+      ContextRow {
+        text: (root && root.contextAppGroupData && root.contextAppGroupData.apps) ? (root.contextAppGroupData.apps.length + " Apps") : ""
+        textColor: Util.alpha(Color.menu.text, 0.6)
+        isHeader: true
+        visible: text !== ""
+      }
+
+      MenuDivider {}
+
+      ContextRow {
+        text: "Open Group Grid"
+        onTriggered: {
+          if (root && root.contextAppGroupData) {
+            root.openAppGroup(root.contextAppGroupData, root.contextX, root.contextY)
+            root.closeContext()
+          }
+        }
+      }
+
+      ContextRow {
+        text: "Ungroup / Remove Group"
+        danger: true
+        onTriggered: {
+          if (root && root.contextAppGroupData) {
+            root.removeAppGroup(root.contextAppGroupData.id)
+            root.closeContext()
+          }
+        }
+      }
+    }
+
     // Regular App Context Menu
     Item {
       id: appContextMenuWrapper
-      visible: root ? (root.contextAppId !== "" && root.contextAppId !== "__dock_settings__" && root.contextAppId !== "__folder_context__" && root.contextAppId !== "__tile_context__") : false
+      visible: root ? (root.contextAppId !== "" && root.contextAppId !== "__dock_settings__" && root.contextAppId !== "__folder_context__" && root.contextAppId !== "__tile_context__" && root.contextAppId !== "__drive_context__" && root.contextAppId !== "__app_group_context__") : false
       implicitWidth: appContextMenuColumn.implicitWidth
       implicitHeight: appContextMenuColumn.implicitHeight
       width: contextMenu.rowWidth > 0 ? contextMenu.rowWidth : implicitWidth

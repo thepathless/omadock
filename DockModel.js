@@ -24,6 +24,10 @@ function stripDesktop(id) {
   return value.replace(/\.desktop$/i, "")
 }
 
+function isList(v) {
+  return Array.isArray(v) || (v !== null && typeof v === "object" && typeof v.length === "number");
+}
+
 function toArray(list) {
   if (Array.isArray(list)) return list
   if (!list || typeof list === "string" || typeof list === "function") return []
@@ -283,7 +287,7 @@ function parsePinned(raw) {
   }
   if (!parsed || typeof parsed !== "object") return []
 
-  var arr = Array.isArray(parsed) ? parsed : (Array.isArray(parsed.pinned) ? parsed.pinned : [])
+  var arr = isList(parsed) ? parsed : (isList(parsed.pinned) ? parsed.pinned : [])
   var out = []
   var seen = {}
   for (var i = 0; i < arr.length; i++) {
@@ -347,9 +351,9 @@ function reorderPinned(pinnedIds, appId, insertBeforeId) {
   if (insertBeforeId && stripDesktop(insertBeforeId) === id) return arr
 
   var fromIdx = arr.indexOf(id)
-  if (fromIdx < 0) return arr
-
-  arr.splice(fromIdx, 1)
+  if (fromIdx >= 0) {
+    arr.splice(fromIdx, 1)
+  }
 
   if (!insertBeforeId) {
     arr.push(id)
@@ -419,11 +423,28 @@ function windowAddress(handle) {
   return "0x" + value.toLowerCase()
 }
 
-function buildEntries(pinnedIds, toplevels, appRows, appLibrary, hyprFor, minimizedWs, minimizedOrigins) {
+function buildEntries(pinnedIds, toplevels, appRows, appLibrary, hyprFor, minimizedWs, minimizedOrigins, appGroups) {
   var pinned = toArray(pinnedIds)
   var list = toArray(toplevels)
   var minWs = minimizedWs || "special:minimized"
   var minOrigins = minimizedOrigins || {}
+
+  var groupedMap = {}
+  var groups = toArray(appGroups)
+  for (var g = 0; g < groups.length; g++) {
+    var grp = groups[g]
+    if (grp && grp.apps) {
+      var gapps = toArray(grp.apps)
+      for (var a = 0; a < gapps.length; a++) {
+        var ga = stripDesktop(gapps[a])
+        if (ga) {
+          groupedMap[ga] = true
+          var gc = getCandidates(ga)
+          for (var c1 = 0; c1 < gc.length; c1++) groupedMap[gc[c1]] = true
+        }
+      }
+    }
+  }
 
   var runningIds = []
   var winMap = {}
@@ -530,7 +551,17 @@ function buildEntries(pinnedIds, toplevels, appRows, appLibrary, hyprFor, minimi
         break
       }
     }
-    if (alreadyPinned || seen[rid]) continue
+    var alreadyGrouped = Boolean(groupedMap[rid])
+    if (!alreadyGrouped) {
+      var rcands = getCandidates(rid)
+      for (var rc = 0; rc < rcands.length; rc++) {
+        if (groupedMap[rcands[rc]]) {
+          alreadyGrouped = true
+          break
+        }
+      }
+    }
+    if (alreadyPinned || alreadyGrouped || seen[rid]) continue
     seen[rid] = true
     var cands = getCandidates(rid)
     for (var c = 0; c < cands.length; c++) {
@@ -553,7 +584,23 @@ function buildEntries(pinnedIds, toplevels, appRows, appLibrary, hyprFor, minimi
   }
   enrich(runningOut)
 
-  return { pinned: pinnedOut, running: runningOut }
+  var groupedOut = []
+  for (var ga in groupedMap) {
+    var gwins = getWindowsFor(ga)
+    if (gwins.length > 0) {
+      groupedOut.push({
+        id: ga,
+        appId: ga,
+        pinned: false,
+        running: true,
+        windows: gwins.length,
+        windowList: gwins
+      })
+    }
+  }
+  enrich(groupedOut)
+
+  return { pinned: pinnedOut, running: runningOut, grouped: groupedOut }
 }
 
 // True when the list has at least one window and every one of them is parked
@@ -742,4 +789,84 @@ function resolveFileItemIcon(iconName, themeName, folderColorMode) {
   }
 
   return "file:///usr/share/icons/Yaru/256x256/mimetypes/text-x-generic.png"
+}
+
+function resolveAppIcon(appLibrary, appRows, appId) {
+  var id = String(appId || "").trim()
+  if (!id) return appLibrary ? appLibrary.iconSource("application-x-executable") : ""
+
+  // 1. If an absolute file path is passed
+  if (id.indexOf("/") === 0 || id.indexOf("file://") === 0) {
+    return id.indexOf("file://") === 0 ? id : ("file://" + id)
+  }
+
+  // 2. Look up desktop entry
+  var entry = entryFor(appRows, id)
+  if (entry && entry.icon && appLibrary) {
+    var src = appLibrary.iconSource(entry.icon)
+    if (src && src.indexOf("application-x-executable") < 0) return src
+  }
+
+  // 3. Look up candidate tokens in appLibrary
+  if (appLibrary) {
+    var cands = getCandidates(id)
+    for (var k = 0; k < cands.length; k++) {
+      var cand = cands[k]
+      var testSrc = appLibrary.iconSource(cand)
+      if (testSrc && testSrc.indexOf("application-x-executable") < 0) return testSrc
+    }
+    var directSrc = appLibrary.iconSource(id)
+    if (directSrc && directSrc.indexOf("application-x-executable") < 0) return directSrc
+  }
+
+  // 4. Try Quickshell.iconPath fallback
+  try {
+    var qp = Quickshell.iconPath(entry && entry.icon ? entry.icon : id, true)
+    if (qp && qp !== "") return qp
+  } catch (e) {}
+
+  // 5. Ultimate fallback
+  if (appLibrary) {
+    var fallback = appLibrary.iconSource("application-x-executable")
+    if (fallback) return fallback
+  }
+  try {
+    return Quickshell.iconPath("application-x-executable", true)
+  } catch (e2) {
+    return ""
+  }
+}
+
+function resolveAppName(appLibrary, appRows, appId) {
+  var id = String(appId || "").trim()
+  if (!id) return ""
+  var entry = entryFor(appRows, id)
+  if (entry) {
+    if (appLibrary && typeof appLibrary.entryName === "function") {
+      var n = appLibrary.entryName(entry)
+      if (n) return n
+    }
+    if (entry.name) return entry.name
+  }
+  return id
+}
+
+function resolveDriveIcon(iconName, themeName) {
+  var name = String(iconName || "drive-removable-media-usb").trim()
+  if (name.indexOf("/") === 0 || name.indexOf("file://") === 0) return name
+
+  var devMap = {
+    "drive-removable-media-usb": "/usr/share/icons/Yaru/256x256/devices/drive-removable-media-usb.png",
+    "usb-pendrive": "/usr/share/icons/Yaru/256x256/devices/drive-removable-media-usb.png",
+    "drive-removable-media": "/usr/share/icons/Yaru/256x256/devices/drive-removable-media.png",
+    "media-removable": "/usr/share/icons/Yaru/256x256/devices/drive-removable-media.png",
+    "drive-harddisk-usb": "/usr/share/icons/Yaru/256x256/devices/drive-harddisk-usb.png",
+    "media-optical": "/usr/share/icons/Yaru/256x256/devices/media-optical.png"
+  }
+
+  if (devMap[name]) {
+    return "file://" + devMap[name]
+  }
+
+  return "file:///usr/share/icons/Yaru/256x256/devices/drive-removable-media-usb.png"
 }

@@ -1,0 +1,231 @@
+import QtQuick
+import Quickshell
+import qs.Commons
+import qs.Ui
+import "../DockModel.js" as DockModel
+
+Item {
+  id: gitem
+
+  property var rootRef: null
+  readonly property var root: rootRef
+
+  property var groupData: null
+  property real homeCenter: 0
+
+  readonly property string groupId: (groupData && groupData.id) ? groupData.id : ""
+  readonly property string groupName: (groupData && groupData.name) ? groupData.name : "Folder"
+  readonly property var groupApps: (groupData && DockModel.isList(groupData.apps)) ? DockModel.toArray(groupData.apps) : []
+
+  signal openGroupRequested(var gdata, real cx, real cy)
+  signal menuRequested(var gdata, real cx, real cy)
+
+  width: root ? (root.iconSlot * (root.waveHover ? gitem.magnifyScale : 1)) : 0
+  height: root ? root.iconSlot : 0
+  z: Math.round(gitem.magnifyScale * 100)
+
+  readonly property bool isOpen: root ? root.activeAppGroupId === gitem.groupId : false
+  readonly property bool isDropTarget: (root && (root.dropTargetGroupId === gitem.groupId || root.dropTargetAppId === gitem.groupId))
+
+  // Check running / active / window stats for apps in this group
+  readonly property var groupRunningInfo: {
+    var hasRun = false
+    var hasActive = false
+    var count = 0
+    if (!root) return { running: false, active: false, count: 0 }
+    var running = root.runningSection || []
+    var grouped = root.groupedSection || []
+    var all = running.concat(grouped)
+    for (var a = 0; a < gitem.groupApps.length; a++) {
+      var aid = gitem.groupApps[a]
+      for (var r = 0; r < all.length; r++) {
+        var ent = all[r]
+        if (ent && (ent.appId === aid || DockModel.isAppMatch(ent.appId, aid))) {
+          if (ent.running) {
+            hasRun = true
+            count += (ent.windows || 1)
+            if (ent.appId === root.activeId) hasActive = true
+          }
+        }
+      }
+    }
+    return { running: hasRun, active: hasActive, count: count }
+  }
+
+  readonly property bool hasRunningApps: groupRunningInfo.running
+
+  property real magnifyScale: {
+    if (!root) return 1
+    if (root.waveHover) return root.magnifyScaleAt(gitem.homeCenter)
+    if (root.hoverEffect === "off") return 1
+    return groupArea.containsMouse ? root.zoomPeak : 1
+  }
+
+  Behavior on magnifyScale {
+    NumberAnimation { duration: 110; easing.type: Easing.OutQuad }
+  }
+
+  Item {
+    id: iconSlot
+    width: root ? root.iconSlot : 0
+    height: root ? root.iconSlot : 0
+    anchors.horizontalCenter: parent.horizontalCenter
+    anchors.verticalCenter: parent.verticalCenter
+
+    Item {
+      id: iconContainer
+      width: root ? root.iconSize : 0
+      height: root ? root.iconSize : 0
+      anchors.horizontalCenter: parent.horizontalCenter
+      anchors.bottom: parent.bottom
+      anchors.bottomMargin: gitem.hasRunningApps ? Style.space(5) : Math.round((iconSlot.height - height) / 2)
+      scale: gitem.magnifyScale
+      transformOrigin: Item.Bottom
+
+      // Drop target halo
+      Rectangle {
+        visible: gitem.isDropTarget
+        anchors.centerIn: parent
+        width: parent.width + Style.space(8)
+        height: width
+        radius: root ? root.effectiveCardRadius : Style.cornerRadius
+        color: Util.alpha(Color.bar.active, 0.22)
+        border.color: Color.bar.active
+        border.width: 1.5
+        z: -1
+        SequentialAnimation on opacity {
+          running: gitem.isDropTarget
+          loops: Animation.Infinite
+          NumberAnimation { from: 0.5; to: 1.0; duration: 350; easing.type: Easing.InOutQuad }
+          NumberAnimation { from: 1.0; to: 0.5; duration: 350; easing.type: Easing.InOutQuad }
+        }
+      }
+
+      // Frosted Folder Tile Container (macOS / iOS Launchpad Folder style)
+      Rectangle {
+        id: folderTile
+        anchors.fill: parent
+        radius: root ? root.effectiveCardRadius : Style.cornerRadius
+        color: Util.alpha(Color.bar.background, 0.65)
+        border.color: Util.alpha(Color.menu.border, 0.65)
+        border.width: 1
+
+        // Empty folder fallback icon
+        Image {
+          visible: gitem.groupApps.length === 0
+          anchors.centerIn: parent
+          width: Math.round(parent.width * 0.55)
+          height: width
+          source: Quickshell.iconPath("folder", true)
+          fillMode: Image.PreserveAspectFit
+          smooth: true
+        }
+
+        // 2x2 Mini Icons Grid Preview
+        Grid {
+          visible: gitem.groupApps.length > 0
+          anchors.centerIn: parent
+          columns: 2
+          rows: 2
+          spacing: Style.space(2)
+
+          Repeater {
+            model: gitem.groupApps.slice(0, 4)
+            delegate: Item {
+              id: miniCell
+              readonly property real miniSize: Math.round(iconContainer.width * 0.36)
+              width: miniSize
+              height: miniSize
+
+              readonly property string appIconName: {
+                var dEntry = root ? DockModel.entryFor(root.appRows, modelData) : null
+                if (dEntry && dEntry.icon) return dEntry.icon
+                return String(modelData || "")
+              }
+
+              readonly property string miniSource: {
+                if (root && root.appLibrary) {
+                  var src = DockModel.resolveAppIcon(root.appLibrary, root.appRows, modelData)
+                  if (src) return src
+                }
+                var p = Quickshell.iconPath(miniCell.appIconName, true)
+                if (p && p !== "") return p
+                return Quickshell.iconPath("application-x-executable", true)
+              }
+
+              Image {
+                anchors.fill: parent
+                source: miniCell.miniSource
+                sourceSize: Qt.size(miniCell.miniSize * 2, miniCell.miniSize * 2)
+                fillMode: Image.PreserveAspectFit
+                asynchronous: true
+                smooth: true
+                mipmap: true
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+
+  // Running indicator dot underneath the folder if any child app is running
+  // 3-state running indicator row underneath the folder if any child app is running
+  Row {
+    id: indicatorRow
+    anchors.horizontalCenter: parent.horizontalCenter
+    anchors.bottom: parent.bottom
+    anchors.bottomMargin: Style.space(1)
+    spacing: Style.space(2)
+    visible: gitem.hasRunningApps
+
+    Repeater {
+      model: Math.min(3, Math.max(1, gitem.groupRunningInfo.count))
+      delegate: Rectangle {
+        width: (gitem.groupRunningInfo.active && index === 0) ? Style.space(12) : Style.space(4)
+        height: Style.space(4)
+        radius: height / 2
+        color: (gitem.groupRunningInfo.active && index === 0) || gitem.isOpen
+          ? Color.bar.active
+          : Util.alpha(root ? root.dockForeground : Color.bar.text, 0.88)
+        border.color: Qt.rgba(0, 0, 0, 0.45)
+        border.width: 1
+        Behavior on width { NumberAnimation { duration: 140; easing.type: Easing.OutQuad } }
+        Behavior on color { ColorAnimation { duration: 120 } }
+      }
+    }
+  }
+
+  MouseArea {
+    id: groupArea
+    anchors.fill: parent
+    hoverEnabled: true
+    acceptedButtons: Qt.LeftButton | Qt.RightButton
+    cursorShape: Qt.PointingHandCursor
+
+    onClicked: function(mouse) {
+      var targetWin = root ? root.contentItemRef : null
+      if (mouse.button === Qt.RightButton) {
+        var mappedPos = targetWin ? gitem.mapToItem(targetWin, gitem.width / 2, 0) : null
+        if (!mappedPos) return
+        gitem.menuRequested(gitem.groupData, mappedPos.x, 0)
+      } else {
+        var centerPos = targetWin ? gitem.mapToItem(targetWin, gitem.width / 2, 0) : null
+        if (!centerPos) return
+        gitem.openGroupRequested(gitem.groupData, centerPos.x, centerPos.y)
+      }
+    }
+  }
+
+  // Hover tooltip
+  HoverTooltip {
+    text: gitem.groupName + " (" + gitem.groupApps.length + (gitem.groupApps.length === 1 ? " app)" : " apps)")
+    hovered: groupArea.containsMouse
+    blocked: (!root || !root.showTooltips || root.activeAppGroupId !== "")
+    showTooltips: root ? root.showTooltips : true
+    tooltipDelay: root ? root.tooltipDelay : 450
+    contextAppId: root ? root.contextAppId : ""
+    x: (gitem.width - width) / 2
+    y: -height - Style.space(8)
+  }
+}

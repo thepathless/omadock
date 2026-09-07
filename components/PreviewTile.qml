@@ -28,8 +28,8 @@ Item {
   // Same magnify contract as DockItem/DockFolderItem: wave grows the
   // layout slot; zoom scales the visual stack in place (tileVisual).
   readonly property real homeCenter: root ? root.slotHomeCenter(
-    root.appsSlots + root.pinnedSection.length + (root.hasLeftTileSeparator ? 1 : 0) + tileIndex,
-    root.appsSlots + root.pinnedSection.length,
+    root.appsSlots + root.pinnedSection.length + root.groupSlots + (root.hasLeftTileSeparator ? 1 : 0) + tileIndex,
+    root.appsSlots + root.pinnedSection.length + root.groupSlots,
     0,
     (root.hasLeftTileSeparator ? root.separatorWidth : 0) + tileIndex * root.tileWidth + (root.tileWidth - root.iconSlot) / 2) : 0
   property real magnifyScale: {

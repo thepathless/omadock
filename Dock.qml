@@ -75,10 +75,9 @@ Item {
   readonly property real magnifyRange: root.iconSlot * 2.2
   readonly property real baseIconArt: root.iconSize - Style.space(4)
 
-  // The card's own handler, lifted into window coordinates. Both terms move
-  // together as the card grows, so their sum stays the physical pointer.
+  // The card's own handler in dockCard-local coordinates.
   readonly property real pointerX: cardHover.hovered
-    ? dockCardComp.x + cardHover.point.position.x
+    ? cardHover.point.position.x
     : -1e6
 
   readonly property int appsSlots: root.showAppsButton ? 1 : 0
@@ -113,8 +112,10 @@ Item {
   readonly property bool hasSeparator: (root.pinnedSection.length > 0 || root.hasTiles) && root.visibleRunningCount > 0
   readonly property real gapWidth: Style.space(root.itemSpacing)
   readonly property real separatorWidth: Style.space(1)
+  readonly property int groupSlots: (root.appGroups && DockModel.isList(root.appGroups)) ? root.appGroups.length : 0
   readonly property int folderSlots: root.pinnedFolders ? root.pinnedFolders.length : 0
-  readonly property bool hasFolderSeparator: root.folderSlots > 0 && (root.pinnedSection.length > 0 || root.hasTiles || root.visibleRunningCount > 0)
+  readonly property int driveSlots: (root.showRemovableDrives && root.mountedDrives) ? root.mountedDrives.length : 0
+  readonly property bool hasFolderSeparator: (root.folderSlots > 0 || root.driveSlots > 0) && (root.pinnedSection.length > 0 || root.groupSlots > 0 || root.hasTiles || root.visibleRunningCount > 0)
 
   // Minimized-window preview tiles (macOS-style section on the dock's right).
   // In minimizeMode "all", a parked app's windows compress into ONE stacked
@@ -152,12 +153,12 @@ Item {
   readonly property real tileWidth: Math.round(root.iconSlot * 1.5)
   readonly property real tileHeight: Math.round(root.iconSlot * 0.95)
   readonly property bool hasTiles: root.tileCount > 0
-  // Left tile divider (pinned|tiles) renders only when pins precede the tiles.
-  readonly property bool hasLeftTileSeparator: root.hasTiles && root.pinnedSection.length > 0
+  // Left tile divider (pinned|tiles) renders only when pins or groups precede the tiles.
+  readonly property bool hasLeftTileSeparator: root.hasTiles && (root.pinnedSection.length > 0 || root.groupSlots > 0)
 
   // Width arithmetic total: hidden (fully-tiled) entries occupy zero width,
   // so the row-width and gap math must count only visible icons.
-  readonly property int visibleSlotTotal: root.appsSlots + root.pinnedSection.length + root.visibleRunningCount + root.folderSlots
+  readonly property int visibleSlotTotal: root.appsSlots + root.pinnedSection.length + root.groupSlots + root.visibleRunningCount + root.folderSlots + root.driveSlots
   readonly property int elementTotal: root.visibleSlotTotal
     + (root.hasSeparator ? 1 : 0)
     + (root.hasFolderSeparator ? 1 : 0)
@@ -171,11 +172,8 @@ Item {
     + (root.hasTiles ? root.tileCount * root.tileWidth : 0)
     + Math.max(0, root.elementTotal - 1) * root.gapWidth
 
-  // Where the row would start if nothing were magnified. The card is centred,
-  // so this only moves when the dock's contents change.
-  readonly property real baseRowLeft: (dockWindow.width
-    - (root.baseRowWidth + (dockCard ? dockCard.contentLeftInset : 0) + (dockCard ? dockCard.contentRightInset : 0))) / 2
-    + (dockCard ? dockCard.contentLeftInset : 0)
+  // Where the row starts within the card (card-local coordinates).
+  readonly property real baseRowLeft: dockCard ? dockCard.contentLeftInset : Style.space(5)
 
   function slotHomeCenter(elementIndex, slotsBefore, sepCount, extraLeftWidth) {
     var seps = (typeof sepCount === "number") ? sepCount : (sepCount ? 1 : 0)
@@ -203,6 +201,11 @@ Item {
 
   function magnifyScaleAt(homeCenter) {
     return 1 + (root.magnifyPeak - 1) * root.magnifyAt(homeCenter)
+  }
+
+  // Layout slot expansion handles spacing naturally; manual translation nudges are deprecated.
+  function waveOffsetAt(homeCenter) {
+    return 0
   }
 
   // ------------------------------------------------- contrast
@@ -269,11 +272,12 @@ Item {
   property string _minimizedSig: ""
   readonly property var pinnedSection: root.dockModel.pinned || []
   readonly property var runningSection: root.dockModel.running || []
+  readonly property var groupedSection: root.dockModel.grouped || []
 
   function refreshDock() {
     root.dockModel = root.shell && root.shell.appLibrary
       ? DockModel.buildEntries(root.pinnedIds, (ToplevelManager.toplevels ? ToplevelManager.toplevels.values : []), root.appRows,
-                               root.shell.appLibrary, root.hyprToplevelFor, root.minimizedWorkspace, root.minimizedOrigins)
+                               root.shell.appLibrary, root.hyprToplevelFor, root.minimizedWorkspace, root.minimizedOrigins, root.appGroups)
       : { pinned: [], running: [] }
     root.rescanMinimizedWindows()
     root.pruneLaunching()
@@ -373,6 +377,9 @@ Item {
 
   property string dragAppId: ""
   property string dropBeforeId: ""
+  property string dropTargetAppId: ""
+  property string dropTargetGroupId: ""
+  property string dragSourceGroupId: ""
   property real dropIndicatorX: 0
 
   // ------------------------------------------------- context menu
@@ -397,7 +404,24 @@ Item {
   property string contextFolderPath: ""
   property string contextFolderName: ""
 
+  // ------------------------------------------------- removable drives state
+  property bool showRemovableDrives: true
+  property var mountedDrives: []
+  property string contextDriveDev: ""
+  property string contextDriveMount: ""
+  property string contextDriveName: ""
+  property string contextDriveSpace: ""
+
+  // ------------------------------------------------- app groups state
+  property var appGroups: []
+  property string activeAppGroupId: ""
+  property var activeAppGroupData: null
+  property real activeAppGroupX: 0
+  property var contextAppGroupData: null
+
   // ------------------------------------------------- configuration options
+
+  property string alignment: "center" // "center" | "left" | "right"
 
   property bool autohide: true
   property bool intelligentAutohide: true
@@ -408,7 +432,7 @@ Item {
   // the behaviour this dock shipped with, and the default. "wave" is the
   // falloff: neighbours respond and the row carries the extra width. "off" is
   // no hover growth at all.
-  property string hoverEffect: "zoom"
+  property string hoverEffect: "wave"
   readonly property bool waveHover: root.hoverEffect === "wave"
   property bool launchBounce: true
   property bool advancedTooltips: true
@@ -495,14 +519,14 @@ Item {
 
   // Periodic fallback overlap check — deliberate exception to the zero-CPU-polling invariant.
   // Hyprland does not emit IPC events for in-progress window drags, so there is no event-driven
-  // way to detect a window being dragged over the dock. This timer fires at 350ms while the dock
-  // is visible and uncovered, catching that case. It is fully gated: stops when hidden, when the
-  // user hovers the dock card, and during menus / drag reorder — so CPU cost is zero at rest.
+  // way to detect a window being dragged over the dock. This timer fires at 350-400ms while the dock
+  // is under intelligent autohide. It checks continuously so that when an overlapping tiled window moves
+  // away, resizes, or closes, the dock detects that space is free and automatically reappears!
   Timer {
     id: intelligentOverlapCheckTimer
-    interval: 350
+    interval: root.dockVisible ? 350 : 400
     repeat: true
-    running: root.autohide && root.intelligentAutohide && root.dockVisible && !(root.cardHover && root.cardHover.hovered) && !(revealHover && revealHover.hovered) && root.contextAppId === "" && root.dragAppId === ""
+    running: root.autohide && root.intelligentAutohide && !(root.cardHover && root.cardHover.hovered) && !(revealHover && revealHover.hovered) && root.contextAppId === "" && root.dragAppId === "" && root.activeStackFolder === "" && root.activeAppGroupId === ""
     onTriggered: {
       if (!overlapProc.running) overlapProc.running = true
     }
@@ -551,9 +575,10 @@ Item {
         var cardH = (dockCard && dockCard.height > 0) ? (dockCard.height + Style.gapsOut * 2) : 60
         var monX = (mon && typeof mon.x === "number") ? mon.x : 0
         var monY = (mon && typeof mon.y === "number") ? mon.y : 0
-        var dockLeft = monX + (screenLogicalW - cardW) / 2
-        var dockRight = monX + (screenLogicalW + cardW) / 2
-        var dockTop = monY + screenLogicalH - cardH - 12
+        var cardX = dockCardComp ? dockCardComp.x : ((screenLogicalW - cardW) / 2)
+        var dockLeft = monX + cardX
+        var dockRight = dockLeft + cardW
+        var dockTop = monY + screenLogicalH - cardH - Style.gapsOut
         var dockBottom = monY + screenLogicalH
 
         var overlap = false
@@ -633,6 +658,350 @@ Item {
     }
   }
 
+  Process {
+    id: removableDrivesScanner
+    command: ["python3", "-c", "import json, subprocess, os, sys\ntry:\n    res = subprocess.run(['lsblk', '-J', '-o', 'NAME,LABEL,MOUNTPOINTS,RM,HOTPLUG,SIZE,TYPE,FSTYPE,MODEL,TRAN'], capture_output=True, text=True)\n    data = json.loads(res.stdout) if res.returncode == 0 else {}\n    devices = []\n    seen = set()\n    def walk(devs):\n        for d in devs:\n            mps = d.get('mountpoints') or ([d.get('mountpoint')] if d.get('mountpoint') else [])\n            rm = bool(d.get('rm') or d.get('hotplug') or (d.get('tran') == 'usb'))\n            for mp in mps:\n                if not mp or mp in ['/', '/home', '/boot', '[SWAP]', '/var/log', '/var/cache/pacman/pkg']:\n                    continue\n                if rm or mp.startswith('/run/media/') or mp.startswith('/media/'):\n                    if mp in seen: continue\n                    seen.add(mp)\n                    label = d.get('label') or d.get('model') or os.path.basename(mp) or d.get('name')\n                    space_info = ''\n                    try:\n                        st = os.statvfs(mp)\n                        free_bytes = st.f_bavail * st.f_frsize\n                        total_bytes = st.f_blocks * st.f_frsize\n                        def fmt(b):\n                            return f'{b / (1024*1024):.1f} MB' if b < 1024*1024*1024 else f'{b / (1024*1024*1024):.1f} GB'\n                        space_info = f'{fmt(free_bytes)} free of {fmt(total_bytes)}'\n                    except Exception:\n                        pass\n                    fstype = str(d.get('fstype') or '').lower()\n                    is_usb = (d.get('tran') == 'usb') or rm or ('usb' in str(d.get('model') or '').lower())\n                    if is_usb:\n                        icon = 'drive-removable-media-usb'\n                    elif fstype in ['iso9660', 'udf']:\n                        icon = 'media-optical'\n                    elif d.get('type') == 'disk':\n                        icon = 'drive-harddisk-usb'\n                    else:\n                        icon = 'drive-removable-media'\n                    devices.append({'dev': '/dev/' + str(d.get('name') or ''), 'name': str(label).strip() if label else 'USB Drive', 'mountpoint': mp, 'size': d.get('size', ''), 'space': space_info, 'fstype': fstype, 'icon': icon})\n            if 'children' in d:\n                walk(d['children'])\n    if 'blockdevices' in data:\n        walk(data['blockdevices'])\n    print(json.dumps(devices))\nexcept Exception as e:\n    print('[]')\n"]
+    running: false
+    stdout: StdioCollector {
+      onStreamFinished: {
+        try {
+          var parsed = JSON.parse(this.text) || []
+          root.mountedDrives = DockModel.isList(parsed) ? parsed : []
+        } catch (e) {
+          root.mountedDrives = []
+        }
+      }
+    }
+  }
+
+  Process {
+    id: udevMonitorProc
+    command: ["udevadm", "monitor", "--subsystem-match=block", "--udev"]
+    running: root.showRemovableDrives
+    stdout: SplitParser {
+      splitMarker: "\n"
+      onRead: function(line) {
+        driveDebounceTimer.restart()
+      }
+    }
+  }
+
+  Timer {
+    id: driveDebounceTimer
+    interval: 600
+    repeat: false
+    onTriggered: root.scanRemovableDrives()
+  }
+
+  Process {
+    id: ejectProc
+    property string dev: ""
+    property string mountpoint: ""
+    property string driveName: ""
+    command: ["python3", "-c", "import subprocess, sys\ndev = sys.argv[1] if len(sys.argv) > 1 else ''\nmp = sys.argv[2] if len(sys.argv) > 2 else ''\nname = sys.argv[3] if len(sys.argv) > 3 else 'Drive'\nsuccess = False\nif mp:\n    r = subprocess.run(['gio', 'mount', '-u', mp], capture_output=True)\n    if r.returncode == 0: success = True\nif not success and dev:\n    r = subprocess.run(['udisksctl', 'unmount', '-b', dev], capture_output=True)\n    if r.returncode == 0: success = True\nif not success and mp:\n    r = subprocess.run(['umount', mp], capture_output=True)\n    if r.returncode == 0: success = True\nif success:\n    subprocess.run(['notify-send', 'Device Safely Removed', f'{name} can now be safely disconnected.', '-i', 'drive-removable-media'])\nprint(success)\n", ejectProc.dev, ejectProc.mountpoint, ejectProc.driveName]
+    running: false
+    stdout: StdioCollector {
+      onStreamFinished: {
+        root.closeContext()
+        root.scanRemovableDrives()
+      }
+    }
+  }
+
+  function scanRemovableDrives() {
+    if (!root.showRemovableDrives) {
+      root.mountedDrives = []
+      return
+    }
+    if (!removableDrivesScanner.running) removableDrivesScanner.running = true
+  }
+
+  function openDriveContext(dev, mp, name, space, cx, cy) {
+    root.closeContext()
+    root.closeFolderStack()
+    root.closeAppGroup()
+    root.contextAppId = "__drive_context__"
+    root.contextDriveDev = dev || ""
+    root.contextDriveMount = mp || ""
+    root.contextDriveName = name || "Drive"
+    root.contextDriveSpace = space || ""
+    root.contextX = cx
+    root.contextY = cy
+  }
+
+  function ejectDrive(dev, mountpoint, name) {
+    ejectProc.dev = dev || ""
+    ejectProc.mountpoint = mountpoint || ""
+    ejectProc.driveName = name || "Drive"
+    ejectProc.running = true
+  }
+
+  function setDockAlignment(align) {
+    var a = String(align || "").toLowerCase()
+    root.alignment = (a === "left" || a === "right") ? a : "center"
+    root.saveConfig()
+    if (root.intelligentAutohide) debounceOverlapTimer.restart()
+    root.syncVisibility()
+  }
+
+  function setDockPosition(pos) {
+    setDockAlignment(pos)
+  }
+
+  function openAppGroup(gdata, cx, cy) {
+    if (root.activeAppGroupId === (gdata && gdata.id ? gdata.id : "")) {
+      root.closeAppGroup()
+      return
+    }
+    root.closeContext()
+    root.closeFolderStack()
+    root.activeAppGroupId = (gdata && gdata.id) ? gdata.id : ""
+    root.activeAppGroupData = gdata
+    root.activeAppGroupX = cx
+    root.syncVisibility()
+  }
+
+  function closeAppGroup() {
+    root.activeAppGroupId = ""
+    root.activeAppGroupData = null
+    root.syncVisibility()
+  }
+
+  function openAppGroupContext(gdata, cx, cy) {
+    root.closeContext()
+    root.closeFolderStack()
+    root.closeAppGroup()
+    root.contextAppId = "__app_group_context__"
+    root.contextAppGroupData = gdata
+    root.contextX = cx
+    root.contextY = cy
+  }
+
+  function createAppGroupFromRunning() {
+    var all = (root.pinnedSection || []).concat(root.runningSection || [])
+    var ids = []
+    for (var i = 0; i < all.length; i++) {
+      if (all[i] && all[i].running && all[i].appId && ids.indexOf(all[i].appId) < 0) {
+        ids.push(all[i].appId)
+      }
+    }
+    if (ids.length === 0) return
+    var newGroup = {
+      id: "group_" + Date.now(),
+      name: "Group " + (root.appGroups ? (root.appGroups.length + 1) : 1),
+      icon: "folder",
+      apps: ids,
+      cols: 3
+    }
+    root.appGroups = (root.appGroups || []).concat([newGroup])
+    root.saveConfig()
+  }
+
+  function createAppGroupFromDrop(targetAppId, draggedAppId) {
+    if (!targetAppId || !draggedAppId || targetAppId === draggedAppId) return
+    var targetEntry = DockModel.entryFor(root.appRows, targetAppId)
+    var folderName = "Folder"
+    if (targetEntry && targetEntry.name) {
+      folderName = targetEntry.name + " & more"
+    }
+
+    var newGroup = {
+      id: "group_" + Date.now(),
+      name: folderName,
+      icon: "folder",
+      apps: [targetAppId, draggedAppId],
+      cols: 3
+    }
+    root.appGroups = (root.appGroups || []).concat([newGroup])
+
+    // Remove grouped items from pinnedIds so they now live inside the folder
+    var pins = root.pinnedIds || []
+    var nextPins = []
+    for (var p = 0; p < pins.length; p++) {
+      if (pins[p] !== targetAppId && pins[p] !== draggedAppId) {
+        nextPins.push(pins[p])
+      }
+    }
+    root.setPinned(nextPins)
+    root.saveConfig()
+  }
+
+  function addAppToGroup(groupId, appId) {
+    if (!groupId || !appId) return
+    var groups = root.appGroups || []
+    var next = []
+    for (var i = 0; i < groups.length; i++) {
+      var g = groups[i]
+      if (g && g.id === groupId) {
+        var curApps = DockModel.toArray(g.apps)
+        if (curApps.indexOf(appId) < 0) curApps.push(appId)
+        next.push({ id: g.id, name: g.name, icon: g.icon, apps: curApps, cols: g.cols || 3 })
+      } else {
+        next.push(g)
+      }
+    }
+    root.appGroups = next
+
+    // Remove from pinnedIds if it was pinned
+    var pins = root.pinnedIds || []
+    var nextPins = []
+    for (var p = 0; p < pins.length; p++) {
+      if (pins[p] !== appId) nextPins.push(pins[p])
+    }
+    root.setPinned(nextPins)
+    root.saveConfig()
+  }
+
+  function updateAppGroupName(groupId, newName) {
+    if (!groupId || !newName) return
+    var groups = root.appGroups || []
+    var next = []
+    for (var i = 0; i < groups.length; i++) {
+      var g = groups[i]
+      if (g && g.id === groupId) {
+        next.push({ id: g.id, name: newName.trim(), icon: g.icon, apps: g.apps, cols: g.cols || 3 })
+      } else {
+        next.push(g)
+      }
+    }
+    root.appGroups = next
+    if (root.activeAppGroupData && root.activeAppGroupData.id === groupId) {
+      root.activeAppGroupData = Object.assign({}, root.activeAppGroupData, { name: newName.trim() })
+    }
+    root.saveConfig()
+  }
+
+  function renameAppGroup(groupId, newName) {
+    root.updateAppGroupName(groupId, newName)
+  }
+
+  function updateAppGroupColumns(groupId, cols) {
+    if (!groupId || !cols) return
+    var groups = root.appGroups || []
+    var next = []
+    var c = Math.max(2, Math.min(4, cols))
+    for (var i = 0; i < groups.length; i++) {
+      var g = groups[i]
+      if (g && g.id === groupId) {
+        next.push({ id: g.id, name: g.name, icon: g.icon, apps: g.apps, cols: c })
+      } else {
+        next.push(g)
+      }
+    }
+    root.appGroups = next
+    if (root.activeAppGroupData && root.activeAppGroupData.id === groupId) {
+      root.activeAppGroupData = Object.assign({}, root.activeAppGroupData, { cols: c })
+    }
+    root.saveConfig()
+  }
+
+  function removeAppFromGroup(groupId, appId, insertBeforeId) {
+    if (!groupId || !appId) return
+    var groups = root.appGroups || []
+    var next = []
+    var remainingApps = []
+
+    for (var i = 0; i < groups.length; i++) {
+      var g = groups[i]
+      if (g && g.id === groupId) {
+        var curApps = DockModel.toArray(g.apps)
+        var filtered = []
+        for (var a = 0; a < curApps.length; a++) {
+          if (curApps[a] !== appId) filtered.push(curApps[a])
+        }
+        remainingApps = filtered
+        if (filtered.length > 1) {
+          next.push({ id: g.id, name: g.name, icon: g.icon, apps: filtered, cols: g.cols || 3 })
+        }
+      } else {
+        next.push(g)
+      }
+    }
+    root.appGroups = next
+
+    var pins = (root.pinnedIds || []).slice()
+
+    // If remaining length === 1, dissolve group: extract single remaining app into pinnedIds
+    if (remainingApps.length === 1) {
+      var lastApp = remainingApps[0]
+      if (pins.indexOf(lastApp) < 0) {
+        pins.push(lastApp)
+      }
+      if (root.activeAppGroupId === groupId) {
+        root.closeAppGroup()
+      }
+    } else if (remainingApps.length === 0) {
+      if (root.activeAppGroupId === groupId) {
+        root.closeAppGroup()
+      }
+    }
+
+    // Restore removed app to pinned items if not dragging (e.g. context menu ungroup)
+    if (!root.dragSourceGroupId) {
+      if (pins.indexOf(appId) < 0) {
+        if (insertBeforeId) {
+          var toIdx = pins.indexOf(DockModel.stripDesktop(insertBeforeId))
+          if (toIdx >= 0) pins.splice(toIdx, 0, appId)
+          else pins.push(appId)
+        } else {
+          pins.push(appId)
+        }
+      }
+    }
+
+    root.setPinned(pins)
+    root.saveConfig()
+
+    if (remainingApps.length > 1 && root.activeAppGroupId === groupId) {
+      var foundGroup = null
+      for (var j = 0; j < next.length; j++) {
+        if (next[j].id === groupId) { foundGroup = next[j]; break }
+      }
+      if (foundGroup) root.activeAppGroupData = foundGroup
+      else root.closeAppGroup()
+    }
+  }
+
+  function ungroupAppGroup(groupId) {
+    if (!groupId) return
+    var groups = root.appGroups || []
+    var next = []
+    var extractedApps = []
+    for (var i = 0; i < groups.length; i++) {
+      var g = groups[i]
+      if (g && g.id === groupId) {
+        extractedApps = DockModel.toArray(g.apps)
+      } else {
+        next.push(g)
+      }
+    }
+    root.appGroups = next
+
+    // Restore all extracted apps back to pinnedIds
+    var pins = (root.pinnedIds || []).slice()
+    for (var e = 0; e < extractedApps.length; e++) {
+      if (pins.indexOf(extractedApps[e]) < 0) {
+        pins.push(extractedApps[e])
+      }
+    }
+    root.setPinned(pins)
+    root.saveConfig()
+    if (root.activeAppGroupId === groupId) root.closeAppGroup()
+  }
+
+  function removeAppGroup(groupId) {
+    var groups = root.appGroups || []
+    var next = []
+    for (var i = 0; i < groups.length; i++) {
+      if (groups[i] && groups[i].id !== groupId) {
+        next.push(groups[i])
+      }
+    }
+    root.appGroups = next
+    root.saveConfig()
+    if (root.activeAppGroupId === groupId) root.closeAppGroup()
+  }
+
   function syncVisibility() {
     // Mode 1: Always Show
     if (!root.autohide) {
@@ -642,7 +1011,7 @@ Item {
       return
     }
 
-    var isHovered = (root.cardHover && root.cardHover.hovered) || (revealHover && revealHover.hovered) || root.contextAppId !== "" || root.dragAppId !== "" || root.activeStackFolder !== ""
+    var isHovered = (root.cardHover && root.cardHover.hovered) || (revealHover && revealHover.hovered) || root.contextAppId !== "" || root.dragAppId !== "" || root.activeStackFolder !== "" || root.activeAppGroupId !== ""
 
     // Hovered, Context Menu Open, or Dragging: keep visible
     if (isHovered) {
@@ -669,6 +1038,7 @@ Item {
 
   onContextAppIdChanged: root.syncVisibility()
   onActiveStackFolderChanged: root.syncVisibility()
+  onActiveAppGroupIdChanged: root.syncVisibility()
   onDragAppIdChanged: root.syncVisibility()
   onAutohideChanged: root.syncVisibility()
   onIntelligentAutohideChanged: {
@@ -680,6 +1050,7 @@ Item {
     if (!root.dockVisible) {
       root.closeContext()
       root.closeFolderStack()
+      root.closeAppGroup()
     }
   }
 
@@ -690,7 +1061,10 @@ Item {
     path: root.configPath
     watchChanges: true
     atomicWrites: true
-    onLoaded: root.loadConfig()
+    onLoaded: {
+      root.loadConfig()
+      root.scanRemovableDrives()
+    }
     onFileChanged: configFile.reload()
   }
 
@@ -893,10 +1267,8 @@ Item {
           delete rec[fullAddr]
           root.recentOpenedWindowAddrs = rec
         }
-        if (root.urgentMap && root.urgentMap[fullAddr]) {
-          var map = DockModel.copyMap(root.urgentMap)
-          delete map[fullAddr]
-          root.urgentMap = map
+        if (root.urgentMap) {
+          root.clearUrgentApp("", fullAddr)
         }
         if (root.minimizedOrigins && root.minimizedOrigins[fullAddr]) {
           var mo = DockModel.copyMap(root.minimizedOrigins)
@@ -1049,6 +1421,14 @@ Item {
         parsed = {}
       }
     }
+    root.alignment = (parsed && (parsed.alignment || parsed.position)) ? String(parsed.alignment || parsed.position).toLowerCase() : "center"
+    if (root.alignment !== "left" && root.alignment !== "right") root.alignment = "center"
+    root.showRemovableDrives = parsed ? parsed.showRemovableDrives !== false : true
+    if (parsed && DockModel.isList(parsed.appGroups)) {
+      root.appGroups = parsed.appGroups
+    } else {
+      root.appGroups = []
+    }
     root.autohide = parsed && parsed.autohide !== false
     root.intelligentAutohide = parsed && parsed.intelligentAutohide !== false
     root.showAppsButton = parsed && parsed.showAppsButton !== false
@@ -1090,7 +1470,7 @@ Item {
     root.tooltipDelay = parsed && typeof parsed.tooltipDelay === "number"
       ? Math.max(0, Math.min(5000, Math.round(parsed.tooltipDelay)))
       : 450
-    if (parsed && Array.isArray(parsed.pinnedFolders)) {
+    if (parsed && DockModel.isList(parsed.pinnedFolders)) {
       root.pinnedFolders = parsed.pinnedFolders
     } else {
       root.pinnedFolders = [
@@ -1649,18 +2029,49 @@ Item {
   }
 
   // urgentMap mixes two key shapes: "0x…" per-window addresses and bare appIds
-  // set by the notification service. Address keys die with their window; appId
-  // keys are not addresses and must survive the prune until the user clicks or focuses.
+  // set by the notification service. Address keys die with their window; bare appId
+  // keys only survive while the app is running with active windows or launching.
   function keepUrgentLive(map, live) {
     var keys = Object.keys(map)
     if (keys.length === 0) return map
 
     var next = {}
     var dropped = false
+    var allEntries = root.pinnedSection.concat(root.runningSection).concat(root.groupedSection || [])
+
     for (var i = 0; i < keys.length; i++) {
       var key = keys[i]
-      if (key.slice(0, 2) === "0x" && !live[key]) dropped = true
-      else next[key] = map[key]
+      if (key.slice(0, 2) === "0x") {
+        if (!live[key]) dropped = true
+        else next[key] = map[key]
+      } else {
+        var isLiveApp = false
+        if (root.launchPending && root.launchPending[key]) {
+          isLiveApp = true
+        } else {
+          for (var e = 0; e < allEntries.length; e++) {
+            var entry = allEntries[e]
+            if (!entry) continue
+            var eId = entry.appId || entry.id
+            if (eId === key || DockModel.isAppMatch(eId, key)) {
+              var wins = entry.windowList || []
+              for (var w = 0; w < wins.length; w++) {
+                var wa = wins[w] ? wins[w].address : ""
+                if (wa && live[wa]) {
+                  isLiveApp = true
+                  break
+                }
+              }
+              break
+            }
+          }
+        }
+        if (isLiveApp) {
+          next[key] = map[key]
+        } else {
+          dropped = true
+        }
+      }
     }
     return dropped ? next : map
   }
@@ -1691,7 +2102,7 @@ Item {
       changed = true
     }
 
-    var allEntries = root.pinnedSection.concat(root.runningSection)
+    var allEntries = root.pinnedSection.concat(root.runningSection).concat(root.groupedSection || [])
     var targetEntries = []
 
     // Find entries matching address or appId
@@ -1800,6 +2211,26 @@ Item {
       }
       if (parked.length > 0) root.restoreWindow(root.oldestParked(parked), "")
     }
+
+    function toggleVisibility(): void {
+      root.dockVisible = !root.dockVisible
+    }
+
+    function reveal(): void {
+      root.dockVisible = true
+    }
+
+    function hide(): void {
+      root.dockVisible = false
+    }
+
+    function setAlignment(align: string): void {
+      root.setDockAlignment(align)
+    }
+
+    function setPosition(pos: string): void {
+      root.setDockPosition(pos)
+    }
   }
 
   // ------------------------------------------------- launch feedback
@@ -1866,6 +2297,10 @@ Item {
     } catch (e) {
       conf = {}
     }
+    conf.alignment = root.alignment || "center"
+    delete conf.position
+    conf.showRemovableDrives = root.showRemovableDrives
+    conf.appGroups = root.appGroups || []
     conf.autohide = root.autohide
     conf.intelligentAutohide = root.intelligentAutohide
     conf.showAppsButton = root.showAppsButton
@@ -2037,6 +2472,11 @@ Item {
     for (i = 0; i < root.runningSection.length; i++) {
       if (root.runningSection[i].appId === appId || DockModel.isAppMatch(root.runningSection[i].appId, appId))
         return root.runningSection[i]
+    }
+    var grouped = root.groupedSection || []
+    for (i = 0; i < grouped.length; i++) {
+      if (grouped[i].appId === appId || DockModel.isAppMatch(grouped[i].appId, appId))
+        return grouped[i]
     }
     return null
   }
@@ -2267,21 +2707,24 @@ Item {
     color: "transparent"
     WlrLayershell.namespace: "omadock"
     WlrLayershell.layer: WlrLayer.Top
-    WlrLayershell.keyboardFocus: WlrKeyboardFocus.None
+    WlrLayershell.keyboardFocus: (appGroupPopupComp && appGroupPopupComp.isEditingName)
+      ? WlrKeyboardFocus.OnDemand
+      : WlrKeyboardFocus.None
     exclusionMode: (!root.autohide) ? ExclusionMode.Normal : ExclusionMode.Ignore
-    exclusiveZone: (!root.autohide) ? Math.round(dockCard.height + Style.gapsOut * 2) : 0
+    exclusiveZone: (!root.autohide) ? Math.round((dockCardComp ? dockCardComp.dockCard.height : 0) + Style.gapsOut * 2) : 0
     anchors {
       bottom: true
       left: true
       right: true
     }
-    implicitHeight: 650
+    implicitHeight: Math.max(650, Math.round((root.dockScreen ? root.dockScreen.height : 1080) - Style.space(36)))
 
     mask: Region {
       item: dockCardComp.dockCard
       regions: [
         Region { item: contextMenuComp },
         Region { item: folderStackPopoverComp },
+        Region { item: appGroupPopupComp },
         Region { item: revealStrip },
         Region { item: globalDismiss }
       ]
@@ -2301,8 +2744,16 @@ Item {
       }
 
       Rectangle {
+        id: revealStripRect
         anchors.bottom: parent.bottom
-        anchors.horizontalCenter: parent.horizontalCenter
+        x: {
+          if (root.alignment === "left") return Style.gapsOut * 2 + Style.space(16)
+          if (root.alignment === "right") return parent.width - width - (Style.gapsOut * 2) - Style.space(16)
+          return Math.round((parent.width - width) / 2)
+        }
+        Behavior on x {
+          NumberAnimation { duration: 240; easing.type: Easing.OutCubic }
+        }
         width: revealHover.hovered ? Style.space(48) : Style.space(24)
         height: Style.space(3)
         radius: height / 2
@@ -2312,11 +2763,12 @@ Item {
       }
     }
 
-    // Global dismiss area - catches clicks outside context menu or folder stack
+    // Global dismiss area - catches clicks outside context menu, folder stack, or app group popup
     Item {
       id: globalDismiss
-      width: (root.contextAppId !== "" || root.activeStackFolder !== "" || root.dragAppId !== "") ? dockWindow.width : 0
-      height: (root.contextAppId !== "" || root.activeStackFolder !== "" || root.dragAppId !== "") ? dockWindow.height : 0
+      width: (root.contextAppId !== "" || root.activeStackFolder !== "" || root.activeAppGroupId !== "" || root.dragAppId !== "") ? dockWindow.width : 0
+      height: (root.contextAppId !== "" || root.activeStackFolder !== "" || root.activeAppGroupId !== "" || root.dragAppId !== "") ? dockWindow.height : 0
+
       MouseArea {
         anchors.fill: parent
         z: -1
@@ -2332,11 +2784,17 @@ Item {
           if (root.activeStackFolder !== "") {
             root.closeFolderStack()
           }
+          if (root.activeAppGroupId !== "") {
+            root.closeAppGroup()
+          }
         }
         onReleased: function(mouse) {
           if (root.dragAppId !== "") {
             root.dragAppId = ""
             root.dropBeforeId = ""
+            root.dropTargetAppId = ""
+            root.dropTargetGroupId = ""
+            root.dragSourceGroupId = ""
             root.syncVisibility()
           }
         }
@@ -2352,6 +2810,12 @@ Item {
     // ------------------------------------------------------------ Folder Stack Popover
     FolderPopup {
       id: folderStackPopoverComp
+      rootRef: root
+    }
+
+    // ------------------------------------------------------------ App Group Popover
+    AppGroupPopup {
+      id: appGroupPopupComp
       rootRef: root
     }
 
