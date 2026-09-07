@@ -210,22 +210,28 @@ Right-click the Omarchy logo or empty dock space to access deep customization:
 <div align="center">
   <table>
     <tr>
-      <th align="center" width="33%">Appearance</th>
-      <th align="center" width="33%">Behavior & Windows</th>
-      <th align="center" width="33%">Effects & Animations</th>
+      <th align="center" width="25%">Settings Menu</th>
+      <th align="center" width="25%">Appearance</th>
+      <th align="center" width="25%">Placement & Alignment</th>
+      <th align="center" width="25%">Behavior & Windows</th>
     </tr>
     <tr>
-      <td align="center" valign="top"><img src="assets/preview-settings-1.png" width="240" alt="Appearance Settings" /></td>
-      <td align="center" valign="top"><img src="assets/preview-settings-2.png" width="240" alt="Behavior & Windows Settings" /></td>
-      <td align="center" valign="top"><img src="assets/preview-settings-3.png" width="240" alt="Effects & Animations Settings" /></td>
+      <td align="center" valign="top"><img src="assets/preview-settings-1.png" width="200" alt="Main Settings Menu" /></td>
+      <td align="center" valign="top"><img src="assets/preview-settings-2.png" width="200" alt="Appearance Settings" /></td>
+      <td align="center" valign="top"><img src="assets/preview-settings-3.png" width="200" alt="Placement & Alignment Settings" /></td>
+      <td align="center" valign="top"><img src="assets/preview-settings-4.png" width="200" alt="Behavior & Windows Settings" /></td>
     </tr>
     <tr>
-      <th align="center" width="33%">Size & Spacing</th>
-      <th align="center" colspan="2" width="66%">Folders & Stacks</th>
+      <th align="center" width="25%">Effects & Animations</th>
+      <th align="center" width="25%">Size & Spacing</th>
+      <th align="center" width="25%">Folders & Stacks</th>
+      <th align="center" width="25%">App Folders & Groups</th>
     </tr>
     <tr>
-      <td align="center" valign="top"><img src="assets/preview-settings-4.png" width="240" alt="Size & Spacing Settings" /></td>
-      <td align="center" colspan="2" valign="top"><img src="assets/preview-settings-5.png" width="260" alt="Folders & Stacks Settings" /></td>
+      <td align="center" valign="top"><img src="assets/preview-settings-5.png" width="200" alt="Effects & Animations Settings" /></td>
+      <td align="center" valign="top"><img src="assets/preview-settings-6.png" width="200" alt="Size & Spacing Settings" /></td>
+      <td align="center" valign="top"><img src="assets/preview-settings-7.png" width="200" alt="Folders & Stacks Settings" /></td>
+      <td align="center" valign="top"><img src="assets/preview-settings-8.png" width="200" alt="App Folders & Groups Settings" /></td>
     </tr>
   </table>
 </div>
