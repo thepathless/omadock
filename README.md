@@ -4,7 +4,7 @@
 
 ### *A modern, fluid, zero-CPU application dock engineered for Omarchy Linux*
 
-[![Release](https://img.shields.io/badge/release-v3.3.0-6c7086?style=for-the-badge&logo=github&logoColor=white&labelColor=1e1e2e)](https://github.com/thepathless/omadock/releases)
+[![Release](https://img.shields.io/badge/release-v3.6.0-6c7086?style=for-the-badge&logo=github&logoColor=white&labelColor=1e1e2e)](https://github.com/thepathless/omadock/releases)
 [![Omarchy](https://img.shields.io/badge/omarchy-4.0.1+-cba6f7?style=for-the-badge&logo=archlinux&logoColor=white&labelColor=1e1e2e)](https://omarchy.org)
 [![Hyprland](https://img.shields.io/badge/compositor-Hyprland-89b4fa?style=for-the-badge&logo=wayland&logoColor=white&labelColor=1e1e2e)](https://hyprland.org)
 [![Quickshell](https://img.shields.io/badge/shell-Quickshell_Qt6-a6e3a1?style=for-the-badge&logo=qt&logoColor=white&labelColor=1e1e2e)](https://quickshell.org)
@@ -44,16 +44,17 @@ Crafted in the spirit of **Omakase (おまかせ)** — curated elegance and eff
 ### ✨ Key Highlights
 
 - **🔘 3-State Window Dots**: Instant visual indicator dots for active, visible, and minimized windows.
-- **🌊 Wave & Zoom Magnification**: Continuous cosine-falloff cursor growth with unmagnified geometry anchors.
+- **🌊 Continuous Wave Physics**: Fluid cosine-falloff cursor wave dynamics alongside classic zoom mode with zero coordinate jumping.
 - **🪟 Visual Window Previews**: Minimized windows park directly on the dock as visual thumbnail cards.
-- **📁 App Folders & Groups**: Organize apps into smart folders with 2x2 live preview tiles, running indicators, and popover grids.
-- **💾 Zero-CPU Removable Drives**: Automatic detection of USB thumb drives and storage via kernel udev events, capacity tooltips, and safe ejection.
-- **📐 Flexible Dock Alignment**: Seamlessly position the dock `center`, `left`, or `right` with smooth cubic bezier animations.
-- **⚡ FreeDesktop Jump Lists**: Native desktop action menus (incognito tabs, new windows, custom actions).
+- **📁 App Group Folders**: 2x2 live preview grid, popover tray, drag-to-group, in-place title editing, drag-to-pin, and drag-out extraction to ungroup/unpin.
+- **💾 Removable Media Auto-Docking**: USB and removable drive detection with mountpoint badges, storage tooltips, and contextual eject/unmount actions.
+- **📐 Dock Alignment Options**: Bottom alignment support (`center`, `left`, `right`) with dynamic coordinate compensation and Hyprland workspace integration.
+- **⚡ FreeDesktop Jump Lists**: Contextual quick actions for supported desktop applications.
 - **📂 Folder Stacks & Popovers**: 1-click popovers for recent files with automatic theme sync and color presets.
 - **🔔 Attention Glow & Canberra Chimes**: Bouncing alerts and audio chimes for background notifications.
 - **🎯 Intelligent Zero-CPU Autohide**: Event-driven 2D Axis-Aligned Bounding Box (AABB) window overlap detection aware of all tiled and floating windows.
 - **🔄 Fluid Drag-and-Drop**: Drag pinned items to reorder with live real-time insertion markers.
+- **⌨️ Desktop Keybindings**: Automated `setup.sh` integration with `~/.config/hypr/bindings.lua` (`SUPER + D`, `SUPER + M`, `SUPER + SHIFT + M`).
 
 ---
 
@@ -161,6 +162,47 @@ Pin directories like `~/Downloads`, `~/Projects`, or custom paths directly to yo
 
 ---
 
+### 📁 6. App Group Folders (Smart Collections)
+
+Organize applications into intelligent macOS / iOS-style folders directly on your dock:
+
+- **2x2 Live Preview Grid**: Folder icons render a dynamic micro-grid of contained application icons with live window indicator dots.
+- **Fluid Popover Tray**: Clicking a folder opens a sleek, floating app tray with columns automatically scaled to content (2 to 4 columns).
+- **Drag-to-Group & Drag-to-Pin**: Drag any dock icon onto another pinned app to instantly create a folder. Drag running unpinned apps to pin them directly into folders or dock slots.
+- **In-Place Title Editing**: Click the folder title in the header to rename inline with instant configuration persistence.
+- **Drag-Out Extraction & Auto-Dissolution**: Drag an icon out of the folder popover back onto the dock to unpin or extract. When only 1 app remains, the folder automatically dissolves back into a standard dock pin.
+
+---
+
+### 💾 7. Removable Media Auto-Docking
+
+Zero-CPU hardware integration for removable media and USB storage:
+
+- **Kernel Udev Integration**: Detects USB flash drives, SD cards, and external storage reactively via Linux udev and udisks2.
+- **Mountpoint & Storage Tooltips**: Displays drive capacity, filesystem label, and mount status on hover.
+- **Contextual Eject & Unmount**: 1-click or right-click context menu to safely unmount and eject removable drives with native desktop notifications.
+
+---
+
+### 📐 8. Dock Alignment Options
+
+Flexible screen placement tailored to your workflow:
+
+- **Bottom Alignment Modes**: Position the dock at `"center"`, `"left"`, or `"right"` along the bottom edge.
+- **Dynamic Coordinate Compensation**: Popovers, tooltips, and context menus automatically measure available screen margins and reposition themselves to prevent clipping against display boundaries.
+- **Smooth Cubic Transitions**: Position shifts glide smoothly via hardware-accelerated cubic bezier animations.
+
+---
+
+### ⚡ 9. FreeDesktop Jump Lists & Zero-CPU Autohide
+
+Deep Linux desktop and compositor integration:
+
+- **FreeDesktop Jump Lists**: Right-click applications to access native quick actions parsed directly from `.desktop` files (e.g. New Incognito Window, New Document, Open Profile).
+- **Intelligent Zero-CPU Autohide**: Employs mathematical 2D Axis-Aligned Bounding Box (AABB) intersection tests triggered strictly on Hyprland window movement events, keeping background CPU consumption at **0.00%**.
+
+---
+
 ## 🎨 Customization & Theming
 
 Right-click the Omarchy logo or empty dock space to access deep customization:
@@ -212,6 +254,13 @@ Right-click the Omarchy logo or empty dock space to access deep customization:
 | **Left Click** | Preview Tile | Restores window to current workspace |
 | **Right Click** | Preview Tile | Restore Here / Restore to Original / Close |
 | **Drag & Drop** | Pinned Icon | Reorders pinned application position live |
+| **Drag & Drop** | Running App | Drag into pinned section to pin live |
+| **Drag & Drop** | Dock App Icon | Drag onto another pinned app to create a folder |
+| **Left Click** | App Group Folder | Toggles folder popover tray |
+| **Right Click** | App Group Folder | Context menu (Rename, Ungroup, Set Columns) |
+| **Drag & Drop** | App in Folder | Drag out onto dock to extract / unpin |
+| **Left Click** | Removable Drive | Opens drive mountpoint in default file manager |
+| **Right Click** | Removable Drive | Context menu to safely eject and unmount |
 | **Bottom Edge Hover** | Screen Edge | Reveals autohidden dock instantly |
 
 ---
