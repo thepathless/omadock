@@ -232,8 +232,10 @@ Right-click the Omarchy logo or empty dock space to access deep customization:
 
 - **Shapes**: `Auto (Theme)`, `Rounded`, `Round (Pill)`, `Square`.
 - **Opacity**: `Auto (Theme)`, `100%`, `80%`, `65%`, `35%`, `0% (Transparent Specular)`.
+- **Placement & Alignment**: `Center (Default)`, `Left Aligned`, `Right Aligned` along the screen edge.
 - **Color Presets**: Theme Auto, Pure Black, Mocha, Deep Slate, Midnight Blue, Dark Navy, Emerald Forest, Velvet Ruby.
 - **Icon Sizing**: Small ($28\text{px}$), Medium ($36\text{px}$), Large ($44\text{px}$), Extra Large ($52\text{px}$).
+- **App Folders & Groups**: Automatic smart collections from running apps, drag-to-group, in-place title renaming, and column scaling.
 
 ---
 
@@ -275,8 +277,10 @@ Settings persist in `~/.config/omarchy/omadock.json` and are editable live:
 
 ```json
 {
+  "alignment": "center",
   "autohide": true,
   "intelligentAutohide": true,
+  "showRemovableDrives": true,
   "minimizeMode": "active",
   "showMinimizedTiles": true,
   "opacity": 1.0,
@@ -298,6 +302,9 @@ Settings persist in `~/.config/omarchy/omadock.json` and are editable live:
   "tooltipDelay": 450,
   "pinnedFolders": [
     { "path": "~/Downloads", "name": "Downloads", "icon": "folder-download" }
+  ],
+  "appGroups": [
+    { "id": "browsers", "name": "browsers", "apps": ["google-chrome", "brave-browser", "chromium", "firefox", "zen-browser"] }
   ]
 }
 ```
