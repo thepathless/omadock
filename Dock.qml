@@ -48,7 +48,57 @@ Item {
     return null
   }
 
-  readonly property var appLibrary: shell ? shell.appLibrary : null
+  readonly property var appLibrary: (shell && shell.appLibrary) ? shell.appLibrary : localAppLibrary
+
+  // Fallback standalone application library for host capability gates (e.g. Omarchy 4.x scoped plugins)
+  QtObject {
+    id: localAppLibrary
+
+    signal appsChanged()
+
+    function sortedEntries(query) {
+      try {
+        var values = DesktopEntries.applications.values
+        return values ? values : []
+      } catch (e) {
+        return []
+      }
+    }
+
+    function entryName(entry) {
+      if (!entry) return ""
+      var target = (entry && entry.entry) ? entry.entry : entry
+      var n = String(target.name || "")
+      return n !== "" ? n : String(target.id || "")
+    }
+
+    function iconSource(icon) {
+      var value = String(icon || "")
+      if (value === "") return Quickshell.iconPath("application-x-executable", true)
+      if (value.indexOf("file://") === 0 || value.indexOf("image://") === 0) return value
+      if (value.charAt(0) === "/") return Util.fileUrl(value)
+      var themed = ""
+      try { themed = Quickshell.iconPath(value, true) } catch (e) {}
+      if (themed && themed.length > 0) return themed
+      return Quickshell.iconPath("application-x-executable", true)
+    }
+
+    function refreshIcons() {}
+
+    function launch(desktopId, name) {
+      var id = String(desktopId || "")
+      if (id === "") return
+      var desktopFile = id.slice(-8) === ".desktop" ? id : (id + ".desktop")
+      Quickshell.execDetached(["uwsm-app", "--", "gtk-launch", desktopFile])
+    }
+  }
+
+  Connections {
+    target: (root.appLibrary === localAppLibrary && typeof DesktopEntries !== "undefined") ? DesktopEntries : null
+    function onApplicationsChanged() {
+      localAppLibrary.appsChanged()
+    }
+  }
 
   // ------------------------------------------------- magnification
 
@@ -275,9 +325,9 @@ Item {
   readonly property var groupedSection: root.dockModel.grouped || []
 
   function refreshDock() {
-    root.dockModel = root.shell && root.shell.appLibrary
+    root.dockModel = root.appLibrary
       ? DockModel.buildEntries(root.pinnedIds, (ToplevelManager.toplevels ? ToplevelManager.toplevels.values : []), root.appRows,
-                               root.shell.appLibrary, root.hyprToplevelFor, root.minimizedWorkspace, root.minimizedOrigins, root.appGroups)
+                               root.appLibrary, root.hyprToplevelFor, root.minimizedWorkspace, root.minimizedOrigins, root.appGroups)
       : { pinned: [], running: [] }
     root.rescanMinimizedWindows()
     root.pruneLaunching()
@@ -1480,7 +1530,7 @@ Item {
   }
 
   function rescanApps() {
-    root.appRows = root.shell && root.shell.appLibrary ? root.shell.appLibrary.sortedEntries("") : []
+    root.appRows = root.appLibrary ? root.appLibrary.sortedEntries("") : []
     root.refreshDock()
   }
 
@@ -1490,8 +1540,8 @@ Item {
       if (t) root.currentIconThemeName = t
     } catch (e) {}
     root.themeVersion++
-    if (root.shell && root.shell.appLibrary) {
-      try { root.shell.appLibrary.refreshIcons() } catch (e) {}
+    if (root.appLibrary) {
+      try { root.appLibrary.refreshIcons() } catch (e) {}
     }
     root.rescanApps()
   }
@@ -2236,7 +2286,7 @@ Item {
   // ------------------------------------------------- launch feedback
 
   function launchApp(appId, entry) {
-    if (!root.shell || !root.shell.appLibrary) return
+    if (!root.appLibrary) return
     var target = entry || root.entryForId(appId)
     var deskEntry = DockModel.entryFor(root.appRows, appId)
     if (!deskEntry && typeof DesktopEntries !== "undefined" && DesktopEntries) {
@@ -2245,7 +2295,7 @@ Item {
     var targetId = (deskEntry && deskEntry.id) ? deskEntry.id : appId
     var targetName = (deskEntry && deskEntry.name) ? deskEntry.name : (target && target.name ? target.name : appId)
     if (deskEntry && deskEntry.id) {
-      root.shell.appLibrary.launch(deskEntry.id, targetName)
+      root.appLibrary.launch(deskEntry.id, targetName)
     } else {
       var webAppMatch = String(appId).match(/^(?:chrome|chromium|brave|edge|microsoft-edge|helium|helium-browser|opera|vivaldi)-(.*?)__?-(?:default|profile.*)$/i)
                      || String(appId).match(/^(?:chrome|chromium|brave|edge|microsoft-edge|helium|helium-browser|opera|vivaldi)-(.*?)$/i)
@@ -2253,7 +2303,7 @@ Item {
         var webDomain = webAppMatch[1].replace(/^https?___?/i, "").replace(/__.*$/, "")
         Quickshell.execDetached(["omarchy-launch-webapp", "https://" + webDomain])
       } else {
-        root.shell.appLibrary.launch(targetId, targetName)
+        root.appLibrary.launch(targetId, targetName)
       }
     }
     root.markLaunching(appId, target ? target.windows : 0)
@@ -2353,7 +2403,7 @@ Item {
   // other toggles one window forever. Stepping has no such corner, and a
   // specific window can still be parked from the context menu.
   function activate(appId) {
-    if (!root.shell || !root.shell.appLibrary) return
+    if (!root.appLibrary) return
 
     var entry = root.entryForId(appId)
     var windows = entry ? (entry.windowList || []) : []
