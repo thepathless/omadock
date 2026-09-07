@@ -54,7 +54,7 @@ Crafted in the spirit of **Omakase (おまかせ)** — curated elegance and eff
 - **🔔 Attention Glow & Canberra Chimes**: Bouncing alerts and audio chimes for background notifications.
 - **🎯 Intelligent Zero-CPU Autohide**: Event-driven 2D Axis-Aligned Bounding Box (AABB) window overlap detection aware of all tiled and floating windows.
 - **🔄 Fluid Drag-and-Drop**: Drag pinned items to reorder with live real-time insertion markers.
-- **⌨️ Desktop Keybindings**: Automated `setup.sh` integration with `~/.config/hypr/bindings.lua` (`SUPER + D`, `SUPER + M`, `SUPER + SHIFT + M`).
+- **⌨️ Desktop Keybindings**: Automated `bind-keys.sh` integration with `~/.config/hypr/bindings.lua` (`SUPER + D`, `SUPER + M`, `SUPER + SHIFT + M`).
 
 ---
 
@@ -343,9 +343,9 @@ Settings persist in `~/.config/omarchy/omadock.json` and are editable live:
 Omadock registers IPC commands callable directly by Quickshell.
 
 ### Automated Setup (Recommended)
-Run the bundled setup script to automatically configure all keybindings:
+Run the bundled keybinding helper script to automatically configure all shortcuts:
 ```bash
-~/.config/omarchy/plugins/omadock/setup.sh
+~/.config/omarchy/plugins/omadock/bind-keys.sh
 ```
 
 ### Manual Setup

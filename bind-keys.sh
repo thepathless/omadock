@@ -1,5 +1,5 @@
 #!/bin/bash
-# OmaDock keybinding setup — idempotent, safe to run multiple times
+# OmaDock keybinding helper — idempotent, safe to run multiple times
 set -euo pipefail
 
 BINDINGS="${HOME}/.config/hypr/bindings.lua"
@@ -20,7 +20,7 @@ fi
 cat >> "$BINDINGS" << 'EOF'
 
 -- >>> ADDED BY OMADOCK <<<
--- OmaDock IPC keybindings (idempotent, safe to re-run setup.sh)
+-- OmaDock IPC keybindings (idempotent, safe to re-run bind-keys.sh)
 o.bind("SUPER + D", "Toggle Omadock", "exec qs -p /usr/share/omarchy/shell ipc call omadock toggleVisibility")
 o.bind("SUPER + M", "Minimize focused window", "exec qs -p /usr/share/omarchy/shell ipc call omadock minimizeActive")
 hl.unbind("SUPER + SHIFT + M")
