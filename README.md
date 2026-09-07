@@ -38,7 +38,7 @@
 Crafted in the spirit of **Omakase (おまかせ)** — curated elegance and effortless flow — Omadock bridges the gap between dynamic tiling compositors and tactile desktop ergonomics. It delivers fluid wave magnification, live screencopy preview cards, and multi-instance window management with strictly **0.00% background CPU consumption**.
 
 <p align="center">
-  <img src="preview.png" alt="Omadock Close-up View" width="850" style="border-radius: 8px; box-shadow: 0 4px 20px rgba(0,0,0,0.35);" />
+  <img src="assets/screenshot-transparent.png" alt="Omadock Close-up View" width="700" />
 </p>
 
 ### ✨ Key Highlights
