@@ -33,6 +33,7 @@ Item {
 
   readonly property string dockPath: Quickshell.env("HOME") + "/.config/omarchy/dock.json"
   readonly property string configPath: Quickshell.env("HOME") + "/.config/omarchy/omadock.json"
+  property bool _savingConfig: false
 
   property string screenName: ""
   readonly property var dockScreen: {
@@ -567,16 +568,12 @@ Item {
     }
   }
 
-  // Periodic fallback overlap check — deliberate exception to the zero-CPU-polling invariant.
-  // Hyprland does not emit IPC events for in-progress window drags, so there is no event-driven
-  // way to detect a window being dragged over the dock. This timer fires at 350-400ms while the dock
-  // is under intelligent autohide. It checks continuously so that when an overlapping tiled window moves
-  // away, resizes, or closes, the dock detects that space is free and automatically reappears!
+  // Event-bound overlap check timer — zero idle CPU polling
   Timer {
     id: intelligentOverlapCheckTimer
-    interval: root.dockVisible ? 350 : 400
-    repeat: true
-    running: root.autohide && root.intelligentAutohide && !(root.cardHover && root.cardHover.hovered) && !(revealHover && revealHover.hovered) && root.contextAppId === "" && root.dragAppId === "" && root.activeStackFolder === "" && root.activeAppGroupId === ""
+    interval: 350
+    repeat: false
+    running: false
     onTriggered: {
       if (!overlapProc.running) overlapProc.running = true
     }
@@ -1112,10 +1109,13 @@ Item {
     watchChanges: true
     atomicWrites: true
     onLoaded: {
+      if (root._savingConfig) return
       root.loadConfig()
       root.scanRemovableDrives()
     }
-    onFileChanged: configFile.reload()
+    onFileChanged: {
+      if (!root._savingConfig) configFile.reload()
+    }
   }
 
   FileView {
@@ -2297,8 +2297,8 @@ Item {
     if (deskEntry && deskEntry.id) {
       root.appLibrary.launch(deskEntry.id, targetName)
     } else {
-      var webAppMatch = String(appId).match(/^(?:chrome|chromium|brave|edge|microsoft-edge|helium|helium-browser|opera|vivaldi)-(.*?)__?-(?:default|profile.*)$/i)
-                     || String(appId).match(/^(?:chrome|chromium|brave|edge|microsoft-edge|helium|helium-browser|opera|vivaldi)-(.*?)$/i)
+      var webAppMatch = String(appId).match(/^(?:google-chrome|google-chrome-stable|chrome|chromium|brave|edge|microsoft-edge|helium|helium-browser|opera|vivaldi)-(.*?)__?-(?:default|profile.*)$/i)
+                     || String(appId).match(/^(?:google-chrome|google-chrome-stable|chrome|chromium|brave|edge|microsoft-edge|helium|helium-browser|opera|vivaldi)-(.*?)$/i)
       if (webAppMatch) {
         var webDomain = webAppMatch[1].replace(/^https?___?/i, "").replace(/__.*$/, "")
         Quickshell.execDetached(["omarchy-launch-webapp", "https://" + webDomain])
@@ -2377,7 +2377,9 @@ Item {
     conf.revealDelay = root.revealDelay
     conf.tooltipDelay = root.tooltipDelay
     conf.pinnedFolders = root.pinnedFolders
+    root._savingConfig = true
     configFile.setText(JSON.stringify(conf, null, 2))
+    Qt.callLater(function() { root._savingConfig = false })
   }
 
   // ------------------------------------------------- what a click means
@@ -2498,9 +2500,9 @@ Item {
     if (visible.length > 0) {
       var target = root.windowHere(visible) || root.recentWindow(appId, visible) || visible[0]
       if (target && target.address) root.focusWindowByAddress(target.address, appId)
-    } else if (parked.length > 0 && !root.showMinimizedTiles) {
-      // When minimized preview tiles are disabled, clicking the app icon restores the window.
-      root.restoreWindow(root.oldestParked(parked), appId)
+    } else if (parked.length > 0) {
+      // Restore the window (preferring most recently parked, or oldest)
+      root.restoreWindow(root.recentParked(parked) || root.oldestParked(parked), appId)
     }
   }
 
@@ -2786,7 +2788,8 @@ Item {
       anchors.left: parent.left
       anchors.right: parent.right
       anchors.bottom: parent.bottom
-      height: root.revealHeight
+      height: (root.autohide && !root.dockVisible) ? root.revealHeight : 0
+      visible: height > 0
 
       HoverHandler {
         id: revealHover

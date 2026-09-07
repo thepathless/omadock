@@ -197,8 +197,8 @@ Item {
 
     Text {
       id: tileTooltipLabel
-      x: parent.contentLeftInset
-      y: parent.contentTopInset
+      x: tileTooltip.contentLeftInset
+      y: tileTooltip.contentTopInset
       text: {
         if (!tile.isGroup) return tile.tileTitle
         var lines = []

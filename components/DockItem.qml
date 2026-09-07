@@ -108,7 +108,7 @@ Item {
   onPulsingChanged: if (!item.pulsing) item.pulse = 1.0
 
   SequentialAnimation on pulse {
-    running: item.pulsing
+    running: item.pulsing && (root ? root.dockVisible : false)
     loops: Animation.Infinite
     NumberAnimation { from: 1.0; to: 0.35; duration: 650; easing.type: Easing.InOutQuad }
     NumberAnimation { from: 0.35; to: 1.0; duration: 650; easing.type: Easing.InOutQuad }
@@ -123,7 +123,7 @@ Item {
   onBouncingChanged: if (!item.bouncing) item.bounceY = 0
 
   SequentialAnimation on bounceY {
-    running: item.bouncing
+    running: item.bouncing && (root ? root.dockVisible : false)
     loops: Animation.Infinite
     NumberAnimation { from: 0; to: -Style.space(13); duration: 260; easing.type: Easing.OutQuad }
     NumberAnimation { from: -Style.space(13); to: 0; duration: 260; easing.type: Easing.OutBounce }
@@ -442,8 +442,8 @@ Item {
 
     Column {
       id: tooltipContent
-      x: parent.contentLeftInset
-      y: parent.contentTopInset
+      x: itemTooltip.contentLeftInset
+      y: itemTooltip.contentTopInset
       spacing: Style.space(3)
 
       Text {

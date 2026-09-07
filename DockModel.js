@@ -15,6 +15,7 @@ var IGNORED_TOKENS = {
   "browser": true, "terminal": true, "system": true, "daemon": true, "service": true,
   "tool": true, "tools": true, "utility": true, "utilities": true, "viewer": true, "player": true,
   "manager": true, "editor": true, "helper": true, "agent": true, "stable": true, "beta": true,
+  "music": true, "video": true, "audio": true, "notes": true, "chat": true, "code": true, "files": true, "file": true, "mail": true, "media": true,
   "dev": true, "nightly": true, "canary": true, "release": true, "community": true
 };
 
@@ -95,8 +96,8 @@ function getCandidates(id) {
   var list = [raw]
 
   // WebApp extraction (Chrome, Chromium, Brave, Edge, Helium, Opera, Vivaldi PWAs)
-  var webAppMatch = raw.match(/^(?:chrome|chromium|brave|edge|microsoft-edge|helium|helium-browser|opera|vivaldi)-(.*?)__?-(?:default|profile.*)$/i)
-                 || raw.match(/^(?:chrome|chromium|brave|edge|microsoft-edge|helium|helium-browser|opera|vivaldi)-(.*?)$/i)
+  var webAppMatch = raw.match(/^(?:google-chrome|google-chrome-stable|chrome|chromium|brave|edge|microsoft-edge|helium|helium-browser|opera|vivaldi)-(.*?)__?-(?:default|profile.*)$/i)
+                 || raw.match(/^(?:google-chrome|google-chrome-stable|chrome|chromium|brave|edge|microsoft-edge|helium|helium-browser|opera|vivaldi)-(.*?)$/i)
   if (webAppMatch) {
     var webTarget = webAppMatch[1].replace(/^https?___?/i, "").replace(/__.*$/, "")
     if (webTarget && list.indexOf(webTarget) < 0) list.push(webTarget)
@@ -192,8 +193,8 @@ function findNotificationTargets(allEntries, appRows, row) {
       // C. Check underlying desktop entry Exec command (e.g. omarchy-launch-webapp https://web.whatsapp.com/)
       var execMatches = false
       var dEntry = entryFor(appRows, appId)
-      if (dEntry && dEntry.exec) {
-        var execStr = String(dEntry.exec).toLowerCase()
+      if (dEntry && (dEntry.execString || dEntry.exec)) {
+        var execStr = String(dEntry.execString || dEntry.exec).toLowerCase()
         if (execStr && (execStr.indexOf("http://") >= 0 || execStr.indexOf("https://") >= 0 || execStr.indexOf("--app") >= 0)) {
           for (var k = 0; k < domainCands.length; k++) {
             var cand = domainCands[k]
@@ -396,7 +397,7 @@ function entryFor(appRows, appId) {
   for (var i = 0; i < appRows.length; i++) {
     var entry = (appRows[i] && appRows[i].entry) ? appRows[i].entry : appRows[i]
     if (!entry) continue
-    var execStr = String(entry.exec || "").toLowerCase()
+    var execStr = String(entry.execString || entry.exec || "").toLowerCase()
     if (execStr && (execStr.indexOf("http://") >= 0 || execStr.indexOf("https://") >= 0 || execStr.indexOf("--app") >= 0)) {
       for (var k = 0; k < wantCands.length; k++) {
         var cand = wantCands[k]
