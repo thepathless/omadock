@@ -48,7 +48,9 @@ Item {
     return null
   }
 
-  readonly property var appLibrary: shell ? shell.appLibrary : null
+  DockAppLibrary { id: desktopAppLibrary }
+  readonly property var appLibrary: shell && shell.appLibrary ? shell.appLibrary : desktopAppLibrary
+  onAppLibraryChanged: root.rescanApps()
 
   // ------------------------------------------------- magnification
 
@@ -275,9 +277,9 @@ Item {
   readonly property var groupedSection: root.dockModel.grouped || []
 
   function refreshDock() {
-    root.dockModel = root.shell && root.shell.appLibrary
+    root.dockModel = root.appLibrary
       ? DockModel.buildEntries(root.pinnedIds, (ToplevelManager.toplevels ? ToplevelManager.toplevels.values : []), root.appRows,
-                               root.shell.appLibrary, root.hyprToplevelFor, root.minimizedWorkspace, root.minimizedOrigins, root.appGroups)
+                               root.appLibrary, root.hyprToplevelFor, root.minimizedWorkspace, root.minimizedOrigins, root.appGroups)
       : { pinned: [], running: [] }
     root.rescanMinimizedWindows()
     root.pruneLaunching()
@@ -1480,7 +1482,7 @@ Item {
   }
 
   function rescanApps() {
-    root.appRows = root.shell && root.shell.appLibrary ? root.shell.appLibrary.sortedEntries("") : []
+    root.appRows = root.appLibrary ? root.appLibrary.sortedEntries("") : []
     root.refreshDock()
   }
 
@@ -1490,8 +1492,8 @@ Item {
       if (t) root.currentIconThemeName = t
     } catch (e) {}
     root.themeVersion++
-    if (root.shell && root.shell.appLibrary) {
-      try { root.shell.appLibrary.refreshIcons() } catch (e) {}
+    if (root.appLibrary) {
+      try { root.appLibrary.refreshIcons() } catch (e) {}
     }
     root.rescanApps()
   }
@@ -2197,6 +2199,16 @@ Item {
   IpcHandler {
     target: "omadock"
 
+    function status(): string {
+      return JSON.stringify({
+        appSource: root.appLibrary === desktopAppLibrary ? "desktop-entries" : "shell",
+        applications: root.appRows.length,
+        pinned: root.pinnedSection.length,
+        running: root.runningSection.length,
+        visible: root.dockVisible
+      })
+    }
+
     function minimizeActive(): void {
       var addr = root.activeWindowAddress
       if (addr !== "") root.minimizeToplevel(addr)
@@ -2236,7 +2248,7 @@ Item {
   // ------------------------------------------------- launch feedback
 
   function launchApp(appId, entry) {
-    if (!root.shell || !root.shell.appLibrary) return
+    if (!root.appLibrary) return
     var target = entry || root.entryForId(appId)
     var deskEntry = DockModel.entryFor(root.appRows, appId)
     if (!deskEntry && typeof DesktopEntries !== "undefined" && DesktopEntries) {
@@ -2245,7 +2257,7 @@ Item {
     var targetId = (deskEntry && deskEntry.id) ? deskEntry.id : appId
     var targetName = (deskEntry && deskEntry.name) ? deskEntry.name : (target && target.name ? target.name : appId)
     if (deskEntry && deskEntry.id) {
-      root.shell.appLibrary.launch(deskEntry.id, targetName)
+      root.appLibrary.launch(deskEntry.id, targetName)
     } else {
       var webAppMatch = String(appId).match(/^(?:chrome|chromium|brave|edge|microsoft-edge|helium|helium-browser|opera|vivaldi)-(.*?)__?-(?:default|profile.*)$/i)
                      || String(appId).match(/^(?:chrome|chromium|brave|edge|microsoft-edge|helium|helium-browser|opera|vivaldi)-(.*?)$/i)
@@ -2253,7 +2265,7 @@ Item {
         var webDomain = webAppMatch[1].replace(/^https?___?/i, "").replace(/__.*$/, "")
         Quickshell.execDetached(["omarchy-launch-webapp", "https://" + webDomain])
       } else {
-        root.shell.appLibrary.launch(targetId, targetName)
+        root.appLibrary.launch(targetId, targetName)
       }
     }
     root.markLaunching(appId, target ? target.windows : 0)
@@ -2353,7 +2365,7 @@ Item {
   // other toggles one window forever. Stepping has no such corner, and a
   // specific window can still be parked from the context menu.
   function activate(appId) {
-    if (!root.shell || !root.shell.appLibrary) return
+    if (!root.appLibrary) return
 
     var entry = root.entryForId(appId)
     var windows = entry ? (entry.windowList || []) : []

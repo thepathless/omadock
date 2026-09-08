@@ -404,6 +404,23 @@ Run <code>omarchy restart shell</code> in your terminal to instantly reload the 
 
 ## 🛠️ Diagnostics & Validation
 
+On Omarchy 4.0.3+, overlays no longer receive `shell.appLibrary`. Omadock
+falls back to Quickshell's public desktop entries for app names, icons, and
+launching. Older shells still use their supplied app library. No additional
+plugin capabilities or changes to Omarchy's security boundaries are needed.
+
+Check the active application source and dock counts without moving windows:
+
+```bash
+omarchy-shell omadock status
+```
+
+Run the app-library regression checks (no windows are opened or apps launched):
+
+```bash
+qs -p test-app-library.qml --no-color
+```
+
 ```bash
 # Validate manifest compliance against Omarchy 4.0.1+ standards
 omarchy plugin validate ~/Projects/omadock
