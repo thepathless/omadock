@@ -714,7 +714,7 @@ function folderIconFor(path, explicitIcon) {
   return "folder"
 }
 
-function resolveThemedFolderIcon(iconName, themeName, folderColorMode) {
+function resolveThemedFolderIcon(iconName, themeName, folderColorMode, appLibrary) {
   var name = String(iconName || "folder").trim()
   if (name.indexOf("/") === 0 || name.indexOf("file://") === 0) return name
 
@@ -745,10 +745,15 @@ function resolveThemedFolderIcon(iconName, themeName, folderColorMode) {
 
   // Explicit white, black, or symbolic mode:
   if (folderColorMode === "white" || folderColorMode === "black" || folderColorMode === "symbolic") {
+    var symbolicName = name + "-symbolic"
+    if (appLibrary) {
+      var symSrc = appLibrary.iconSource(symbolicName)
+      if (symSrc && symSrc.length > 0) return symSrc
+    }
     return "file:///usr/share/icons/Adwaita/symbolic/places/" + name + "-symbolic.svg"
   }
 
-  // Explicit custom Yaru color preset:
+  // Explicit custom Yaru color preset (user chose a specific variant):
   if (folderColorMode && folderColorMode !== "theme" && folderColorMode !== "auto") {
     var customTheme = folderColorMode
     if (customTheme.indexOf("Yaru") === 0) {
@@ -759,7 +764,7 @@ function resolveThemedFolderIcon(iconName, themeName, folderColorMode) {
   // Automatic theme mode:
   var theme = String(themeName || "").trim()
 
-  // 1. If valid Yaru variant theme (e.g. Yaru-sage, Yaru-olive, Yaru-magenta, Yaru-purple, Yaru-blue, Yaru-red, Yaru-yellow, Yaru)
+  // 1. If valid Yaru variant theme (user's active icon theme):
   if (theme.indexOf("Yaru-") === 0 && theme !== "Yaru-gray" && theme !== "Yaru-grey") {
     return "file:///usr/share/icons/" + theme + "/256x256/places/" + name + ".png"
   }
@@ -767,21 +772,30 @@ function resolveThemedFolderIcon(iconName, themeName, folderColorMode) {
     return "file:///usr/share/icons/Yaru/256x256/places/" + name + ".png"
   }
 
-  // 2. For Vantablack / minimal themes (Yaru-gray / unstyled):
-  // Nautilus displays the clean monochrome symbolic outline icon!
+  // 2. For Vantablack / minimal / missing themes: resolve through iconIndex first
+  if (appLibrary) {
+    var indexSrc = appLibrary.iconSource(name)
+    if (indexSrc && indexSrc.length > 0) return indexSrc
+  }
   return "file:///usr/share/icons/Adwaita/symbolic/places/" + name + "-symbolic.svg"
 }
 
-function resolveFileItemIcon(iconName, themeName, folderColorMode) {
+function resolveFileItemIcon(iconName, themeName, folderColorMode, appLibrary) {
   var name = String(iconName || "text-x-generic").trim()
   if (name.indexOf("/") === 0 || name.indexOf("file://") === 0) return name
 
   // If it is a folder / place icon:
   if (name === "folder" || name.indexOf("folder-") === 0 || name.indexOf("user-") === 0) {
-    return resolveThemedFolderIcon(name, themeName, folderColorMode)
+    return resolveThemedFolderIcon(name, themeName, folderColorMode, appLibrary)
   }
 
-  // Known mimetypes
+  // Resolve mimetypes through iconIndex for theme resilience
+  if (appLibrary) {
+    var src = appLibrary.iconSource(name)
+    if (src && src.length > 0) return src
+  }
+
+  // Known mimetypes — hardcoded Yaru fallback only if iconIndex missed
   var knownMimetypes = [
     "image-x-generic", "video-x-generic", "audio-x-generic",
     "package-x-generic", "application-pdf", "text-x-generic",
@@ -791,7 +805,7 @@ function resolveFileItemIcon(iconName, themeName, folderColorMode) {
     return "file:///usr/share/icons/Yaru/256x256/mimetypes/" + name + ".png"
   }
 
-  return "file:///usr/share/icons/Yaru/256x256/mimetypes/text-x-generic.png"
+  return appLibrary ? appLibrary.iconSource("text-x-generic") : "file:///usr/share/icons/Yaru/256x256/mimetypes/text-x-generic.png"
 }
 
 function resolveAppIcon(appLibrary, appRows, appId) {
@@ -854,10 +868,17 @@ function resolveAppName(appLibrary, appRows, appId) {
   return id
 }
 
-function resolveDriveIcon(iconName, themeName) {
+function resolveDriveIcon(iconName, themeName, appLibrary) {
   var name = String(iconName || "drive-removable-media-usb").trim()
   if (name.indexOf("/") === 0 || name.indexOf("file://") === 0) return name
 
+  // Try iconIndex/theme resolution first for theme resilience
+  if (appLibrary) {
+    var src = appLibrary.iconSource(name)
+    if (src && src.length > 0) return src
+  }
+
+  // Hardcoded Yaru fallback for known device icons
   var devMap = {
     "drive-removable-media-usb": "/usr/share/icons/Yaru/256x256/devices/drive-removable-media-usb.png",
     "usb-pendrive": "/usr/share/icons/Yaru/256x256/devices/drive-removable-media-usb.png",

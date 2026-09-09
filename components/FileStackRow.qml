@@ -17,6 +17,7 @@ Item {
   property int themeVersion: 0
   property string currentIconThemeName: "Yaru"
   property string folderColor: "theme"
+  property var appLibrary: null
   property real menuRowWidth: {
     var p = parent
     while (p) {
@@ -36,7 +37,7 @@ Item {
 
   readonly property string resolvedIconSource: {
     var _tv = frow.themeVersion
-    return DockModel.resolveFileItemIcon(frow.icon, frow.currentIconThemeName, frow.folderColor)
+    return DockModel.resolveFileItemIcon(frow.icon, frow.currentIconThemeName, frow.folderColor, frow.appLibrary || null)
   }
   readonly property bool isIconSymbolic: resolvedIconSource.indexOf("-symbolic.svg") >= 0 || resolvedIconSource.indexOf("symbolic") >= 0
   readonly property color symbolicColor: {
