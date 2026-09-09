@@ -225,7 +225,6 @@ Item {
     showTooltips: root ? root.showTooltips : true
     tooltipDelay: root ? root.tooltipDelay : 450
     contextAppId: root ? root.contextAppId : ""
-    x: (gitem.width - width) / 2
     y: -height - Style.space(8)
   }
 }

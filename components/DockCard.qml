@@ -107,7 +107,9 @@ Item {
       } else if (targetAppId !== "" && targetAppId !== dragId) {
         root.createAppGroupFromDrop(targetAppId, dragId)
       } else {
-        if ((root.pinnedIds && root.pinnedIds.indexOf(dragId) >= 0) || beforeId !== "" || sourceGroupId !== "") {
+        var isAlreadyPinned = Boolean(root.pinnedIds && root.pinnedIds.indexOf(dragId) >= 0)
+        var isDroppedOnPinned = Boolean(beforeId !== "" && root.pinnedIds && root.pinnedIds.indexOf(beforeId) >= 0)
+        if (isAlreadyPinned || isDroppedOnPinned || sourceGroupId !== "") {
           root.setPinned(DockModel.reorderPinned(root.pinnedIds, dragId, beforeId))
         }
       }

@@ -23,7 +23,7 @@ BorderSurface {
   radius: Style.cornerRadius
   padding: Style.space(4)
 
-  readonly property real rowWidth: (root && root.contextAppId !== "")
+  readonly property real rowWidth: (root && root.contextAppId !== "" && root.settingsSubmenu !== undefined)
     ? root.menuContentWidth(menuColumn)
     : 0
 
@@ -38,10 +38,8 @@ BorderSurface {
   anchors.bottomMargin: Style.space(6)
   x: Math.max(Style.gapsOut, Math.min((targetWindow ? targetWindow.width : 1920) - width - Style.gapsOut, (root ? root.contextX : 0) - width / 2))
 
-  Column {
-    id: menuColumn
-    spacing: Style.space(2)
-
+  Flickable {
+    id: menuFlickable
     anchors.left: parent.left
     anchors.leftMargin: contextMenu.contentLeftInset
     anchors.right: parent.right
@@ -50,6 +48,28 @@ BorderSurface {
     anchors.topMargin: contextMenu.contentTopInset
     anchors.bottom: parent.bottom
     anchors.bottomMargin: contextMenu.contentBottomInset
+
+    contentWidth: width
+    contentHeight: menuColumn.implicitHeight
+    clip: true
+    boundsBehavior: Flickable.StopAtBounds
+    flickableDirection: Flickable.VerticalFlick
+    interactive: contentHeight > height
+
+    WheelHandler {
+      target: menuFlickable
+      onWheel: function(event) {
+        if (event.angleDelta.y === 0) return
+        var step = Style.space(32)
+        var dy = event.angleDelta.y > 0 ? -step : step
+        menuFlickable.contentY = Math.max(0, Math.min(menuFlickable.contentHeight - menuFlickable.height, menuFlickable.contentY + dy))
+      }
+    }
+
+    Column {
+      id: menuColumn
+      width: parent.width
+      spacing: Style.space(2)
 
     // Dock Settings Menu (when right-clicking leftmost Omarchy icon)
     Column {
@@ -1344,4 +1364,5 @@ BorderSurface {
       }
     }
   }
+}
 }

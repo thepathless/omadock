@@ -15,7 +15,7 @@ var IGNORED_TOKENS = {
   "browser": true, "terminal": true, "system": true, "daemon": true, "service": true,
   "tool": true, "tools": true, "utility": true, "utilities": true, "viewer": true, "player": true,
   "manager": true, "editor": true, "helper": true, "agent": true, "stable": true, "beta": true,
-  "music": true, "video": true, "audio": true, "notes": true, "chat": true, "code": true, "files": true, "file": true, "mail": true, "media": true,
+  "video": true, "audio": true, "chat": true, "files": true, "file": true, "media": true,
   "dev": true, "nightly": true, "canary": true, "release": true, "community": true
 };
 
@@ -144,7 +144,11 @@ function isAppMatch(idA, idB) {
   var candsB = getCandidates(b)
   for (var i = 0; i < candsA.length; i++) {
     var ca = candsA[i]
-    if (ca.length >= 3 && !IGNORED_TOKENS[ca] && candsB.indexOf(ca) >= 0) return true
+    if (!ca || IGNORED_TOKENS[ca]) continue
+    if (candsB.indexOf(ca) >= 0) {
+      if (ca === a || ca === b) return true
+      if (ca.length >= 4) return true
+    }
   }
   return false
 }
@@ -317,13 +321,11 @@ function togglePinned(pinnedIds, appId) {
   var arr = toArray(pinnedIds).slice()
   var id = stripDesktop(appId)
   if (!id) return arr
-  var idx = arr.indexOf(id)
-  if (idx < 0) {
-    for (var i = 0; i < arr.length; i++) {
-      if (isAppMatch(arr[i], id)) {
-        idx = i
-        break
-      }
+  var idx = -1
+  for (var i = 0; i < arr.length; i++) {
+    if (stripDesktop(arr[i]) === id) {
+      idx = i
+      break
     }
   }
   if (idx >= 0) arr.splice(idx, 1)
@@ -335,9 +337,8 @@ function isPinned(pinnedIds, appId) {
   var arr = toArray(pinnedIds)
   var id = stripDesktop(appId)
   if (!id) return false
-  if (arr.indexOf(id) >= 0) return true
   for (var i = 0; i < arr.length; i++) {
-    if (isAppMatch(arr[i], id)) return true
+    if (stripDesktop(arr[i]) === id) return true
   }
   return false
 }
@@ -454,7 +455,8 @@ function buildEntries(pinnedIds, toplevels, appRows, appLibrary, hyprFor, minimi
     if (!toplevel) continue
     var h = hyprFor ? hyprFor(toplevel) : null
     var appId = stripDesktop(toplevel.appId)
-    if (!appId && h && h.appId) appId = stripDesktop(h.appId)
+    var hyprClass = (h && h.lastIpcObject) ? (h.lastIpcObject["class"] || h.lastIpcObject["initialClass"] || "") : ""
+    if (!appId && hyprClass) appId = stripDesktop(hyprClass)
     if (!appId && toplevel.title) appId = stripDesktop(toplevel.title)
     if (!appId) continue
     if (!winMap[appId]) {

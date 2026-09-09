@@ -43,6 +43,17 @@ Item {
   property real dragStartX: 0
   property real bounceY: 0
   property real homeCenter: 0
+
+  Connections {
+    target: root
+    function onDragAppIdChanged() {
+      if ((!root || !root.dragAppId) && item.isDragging) {
+        item.isDragging = false
+        item._dragJustEnded = true
+      }
+    }
+  }
+
   readonly property bool isDropTarget: (root && root.dropTargetAppId === item.appId && root.dragAppId !== item.appId)
   property real magnifyScale: {
     if (!root) return 1
@@ -418,7 +429,16 @@ Item {
     borderSpec: Border.surfaceSpec("tooltip", "border", Color.tooltip.border, 1)
     radius: Style.cornerRadius > 0 ? Style.cornerRadius : 8
     padding: Style.space(6)
-    x: (item.width - width) / 2
+    x: {
+      var targetWin = root ? root.contentItemRef : null
+      var localCenter = (item.width - width) / 2
+      if (!targetWin) return localCenter
+      var pt = item.mapToItem(targetWin, 0, 0)
+      if (!pt) return localCenter
+      var winX = pt.x + localCenter
+      var clampedWinX = Math.max(Style.gapsOut, Math.min(targetWin.width - width - Style.gapsOut, winX))
+      return clampedWinX - pt.x
+    }
     y: -height - Style.space(10)
     width: tooltipContent.implicitWidth + contentLeftInset + contentRightInset
     height: tooltipContent.implicitHeight + contentTopInset + contentBottomInset
