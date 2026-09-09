@@ -70,7 +70,8 @@ Item {
     function sortedEntries(query) {
       try {
         var values = DesktopEntries.applications.values
-        return values ? values : []
+        if (!values) return []
+        return values.filter(function(e) { return !e.noDisplay })
       } catch (e) {
         return []
       }
