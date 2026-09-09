@@ -107,7 +107,7 @@ Item {
     width: Style.space(4)
     height: Style.space(4)
     radius: width / 2
-    color: Color.bar.active
+    color: Color.accent
   }
 
   MouseArea {

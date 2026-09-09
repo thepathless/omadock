@@ -164,8 +164,8 @@ Item {
       width: (root ? root.baseIconArt : 32) * item.magnifyScale + Style.space(8)
       height: width
       radius: root ? root.effectiveCardRadius : Style.cornerRadius
-      color: Util.alpha(Color.bar.active, 0.22)
-      border.color: Color.bar.active
+      color: Util.alpha(Color.accent, 0.22)
+      border.color: Color.accent
       border.width: 1.5
       z: -1
       SequentialAnimation on opacity {
@@ -252,7 +252,7 @@ Item {
         // 2. Open visible window: Solid circle
         // 3. Minimized window: Hollow circle (transparent fill with solid border)
         color: winActive
-          ? Color.bar.active
+          ? Color.accent
           : (winMinimized
               ? "transparent"
               : (item.urgent ? Color.urgent : Util.alpha(root ? root.dockForeground : Color.bar.text, 0.88)))
@@ -491,7 +491,7 @@ Item {
             height: Style.space(5)
             radius: width / 2
             anchors.verticalCenter: parent.verticalCenter
-            color: isSelected ? Color.accent : (isWinFocused ? Color.bar.active : Util.alpha(Color.tooltip.text, 0.5))
+            color: isSelected ? Color.accent : (isWinFocused ? Color.accent : Util.alpha(Color.tooltip.text, 0.5))
             border.color: isSelected ? Color.accent : "transparent"
             border.width: 1
           }

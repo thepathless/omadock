@@ -437,7 +437,7 @@ Item {
       width: Style.space(2)
       height: root ? (root.iconSize + Style.space(4)) : 36
       radius: 1
-      color: Color.bar.active
+      color: Color.accent
       z: 10
     }
   }

@@ -113,7 +113,7 @@ BorderSurface {
         height: Style.space(24)
         radius: Style.cornerRadius
         color: Util.alpha(Color.menu.background, 0.5)
-        border.color: Color.bar.active
+        border.color: Color.accent
         border.width: 1
 
         TextInput {

@@ -129,7 +129,7 @@ BorderSurface {
 
         ContextRow {
           text: "‹ Back"
-          textColor: Color.bar.active
+          textColor: Color.accent
           onTriggered: { if (root) root.settingsSubmenu = "" }
         }
 
@@ -164,7 +164,7 @@ BorderSurface {
 
         ContextRow {
           text: "‹ Back"
-          textColor: Color.bar.active
+          textColor: Color.accent
           onTriggered: { if (root) root.settingsSubmenu = "" }
         }
 
@@ -175,7 +175,7 @@ BorderSurface {
 
         ContextRow {
           text: "+ Create Group from Running Apps..."
-          textColor: Color.bar.active
+          textColor: Color.accent
           onTriggered: {
             if (root) {
               root.createAppGroupFromRunning()
@@ -208,7 +208,7 @@ BorderSurface {
 
         ContextRow {
           text: "‹ Back"
-          textColor: Color.bar.active
+          textColor: Color.accent
           onTriggered: { if (root) root.settingsSubmenu = "" }
         }
 
@@ -226,7 +226,7 @@ BorderSurface {
 
         ContextRow {
           text: "+ Add Custom Folder..."
-          textColor: Color.bar.active
+          textColor: Color.accent
           onTriggered: {
             if (root && root.customFolderPickerProc) root.customFolderPickerProc.running = true
             if (root) root.closeContext()
@@ -299,7 +299,7 @@ BorderSurface {
 
         ContextRow {
           text: "‹ Back"
-          textColor: Color.bar.active
+          textColor: Color.accent
           onTriggered: { if (root) root.settingsSubmenu = "folders" }
         }
 
@@ -358,7 +358,7 @@ BorderSurface {
                 radius: Style.space(4)
                 color: modelData.color
                 border.color: (root && root.folderColor === modelData.id)
-                  ? Color.bar.active
+                  ? Color.accent
                   : Util.alpha(Color.menu.border, 0.8)
                 border.width: (root && root.folderColor === modelData.id) ? 2 : 1
 
@@ -390,7 +390,7 @@ BorderSurface {
 
         ContextRow {
           text: "‹ Back"
-          textColor: Color.bar.active
+          textColor: Color.accent
           onTriggered: { if (root) root.settingsSubmenu = "" }
         }
 
@@ -422,7 +422,7 @@ BorderSurface {
 
         ContextRow {
           text: "‹ Back"
-          textColor: Color.bar.active
+          textColor: Color.accent
           onTriggered: { if (root) root.settingsSubmenu = "" }
         }
 
@@ -476,7 +476,7 @@ BorderSurface {
 
         ContextRow {
           text: "‹ Back"
-          textColor: Color.bar.active
+          textColor: Color.accent
           onTriggered: { if (root) root.settingsSubmenu = "" }
         }
 
@@ -542,7 +542,7 @@ BorderSurface {
 
         ContextRow {
           text: "‹ Back"
-          textColor: Color.bar.active
+          textColor: Color.accent
           onTriggered: { if (root) root.settingsSubmenu = "effects" }
         }
 
@@ -577,7 +577,7 @@ BorderSurface {
 
         ContextRow {
           text: "‹ Back"
-          textColor: Color.bar.active
+          textColor: Color.accent
           onTriggered: { if (root) root.settingsSubmenu = "" }
         }
 
@@ -604,7 +604,7 @@ BorderSurface {
 
         ContextRow {
           text: "‹ Back"
-          textColor: Color.bar.active
+          textColor: Color.accent
           onTriggered: { if (root) root.settingsSubmenu = "behavior" }
         }
 
@@ -639,7 +639,7 @@ BorderSurface {
 
         ContextRow {
           text: "‹ Back"
-          textColor: Color.bar.active
+          textColor: Color.accent
           onTriggered: { if (root) root.settingsSubmenu = "behavior" }
         }
 
@@ -689,7 +689,7 @@ BorderSurface {
 
         ContextRow {
           text: "‹ Back"
-          textColor: Color.bar.active
+          textColor: Color.accent
           onTriggered: { if (root) root.settingsSubmenu = "behavior" }
         }
 
@@ -754,7 +754,7 @@ BorderSurface {
 
         ContextRow {
           text: "‹ Back"
-          textColor: Color.bar.active
+          textColor: Color.accent
           onTriggered: { if (root) root.settingsSubmenu = "appearance" }
         }
 
@@ -795,7 +795,7 @@ BorderSurface {
 
         ContextRow {
           text: "‹ Back"
-          textColor: Color.bar.active
+          textColor: Color.accent
           onTriggered: { if (root) root.settingsSubmenu = "appearance" }
         }
 
@@ -855,7 +855,7 @@ BorderSurface {
                 radius: Style.space(4)
                 color: modelData
                 border.color: (root && root.dockBgColor === modelData)
-                  ? Color.bar.active
+                  ? Color.accent
                   : Util.alpha(Color.menu.border, 0.8)
                 border.width: (root && root.dockBgColor === modelData) ? 2 : 1
 
@@ -865,7 +865,7 @@ BorderSurface {
                   width: Style.space(8)
                   height: Style.space(8)
                   radius: Style.space(4)
-                  color: Color.bar.active
+                  color: Color.accent
                 }
 
                 MouseArea {
@@ -887,7 +887,7 @@ BorderSurface {
 
         ContextRow {
           text: "‹ Back"
-          textColor: Color.bar.active
+          textColor: Color.accent
           onTriggered: { if (root) root.settingsSubmenu = "appearance" }
         }
 
@@ -940,7 +940,7 @@ BorderSurface {
 
         ContextRow {
           text: "‹ Back"
-          textColor: Color.bar.active
+          textColor: Color.accent
           onTriggered: { if (root) root.settingsSubmenu = "size_spacing" }
         }
 
@@ -981,7 +981,7 @@ BorderSurface {
 
         ContextRow {
           text: "‹ Back"
-          textColor: Color.bar.active
+          textColor: Color.accent
           onTriggered: { if (root) root.settingsSubmenu = "size_spacing" }
         }
 
@@ -1163,7 +1163,7 @@ BorderSurface {
 
       ContextRow {
         text: "Safely Eject / Unmount"
-        textColor: Color.urgent || Color.bar.active
+        textColor: Color.urgent || Color.accent
         onTriggered: {
           if (root) {
             root.ejectDrive(root.contextDriveDev, root.contextDriveMount, root.contextDriveName)
