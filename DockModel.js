@@ -743,13 +743,10 @@ function resolveThemedFolderIcon(iconName, themeName, folderColorMode, appLibrar
     name = "folder"
   }
 
-  // Explicit white, black, or symbolic mode:
+  // Explicit white, black, or symbolic mode — deliberately monochrome Adwaita outlines.
+  // These are intentionally hardcoded for B&W Omarchy themes (vantablack, white, etc.)
+  // and must NOT be intercepted by the iconIndex which may return colored variants.
   if (folderColorMode === "white" || folderColorMode === "black" || folderColorMode === "symbolic") {
-    var symbolicName = name + "-symbolic"
-    if (appLibrary) {
-      var symSrc = appLibrary.iconSource(symbolicName)
-      if (symSrc && symSrc.length > 0) return symSrc
-    }
     return "file:///usr/share/icons/Adwaita/symbolic/places/" + name + "-symbolic.svg"
   }
 
@@ -772,11 +769,10 @@ function resolveThemedFolderIcon(iconName, themeName, folderColorMode, appLibrar
     return "file:///usr/share/icons/Yaru/256x256/places/" + name + ".png"
   }
 
-  // 2. For Vantablack / minimal / missing themes: resolve through iconIndex first
-  if (appLibrary) {
-    var indexSrc = appLibrary.iconSource(name)
-    if (indexSrc && indexSrc.length > 0) return indexSrc
-  }
+  // 2. For Vantablack / minimal themes (Yaru-gray / unstyled):
+  // Nautilus displays the clean monochrome symbolic outline icon!
+  // Do NOT route through iconIndex here — it would return colored folder
+  // icons from other themes, breaking the deliberate B&W aesthetic.
   return "file:///usr/share/icons/Adwaita/symbolic/places/" + name + "-symbolic.svg"
 }
 
