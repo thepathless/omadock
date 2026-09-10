@@ -33,6 +33,7 @@ Item {
 
   readonly property string dockPath: Quickshell.env("HOME") + "/.config/omarchy/dock.json"
   readonly property string configPath: Quickshell.env("HOME") + "/.config/omarchy/omadock.json"
+  property bool _savingConfig: false
 
   property string screenName: ""
   readonly property var dockScreen: {
@@ -48,7 +49,136 @@ Item {
     return null
   }
 
-  readonly property var appLibrary: shell ? shell.appLibrary : null
+  readonly property var appLibrary: (shell && shell.appLibrary) ? shell.appLibrary : localAppLibrary
+
+  // Fallback standalone application library for host capability gates (e.g. Omarchy 4.x scoped plugins)
+  QtObject {
+    id: localAppLibrary
+
+    signal appsChanged()
+
+    // Absolute-path icon index, mirroring the host AppLibrary. Qt's themed
+    // lookup resolves against the *configured* icon theme, so a theme that is
+    // named but not installed (e.g. Omarchy's vantablack -> "Yaru-gray", which
+    // yaru-icon-theme no longer ships) makes Quickshell.iconPath() return ""
+    // for every name and the dock renders blank slots. The host's own menu
+    // survives that because it consults this index first; the fallback library
+    // has to do the same or it is strictly more fragile than the host.
+    property var iconIndex: ({})
+    property var pendingIconIndex: ({})
+
+    function sortedEntries(query) {
+      try {
+        var values = DesktopEntries.applications.values
+        if (!values) return []
+        return values.filter(function(e) { return !e.noDisplay })
+      } catch (e) {
+        return []
+      }
+    }
+
+    function entryName(entry) {
+      if (!entry) return ""
+      var target = (entry && entry.entry) ? entry.entry : entry
+      var n = String(target.name || "")
+      return n !== "" ? n : String(target.id || "")
+    }
+
+    function iconSource(icon) {
+      var value = String(icon || "")
+      if (value === "") return localAppLibrary.fallbackIcon()
+      if (value.indexOf("file://") === 0 || value.indexOf("image://") === 0) return value
+      if (value.charAt(0) === "/") return Util.fileUrl(value)
+      // Reading iconIndex registers the dependency, so swapping the property
+      // after a scan re-evaluates every binding that called through here.
+      var found = localAppLibrary.iconIndex[value]
+      if (found) return Util.fileUrl(found)
+      var themed = ""
+      try { themed = Quickshell.iconPath(value, true) } catch (e) {}
+      if (themed && themed.length > 0) return themed
+      return localAppLibrary.fallbackIcon()
+    }
+
+    // Generic placeholder, resolved through the same index so it survives a
+    // broken theme too. Returns "" only if nothing at all is on disk, which
+    // callers already treat as "draw nothing".
+    function fallbackIcon() {
+      var found = localAppLibrary.iconIndex["application-x-executable"]
+      if (found) return Util.fileUrl(found)
+      var themed = ""
+      try { themed = Quickshell.iconPath("application-x-executable", true) } catch (e) {}
+      return themed || ""
+    }
+
+    function refreshIcons() {
+      if (!iconIndexScan.running) iconIndexScan.running = true
+    }
+
+    function indexIconLine(path) {
+      var value = String(path || "").trim()
+      if (value.length === 0) return
+      var slash = value.lastIndexOf("/")
+      var file = slash >= 0 ? value.slice(slash + 1) : value
+      var dot = file.lastIndexOf(".")
+      var name = dot > 0 ? file.slice(0, dot) : file
+      if (name.length > 0 && localAppLibrary.pendingIconIndex[name] === undefined)
+        localAppLibrary.pendingIconIndex[name] = value
+    }
+
+    // SVGs before PNGs so the first hit per name is the scalable one.
+    function iconIndexScanCommand() {
+      return [
+        'dirs="$HOME/.icons $HOME/.local/share/icons";',
+        'IFS=":"; for d in ${XDG_DATA_DIRS:-/usr/local/share:/usr/share}; do dirs="$dirs $d/icons"; done; unset IFS;',
+        'for ext in svg png; do',
+        '  for base in $dirs; do',
+        '    [[ -d $base ]] && find "$base" \\( -path "*/apps/*" -o -path "*/devices/*" -o -path "*/places/*" -o -path "*/mimetypes/*" \\) -name "*.$ext" 2>/dev/null;',
+        '  done;',
+        '  find /usr/share/pixmaps -maxdepth 1 -name "*.$ext" 2>/dev/null;',
+        'done'
+      ].join(' ')
+    }
+
+    function launch(desktopId, name) {
+      var id = String(desktopId || "")
+      if (id === "") return
+      var desktopFile = id.slice(-8) === ".desktop" ? id : (id + ".desktop")
+      Quickshell.execDetached(["uwsm-app", "--", "gtk-launch", "--", desktopFile])
+    }
+  }
+
+  // One-shot scans only: started on load, on app-list changes and on theme
+  // changes. Nothing polls, so the dock stays at 0% CPU when idle.
+  Process {
+    id: iconIndexScan
+    command: ["bash", "-c", localAppLibrary.iconIndexScanCommand()]
+    stdout: SplitParser { onRead: function (line) { localAppLibrary.indexIconLine(line) } }
+    onStarted: localAppLibrary.pendingIconIndex = ({})
+    onExited: {
+      localAppLibrary.iconIndex = localAppLibrary.pendingIconIndex
+      localAppLibrary.appsChanged()
+    }
+  }
+
+  // Coalesces bursts of app-list changes (one package install touches many
+  // entries) into a single rescan.
+  Timer {
+    id: iconIndexDebounce
+    interval: 750
+    onTriggered: if (!iconIndexScan.running) iconIndexScan.running = true
+  }
+
+  Connections {
+    target: (root.appLibrary === localAppLibrary && typeof DesktopEntries !== "undefined") ? DesktopEntries : null
+    function onApplicationsChanged() {
+      iconIndexDebounce.restart()
+      localAppLibrary.appsChanged()
+    }
+  }
+
+  // Build the index once at load, but only when the host withheld its own
+  // library — with a host library present the index would be dead weight.
+  Component.onCompleted: if (root.appLibrary === localAppLibrary) iconIndexScan.running = true
 
   // ------------------------------------------------- magnification
 
@@ -275,9 +405,9 @@ Item {
   readonly property var groupedSection: root.dockModel.grouped || []
 
   function refreshDock() {
-    root.dockModel = root.shell && root.shell.appLibrary
+    root.dockModel = root.appLibrary
       ? DockModel.buildEntries(root.pinnedIds, (ToplevelManager.toplevels ? ToplevelManager.toplevels.values : []), root.appRows,
-                               root.shell.appLibrary, root.hyprToplevelFor, root.minimizedWorkspace, root.minimizedOrigins, root.appGroups)
+                               root.appLibrary, root.hyprToplevelFor, root.minimizedWorkspace, root.minimizedOrigins, root.appGroups)
       : { pinned: [], running: [] }
     root.rescanMinimizedWindows()
     root.pruneLaunching()
@@ -299,8 +429,9 @@ Item {
       var title = String((top && top.title) || h.title || "Window")
       var appId = ""
       try {
-        appId = h.appId ? DockModel.normalizeId(h.appId)
-          : (top && top.appId ? DockModel.normalizeId(top.appId) : "")
+        var hClass = (h && h.lastIpcObject) ? (h.lastIpcObject["class"] || h.lastIpcObject["initialClass"] || "") : ""
+        appId = (top && top.appId) ? DockModel.normalizeId(top.appId)
+          : (hClass ? DockModel.normalizeId(hClass) : "")
       } catch (e) {}
       mins.push({ address: addr, title: title, appId: appId, waylandToplevel: top })
     }
@@ -514,21 +645,6 @@ Item {
       if (root.autohide && root.intelligentAutohide) {
         overlapProc.running = true
       }
-    }
-  }
-
-  // Periodic fallback overlap check — deliberate exception to the zero-CPU-polling invariant.
-  // Hyprland does not emit IPC events for in-progress window drags, so there is no event-driven
-  // way to detect a window being dragged over the dock. This timer fires at 350-400ms while the dock
-  // is under intelligent autohide. It checks continuously so that when an overlapping tiled window moves
-  // away, resizes, or closes, the dock detects that space is free and automatically reappears!
-  Timer {
-    id: intelligentOverlapCheckTimer
-    interval: root.dockVisible ? 350 : 400
-    repeat: true
-    running: root.autohide && root.intelligentAutohide && !(root.cardHover && root.cardHover.hovered) && !(revealHover && revealHover.hovered) && root.contextAppId === "" && root.dragAppId === "" && root.activeStackFolder === "" && root.activeAppGroupId === ""
-    onTriggered: {
-      if (!overlapProc.running) overlapProc.running = true
     }
   }
 
@@ -1062,10 +1178,13 @@ Item {
     watchChanges: true
     atomicWrites: true
     onLoaded: {
+      if (root._savingConfig) return
       root.loadConfig()
       root.scanRemovableDrives()
     }
-    onFileChanged: configFile.reload()
+    onFileChanged: {
+      if (!root._savingConfig) configFile.reload()
+    }
   }
 
   FileView {
@@ -1480,7 +1599,7 @@ Item {
   }
 
   function rescanApps() {
-    root.appRows = root.shell && root.shell.appLibrary ? root.shell.appLibrary.sortedEntries("") : []
+    root.appRows = root.appLibrary ? root.appLibrary.sortedEntries("") : []
     root.refreshDock()
   }
 
@@ -1490,8 +1609,8 @@ Item {
       if (t) root.currentIconThemeName = t
     } catch (e) {}
     root.themeVersion++
-    if (root.shell && root.shell.appLibrary) {
-      try { root.shell.appLibrary.refreshIcons() } catch (e) {}
+    if (root.appLibrary) {
+      try { root.appLibrary.refreshIcons() } catch (e) {}
     }
     root.rescanApps()
   }
@@ -1613,7 +1732,7 @@ Item {
     var value = String((handle && handle.address) || "").trim()
     if (!value) return ""
     if (value.slice(0, 2) === "0x" || value.slice(0, 2) === "0X") value = value.slice(2)
-    return "0x" + value
+    return "0x" + value.toLowerCase()
   }
 
   function luaString(value) {
@@ -1936,6 +2055,23 @@ Item {
     return out
   }
 
+  // The app's parked window that has been waiting the shortest time — the tail of
+  // the chronological FIFO. Windows parked most recently sort first.
+  function recentParked(parked) {
+    if (!parked || parked.length <= 1) return (parked && parked[0]) || null
+    var best = parked[0]
+    var bestTime = (best && best.address && root.parkedAt[best.address] !== undefined) ? root.parkedAt[best.address] : 0
+    for (var i = 1; i < parked.length; i++) {
+      var p = parked[i]
+      var t = (p && p.address && root.parkedAt[p.address] !== undefined) ? root.parkedAt[p.address] : 0
+      if (t > bestTime) {
+        best = p
+        bestTime = t
+      }
+    }
+    return best
+  }
+
   // The app's parked window that has been waiting the longest — the head of
   // the chronological FIFO. Windows parked before this shell session have no
   // timestamp and sort first, matching the "recover the oldest" expectation.
@@ -2236,7 +2372,7 @@ Item {
   // ------------------------------------------------- launch feedback
 
   function launchApp(appId, entry) {
-    if (!root.shell || !root.shell.appLibrary) return
+    if (!root.appLibrary) return
     var target = entry || root.entryForId(appId)
     var deskEntry = DockModel.entryFor(root.appRows, appId)
     if (!deskEntry && typeof DesktopEntries !== "undefined" && DesktopEntries) {
@@ -2245,15 +2381,15 @@ Item {
     var targetId = (deskEntry && deskEntry.id) ? deskEntry.id : appId
     var targetName = (deskEntry && deskEntry.name) ? deskEntry.name : (target && target.name ? target.name : appId)
     if (deskEntry && deskEntry.id) {
-      root.shell.appLibrary.launch(deskEntry.id, targetName)
+      root.appLibrary.launch(deskEntry.id, targetName)
     } else {
-      var webAppMatch = String(appId).match(/^(?:chrome|chromium|brave|edge|microsoft-edge|helium|helium-browser|opera|vivaldi)-(.*?)__?-(?:default|profile.*)$/i)
-                     || String(appId).match(/^(?:chrome|chromium|brave|edge|microsoft-edge|helium|helium-browser|opera|vivaldi)-(.*?)$/i)
+      var webAppMatch = String(appId).match(/^(?:google-chrome|google-chrome-stable|chrome|chromium|brave|edge|microsoft-edge|helium|helium-browser|opera|vivaldi)-(.*?)__?-(?:default|profile.*)$/i)
+                     || String(appId).match(/^(?:google-chrome|google-chrome-stable|chrome|chromium|brave|edge|microsoft-edge|helium|helium-browser|opera|vivaldi)-(.*?)$/i)
       if (webAppMatch) {
         var webDomain = webAppMatch[1].replace(/^https?___?/i, "").replace(/__.*$/, "")
         Quickshell.execDetached(["omarchy-launch-webapp", "https://" + webDomain])
       } else {
-        root.shell.appLibrary.launch(targetId, targetName)
+        root.appLibrary.launch(targetId, targetName)
       }
     }
     root.markLaunching(appId, target ? target.windows : 0)
@@ -2327,7 +2463,9 @@ Item {
     conf.revealDelay = root.revealDelay
     conf.tooltipDelay = root.tooltipDelay
     conf.pinnedFolders = root.pinnedFolders
+    root._savingConfig = true
     configFile.setText(JSON.stringify(conf, null, 2))
+    Qt.callLater(function() { root._savingConfig = false })
   }
 
   // ------------------------------------------------- what a click means
@@ -2353,7 +2491,7 @@ Item {
   // other toggles one window forever. Stepping has no such corner, and a
   // specific window can still be parked from the context menu.
   function activate(appId) {
-    if (!root.shell || !root.shell.appLibrary) return
+    if (!root.appLibrary) return
 
     var entry = root.entryForId(appId)
     var windows = entry ? (entry.windowList || []) : []
@@ -2448,9 +2586,9 @@ Item {
     if (visible.length > 0) {
       var target = root.windowHere(visible) || root.recentWindow(appId, visible) || visible[0]
       if (target && target.address) root.focusWindowByAddress(target.address, appId)
-    } else if (parked.length > 0 && !root.showMinimizedTiles) {
-      // When minimized preview tiles are disabled, clicking the app icon restores the window.
-      root.restoreWindow(root.oldestParked(parked), appId)
+    } else if (parked.length > 0) {
+      // Restore the window (preferring most recently parked, or oldest)
+      root.restoreWindow(root.recentParked(parked) || root.oldestParked(parked), appId)
     }
   }
 
@@ -2733,10 +2871,20 @@ Item {
     // Bottom edge reveal strip — thin edge trigger with zero click-swallowing
     Item {
       id: revealStrip
-      anchors.left: parent.left
-      anchors.right: parent.right
       anchors.bottom: parent.bottom
-      height: root.revealHeight
+      x: {
+        var cardW = (dockCardComp && dockCardComp.dockCard.width > 0) ? dockCardComp.dockCard.width : Style.space(320)
+        var targetW = Math.min(parent.width, cardW + Style.space(96))
+        if (root.alignment === "left") return Style.gapsOut
+        if (root.alignment === "right") return parent.width - targetW - Style.gapsOut
+        return Math.round((parent.width - targetW) / 2)
+      }
+      width: {
+        var cardW = (dockCardComp && dockCardComp.dockCard.width > 0) ? dockCardComp.dockCard.width : Style.space(320)
+        return Math.min(parent.width, cardW + Style.space(96))
+      }
+      height: (root.autohide && !root.dockVisible) ? root.revealHeight : 0
+      visible: height > 0
 
       HoverHandler {
         id: revealHover
@@ -2746,11 +2894,7 @@ Item {
       Rectangle {
         id: revealStripRect
         anchors.bottom: parent.bottom
-        x: {
-          if (root.alignment === "left") return Style.gapsOut * 2 + Style.space(16)
-          if (root.alignment === "right") return parent.width - width - (Style.gapsOut * 2) - Style.space(16)
-          return Math.round((parent.width - width) / 2)
-        }
+        x: Math.round((parent.width - width) / 2)
         Behavior on x {
           NumberAnimation { duration: 240; easing.type: Easing.OutCubic }
         }

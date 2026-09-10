@@ -39,9 +39,9 @@ Item {
     var _tv = root ? root.themeVersion : 0
     var iconName = ditem.icon || "drive-removable-media-usb"
     if (iconName.indexOf("/") === 0 || iconName.indexOf("file://") === 0) return iconName
-    var fileUri = DockModel.resolveDriveIcon(iconName, root ? root.currentIconThemeName : "Yaru")
+    var fileUri = DockModel.resolveDriveIcon(iconName, root ? root.currentIconThemeName : "Yaru", root ? root.appLibrary : null)
     if (fileUri && fileUri !== "") return fileUri
-    return "file:///usr/share/icons/Yaru/256x256/devices/drive-removable-media-usb.png"
+    return root && root.appLibrary ? root.appLibrary.iconSource("drive-removable-media-usb") : "file:///usr/share/icons/Yaru/256x256/devices/drive-removable-media-usb.png"
   }
 
   Behavior on magnifyScale {
@@ -84,7 +84,7 @@ Item {
     width: Style.space(4)
     height: Style.space(4)
     radius: width / 2
-    color: Color.bar.active
+    color: Color.accent
   }
 
   MouseArea {
@@ -116,7 +116,6 @@ Item {
     showTooltips: root ? root.showTooltips : true
     tooltipDelay: root ? root.tooltipDelay : 450
     contextAppId: root ? root.contextAppId : ""
-    x: (ditem.width - width) / 2
     y: -height - Style.space(8)
   }
 }

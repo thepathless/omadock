@@ -42,7 +42,7 @@ Item {
     radius: Style.cornerRadius
     color: area.containsMouse
       ? (crow.danger ? Util.alpha(Color.urgent, 0.16) : Color.menu.selectedBackground)
-      : (crow.checked ? Util.alpha(Color.bar.active, 0.12) : "transparent")
+      : (crow.checked ? Util.alpha(Color.accent, 0.12) : "transparent")
   }
 
   Row {
@@ -70,11 +70,11 @@ Item {
         radius: width / 2
         anchors.centerIn: parent
         color: crow.winFocused
-          ? Color.bar.active
-          : (crow.winParked ? "transparent" : (crow.checked ? Color.bar.active : Util.alpha(Color.menu.text, 0.45)))
+          ? Color.accent
+          : (crow.winParked ? "transparent" : (crow.checked ? Color.accent : Util.alpha(Color.menu.text, 0.45)))
         border.color: crow.winFocused
-          ? Color.bar.active
-          : (crow.winParked ? Util.alpha(Color.menu.text, 0.4) : (crow.checked ? Color.bar.active : "transparent"))
+          ? Color.accent
+          : (crow.winParked ? Util.alpha(Color.menu.text, 0.4) : (crow.checked ? Color.accent : "transparent"))
         border.width: 1
       }
 
@@ -89,7 +89,7 @@ Item {
         text: crow.glyph !== "" ? crow.glyph : "\ue92b"
         font.family: "omarchy"
         font.pixelSize: Style.font.caption
-        color: crow.checked ? Color.bar.active : (crow.isHeader ? Util.alpha(Color.menu.text, 0.5) : crow.textColor)
+        color: crow.checked ? Color.accent : (crow.isHeader ? Util.alpha(Color.menu.text, 0.5) : crow.textColor)
       }
     }
 
@@ -102,7 +102,7 @@ Item {
       color: crow.isHeader
         ? Util.alpha(Color.menu.text, 0.5)
         : (crow.checked || crow.winFocused
-            ? Color.bar.active
+            ? Color.accent
             : (crow.winParked
                 ? Util.alpha(Color.menu.text, 0.50)
                 : (area.containsMouse && crow.danger ? Color.urgent : crow.textColor)))

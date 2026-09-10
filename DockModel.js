@@ -15,6 +15,7 @@ var IGNORED_TOKENS = {
   "browser": true, "terminal": true, "system": true, "daemon": true, "service": true,
   "tool": true, "tools": true, "utility": true, "utilities": true, "viewer": true, "player": true,
   "manager": true, "editor": true, "helper": true, "agent": true, "stable": true, "beta": true,
+  "video": true, "audio": true, "chat": true, "files": true, "file": true, "media": true,
   "dev": true, "nightly": true, "canary": true, "release": true, "community": true
 };
 
@@ -95,8 +96,8 @@ function getCandidates(id) {
   var list = [raw]
 
   // WebApp extraction (Chrome, Chromium, Brave, Edge, Helium, Opera, Vivaldi PWAs)
-  var webAppMatch = raw.match(/^(?:chrome|chromium|brave|edge|microsoft-edge|helium|helium-browser|opera|vivaldi)-(.*?)__?-(?:default|profile.*)$/i)
-                 || raw.match(/^(?:chrome|chromium|brave|edge|microsoft-edge|helium|helium-browser|opera|vivaldi)-(.*?)$/i)
+  var webAppMatch = raw.match(/^(?:google-chrome|google-chrome-stable|chrome|chromium|brave|edge|microsoft-edge|helium|helium-browser|opera|vivaldi)-(.*?)__?-(?:default|profile.*)$/i)
+                 || raw.match(/^(?:google-chrome|google-chrome-stable|chrome|chromium|brave|edge|microsoft-edge|helium|helium-browser|opera|vivaldi)-(.*?)$/i)
   if (webAppMatch) {
     var webTarget = webAppMatch[1].replace(/^https?___?/i, "").replace(/__.*$/, "")
     if (webTarget && list.indexOf(webTarget) < 0) list.push(webTarget)
@@ -143,7 +144,11 @@ function isAppMatch(idA, idB) {
   var candsB = getCandidates(b)
   for (var i = 0; i < candsA.length; i++) {
     var ca = candsA[i]
-    if (ca.length >= 3 && !IGNORED_TOKENS[ca] && candsB.indexOf(ca) >= 0) return true
+    if (!ca || IGNORED_TOKENS[ca]) continue
+    if (candsB.indexOf(ca) >= 0) {
+      if (ca === a || ca === b) return true
+      if (ca.length >= 4) return true
+    }
   }
   return false
 }
@@ -192,8 +197,8 @@ function findNotificationTargets(allEntries, appRows, row) {
       // C. Check underlying desktop entry Exec command (e.g. omarchy-launch-webapp https://web.whatsapp.com/)
       var execMatches = false
       var dEntry = entryFor(appRows, appId)
-      if (dEntry && dEntry.exec) {
-        var execStr = String(dEntry.exec).toLowerCase()
+      if (dEntry && (dEntry.execString || dEntry.exec)) {
+        var execStr = String(dEntry.execString || dEntry.exec).toLowerCase()
         if (execStr && (execStr.indexOf("http://") >= 0 || execStr.indexOf("https://") >= 0 || execStr.indexOf("--app") >= 0)) {
           for (var k = 0; k < domainCands.length; k++) {
             var cand = domainCands[k]
@@ -316,13 +321,11 @@ function togglePinned(pinnedIds, appId) {
   var arr = toArray(pinnedIds).slice()
   var id = stripDesktop(appId)
   if (!id) return arr
-  var idx = arr.indexOf(id)
-  if (idx < 0) {
-    for (var i = 0; i < arr.length; i++) {
-      if (isAppMatch(arr[i], id)) {
-        idx = i
-        break
-      }
+  var idx = -1
+  for (var i = 0; i < arr.length; i++) {
+    if (stripDesktop(arr[i]) === id) {
+      idx = i
+      break
     }
   }
   if (idx >= 0) arr.splice(idx, 1)
@@ -334,9 +337,8 @@ function isPinned(pinnedIds, appId) {
   var arr = toArray(pinnedIds)
   var id = stripDesktop(appId)
   if (!id) return false
-  if (arr.indexOf(id) >= 0) return true
   for (var i = 0; i < arr.length; i++) {
-    if (isAppMatch(arr[i], id)) return true
+    if (stripDesktop(arr[i]) === id) return true
   }
   return false
 }
@@ -396,7 +398,7 @@ function entryFor(appRows, appId) {
   for (var i = 0; i < appRows.length; i++) {
     var entry = (appRows[i] && appRows[i].entry) ? appRows[i].entry : appRows[i]
     if (!entry) continue
-    var execStr = String(entry.exec || "").toLowerCase()
+    var execStr = String(entry.execString || entry.exec || "").toLowerCase()
     if (execStr && (execStr.indexOf("http://") >= 0 || execStr.indexOf("https://") >= 0 || execStr.indexOf("--app") >= 0)) {
       for (var k = 0; k < wantCands.length; k++) {
         var cand = wantCands[k]
@@ -453,7 +455,8 @@ function buildEntries(pinnedIds, toplevels, appRows, appLibrary, hyprFor, minimi
     if (!toplevel) continue
     var h = hyprFor ? hyprFor(toplevel) : null
     var appId = stripDesktop(toplevel.appId)
-    if (!appId && h && h.appId) appId = stripDesktop(h.appId)
+    var hyprClass = (h && h.lastIpcObject) ? (h.lastIpcObject["class"] || h.lastIpcObject["initialClass"] || "") : ""
+    if (!appId && hyprClass) appId = stripDesktop(hyprClass)
     if (!appId && toplevel.title) appId = stripDesktop(toplevel.title)
     if (!appId) continue
     if (!winMap[appId]) {
@@ -711,7 +714,7 @@ function folderIconFor(path, explicitIcon) {
   return "folder"
 }
 
-function resolveThemedFolderIcon(iconName, themeName, folderColorMode) {
+function resolveThemedFolderIcon(iconName, themeName, folderColorMode, appLibrary) {
   var name = String(iconName || "folder").trim()
   if (name.indexOf("/") === 0 || name.indexOf("file://") === 0) return name
 
@@ -740,12 +743,14 @@ function resolveThemedFolderIcon(iconName, themeName, folderColorMode) {
     name = "folder"
   }
 
-  // Explicit white, black, or symbolic mode:
+  // Explicit white, black, or symbolic mode — deliberately monochrome Adwaita outlines.
+  // These are intentionally hardcoded for B&W Omarchy themes (vantablack, white, etc.)
+  // and must NOT be intercepted by the iconIndex which may return colored variants.
   if (folderColorMode === "white" || folderColorMode === "black" || folderColorMode === "symbolic") {
     return "file:///usr/share/icons/Adwaita/symbolic/places/" + name + "-symbolic.svg"
   }
 
-  // Explicit custom Yaru color preset:
+  // Explicit custom Yaru color preset (user chose a specific variant):
   if (folderColorMode && folderColorMode !== "theme" && folderColorMode !== "auto") {
     var customTheme = folderColorMode
     if (customTheme.indexOf("Yaru") === 0) {
@@ -756,7 +761,7 @@ function resolveThemedFolderIcon(iconName, themeName, folderColorMode) {
   // Automatic theme mode:
   var theme = String(themeName || "").trim()
 
-  // 1. If valid Yaru variant theme (e.g. Yaru-sage, Yaru-olive, Yaru-magenta, Yaru-purple, Yaru-blue, Yaru-red, Yaru-yellow, Yaru)
+  // 1. If valid Yaru variant theme (user's active icon theme):
   if (theme.indexOf("Yaru-") === 0 && theme !== "Yaru-gray" && theme !== "Yaru-grey") {
     return "file:///usr/share/icons/" + theme + "/256x256/places/" + name + ".png"
   }
@@ -766,19 +771,27 @@ function resolveThemedFolderIcon(iconName, themeName, folderColorMode) {
 
   // 2. For Vantablack / minimal themes (Yaru-gray / unstyled):
   // Nautilus displays the clean monochrome symbolic outline icon!
+  // Do NOT route through iconIndex here — it would return colored folder
+  // icons from other themes, breaking the deliberate B&W aesthetic.
   return "file:///usr/share/icons/Adwaita/symbolic/places/" + name + "-symbolic.svg"
 }
 
-function resolveFileItemIcon(iconName, themeName, folderColorMode) {
+function resolveFileItemIcon(iconName, themeName, folderColorMode, appLibrary) {
   var name = String(iconName || "text-x-generic").trim()
   if (name.indexOf("/") === 0 || name.indexOf("file://") === 0) return name
 
   // If it is a folder / place icon:
   if (name === "folder" || name.indexOf("folder-") === 0 || name.indexOf("user-") === 0) {
-    return resolveThemedFolderIcon(name, themeName, folderColorMode)
+    return resolveThemedFolderIcon(name, themeName, folderColorMode, appLibrary)
   }
 
-  // Known mimetypes
+  // Resolve mimetypes through iconIndex for theme resilience
+  if (appLibrary) {
+    var src = appLibrary.iconSource(name)
+    if (src && src.length > 0) return src
+  }
+
+  // Known mimetypes — hardcoded Yaru fallback only if iconIndex missed
   var knownMimetypes = [
     "image-x-generic", "video-x-generic", "audio-x-generic",
     "package-x-generic", "application-pdf", "text-x-generic",
@@ -788,7 +801,7 @@ function resolveFileItemIcon(iconName, themeName, folderColorMode) {
     return "file:///usr/share/icons/Yaru/256x256/mimetypes/" + name + ".png"
   }
 
-  return "file:///usr/share/icons/Yaru/256x256/mimetypes/text-x-generic.png"
+  return appLibrary ? appLibrary.iconSource("text-x-generic") : "file:///usr/share/icons/Yaru/256x256/mimetypes/text-x-generic.png"
 }
 
 function resolveAppIcon(appLibrary, appRows, appId) {
@@ -851,10 +864,17 @@ function resolveAppName(appLibrary, appRows, appId) {
   return id
 }
 
-function resolveDriveIcon(iconName, themeName) {
+function resolveDriveIcon(iconName, themeName, appLibrary) {
   var name = String(iconName || "drive-removable-media-usb").trim()
   if (name.indexOf("/") === 0 || name.indexOf("file://") === 0) return name
 
+  // Try iconIndex/theme resolution first for theme resilience
+  if (appLibrary) {
+    var src = appLibrary.iconSource(name)
+    if (src && src.length > 0) return src
+  }
+
+  // Hardcoded Yaru fallback for known device icons
   var devMap = {
     "drive-removable-media-usb": "/usr/share/icons/Yaru/256x256/devices/drive-removable-media-usb.png",
     "usb-pendrive": "/usr/share/icons/Yaru/256x256/devices/drive-removable-media-usb.png",

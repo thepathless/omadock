@@ -24,6 +24,21 @@ Item {
   }
   readonly property bool tileHovered: tileArea.containsMouse
   readonly property bool tileMenuOpen: root ? root.contextAppId === "__tile_context__" : false
+  property bool tooltipShown: false
+
+  Timer {
+    id: tileTooltipDwell
+    interval: root ? root.tooltipDelay : 450
+    running: tile.tileHovered && !tile.tileMenuOpen && tile.tileTitle !== "" && (root ? root.showTooltips : true)
+    onTriggered: tile.tooltipShown = true
+  }
+
+  onTileHoveredChanged: {
+    if (!tile.tileHovered) {
+      tileTooltipDwell.stop()
+      tile.tooltipShown = false
+    }
+  }
 
   // Same magnify contract as DockItem/DockFolderItem: wave grows the
   // layout slot; zoom scales the visual stack in place (tileVisual).
@@ -118,17 +133,23 @@ Item {
         captureRetry.restart()
       }
       onCaptureSourceChanged: {
+        tilePreview.stoppedRetries = 0
         captureRetry.attempts = 0
         captureRetry.restart()
       }
+      property int stoppedRetries: 0
       // Failed exports emit stopped, which destroys the Wayland
       // capture context. Null-then-restore forces createContext()
-      // via setCaptureSource; Qt.callLater avoids double-triggering
-      // onCaptureSourceChanged in the same event loop tick.
+      // via setCaptureSource with a maximum of 3 retries to prevent infinite recursion.
       onStopped: {
-        var src = captureSource
-        captureSource = null
-        Qt.callLater(function() { captureSource = src })
+        if (tile.win && tilePreview.stoppedRetries < 3) {
+          tilePreview.stoppedRetries++
+          var src = captureSource
+          captureSource = null
+          Qt.callLater(function() { captureSource = src })
+        } else {
+          captureSource = null
+        }
       }
 
       onHasContentChanged: if (hasContent) captureRetry.stop()
@@ -180,13 +201,22 @@ Item {
   // Title bubble above the hovered tile (hidden while the menu is open).
   BorderSurface {
     id: tileTooltip
-    visible: tile.tileHovered && !tile.tileMenuOpen && tile.tileTitle !== ""
+    visible: tile.tooltipShown && tile.tileHovered && !tile.tileMenuOpen && tile.tileTitle !== "" && (root ? root.showTooltips : true)
     z: 300
     color: Color.tooltip.background
     borderSpec: Border.surfaceSpec("tooltip", "border", Color.tooltip.border, 1)
     radius: Style.cornerRadius > 0 ? Style.cornerRadius : 6
     padding: Style.space(4)
-    x: (parent.width - width) / 2
+    x: {
+      var targetWin = root ? root.contentItemRef : null
+      var localCenter = (tile.width - width) / 2
+      if (!targetWin) return localCenter
+      var pt = tile.mapToItem(targetWin, 0, 0)
+      if (!pt) return localCenter
+      var winX = pt.x + localCenter
+      var clampedWinX = Math.max(Style.gapsOut, Math.min(targetWin.width - width - Style.gapsOut, winX))
+      return clampedWinX - pt.x
+    }
     y: -height - Style.space(6)
     width: tileTooltipLabel.implicitWidth + contentLeftInset + contentRightInset
     height: tooltipImplicitHeight()
@@ -197,8 +227,8 @@ Item {
 
     Text {
       id: tileTooltipLabel
-      x: parent.contentLeftInset
-      y: parent.contentTopInset
+      x: tileTooltip.contentLeftInset
+      y: tileTooltip.contentTopInset
       text: {
         if (!tile.isGroup) return tile.tileTitle
         var lines = []

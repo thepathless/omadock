@@ -23,7 +23,7 @@ BorderSurface {
   radius: Style.cornerRadius
   padding: Style.space(4)
 
-  readonly property real rowWidth: (root && root.contextAppId !== "")
+  readonly property real rowWidth: (root && root.contextAppId !== "" && root.settingsSubmenu !== undefined)
     ? root.menuContentWidth(menuColumn)
     : 0
 
@@ -38,10 +38,8 @@ BorderSurface {
   anchors.bottomMargin: Style.space(6)
   x: Math.max(Style.gapsOut, Math.min((targetWindow ? targetWindow.width : 1920) - width - Style.gapsOut, (root ? root.contextX : 0) - width / 2))
 
-  Column {
-    id: menuColumn
-    spacing: Style.space(2)
-
+  Flickable {
+    id: menuFlickable
     anchors.left: parent.left
     anchors.leftMargin: contextMenu.contentLeftInset
     anchors.right: parent.right
@@ -50,6 +48,28 @@ BorderSurface {
     anchors.topMargin: contextMenu.contentTopInset
     anchors.bottom: parent.bottom
     anchors.bottomMargin: contextMenu.contentBottomInset
+
+    contentWidth: width
+    contentHeight: menuColumn.implicitHeight
+    clip: true
+    boundsBehavior: Flickable.StopAtBounds
+    flickableDirection: Flickable.VerticalFlick
+    interactive: contentHeight > height
+
+    WheelHandler {
+      target: menuFlickable
+      onWheel: function(event) {
+        if (event.angleDelta.y === 0) return
+        var step = Style.space(32)
+        var dy = event.angleDelta.y > 0 ? -step : step
+        menuFlickable.contentY = Math.max(0, Math.min(menuFlickable.contentHeight - menuFlickable.height, menuFlickable.contentY + dy))
+      }
+    }
+
+    Column {
+      id: menuColumn
+      width: parent.width
+      spacing: Style.space(2)
 
     // Dock Settings Menu (when right-clicking leftmost Omarchy icon)
     Column {
@@ -109,7 +129,7 @@ BorderSurface {
 
         ContextRow {
           text: "‹ Back"
-          textColor: Color.bar.active
+          textColor: Color.accent
           onTriggered: { if (root) root.settingsSubmenu = "" }
         }
 
@@ -144,7 +164,7 @@ BorderSurface {
 
         ContextRow {
           text: "‹ Back"
-          textColor: Color.bar.active
+          textColor: Color.accent
           onTriggered: { if (root) root.settingsSubmenu = "" }
         }
 
@@ -155,7 +175,7 @@ BorderSurface {
 
         ContextRow {
           text: "+ Create Group from Running Apps..."
-          textColor: Color.bar.active
+          textColor: Color.accent
           onTriggered: {
             if (root) {
               root.createAppGroupFromRunning()
@@ -188,7 +208,7 @@ BorderSurface {
 
         ContextRow {
           text: "‹ Back"
-          textColor: Color.bar.active
+          textColor: Color.accent
           onTriggered: { if (root) root.settingsSubmenu = "" }
         }
 
@@ -206,7 +226,7 @@ BorderSurface {
 
         ContextRow {
           text: "+ Add Custom Folder..."
-          textColor: Color.bar.active
+          textColor: Color.accent
           onTriggered: {
             if (root && root.customFolderPickerProc) root.customFolderPickerProc.running = true
             if (root) root.closeContext()
@@ -279,7 +299,7 @@ BorderSurface {
 
         ContextRow {
           text: "‹ Back"
-          textColor: Color.bar.active
+          textColor: Color.accent
           onTriggered: { if (root) root.settingsSubmenu = "folders" }
         }
 
@@ -338,7 +358,7 @@ BorderSurface {
                 radius: Style.space(4)
                 color: modelData.color
                 border.color: (root && root.folderColor === modelData.id)
-                  ? Color.bar.active
+                  ? Color.accent
                   : Util.alpha(Color.menu.border, 0.8)
                 border.width: (root && root.folderColor === modelData.id) ? 2 : 1
 
@@ -370,7 +390,7 @@ BorderSurface {
 
         ContextRow {
           text: "‹ Back"
-          textColor: Color.bar.active
+          textColor: Color.accent
           onTriggered: { if (root) root.settingsSubmenu = "" }
         }
 
@@ -402,7 +422,7 @@ BorderSurface {
 
         ContextRow {
           text: "‹ Back"
-          textColor: Color.bar.active
+          textColor: Color.accent
           onTriggered: { if (root) root.settingsSubmenu = "" }
         }
 
@@ -456,7 +476,7 @@ BorderSurface {
 
         ContextRow {
           text: "‹ Back"
-          textColor: Color.bar.active
+          textColor: Color.accent
           onTriggered: { if (root) root.settingsSubmenu = "" }
         }
 
@@ -522,7 +542,7 @@ BorderSurface {
 
         ContextRow {
           text: "‹ Back"
-          textColor: Color.bar.active
+          textColor: Color.accent
           onTriggered: { if (root) root.settingsSubmenu = "effects" }
         }
 
@@ -557,7 +577,7 @@ BorderSurface {
 
         ContextRow {
           text: "‹ Back"
-          textColor: Color.bar.active
+          textColor: Color.accent
           onTriggered: { if (root) root.settingsSubmenu = "" }
         }
 
@@ -584,7 +604,7 @@ BorderSurface {
 
         ContextRow {
           text: "‹ Back"
-          textColor: Color.bar.active
+          textColor: Color.accent
           onTriggered: { if (root) root.settingsSubmenu = "behavior" }
         }
 
@@ -619,7 +639,7 @@ BorderSurface {
 
         ContextRow {
           text: "‹ Back"
-          textColor: Color.bar.active
+          textColor: Color.accent
           onTriggered: { if (root) root.settingsSubmenu = "behavior" }
         }
 
@@ -669,7 +689,7 @@ BorderSurface {
 
         ContextRow {
           text: "‹ Back"
-          textColor: Color.bar.active
+          textColor: Color.accent
           onTriggered: { if (root) root.settingsSubmenu = "behavior" }
         }
 
@@ -734,7 +754,7 @@ BorderSurface {
 
         ContextRow {
           text: "‹ Back"
-          textColor: Color.bar.active
+          textColor: Color.accent
           onTriggered: { if (root) root.settingsSubmenu = "appearance" }
         }
 
@@ -775,7 +795,7 @@ BorderSurface {
 
         ContextRow {
           text: "‹ Back"
-          textColor: Color.bar.active
+          textColor: Color.accent
           onTriggered: { if (root) root.settingsSubmenu = "appearance" }
         }
 
@@ -835,7 +855,7 @@ BorderSurface {
                 radius: Style.space(4)
                 color: modelData
                 border.color: (root && root.dockBgColor === modelData)
-                  ? Color.bar.active
+                  ? Color.accent
                   : Util.alpha(Color.menu.border, 0.8)
                 border.width: (root && root.dockBgColor === modelData) ? 2 : 1
 
@@ -845,7 +865,7 @@ BorderSurface {
                   width: Style.space(8)
                   height: Style.space(8)
                   radius: Style.space(4)
-                  color: Color.bar.active
+                  color: Color.accent
                 }
 
                 MouseArea {
@@ -867,7 +887,7 @@ BorderSurface {
 
         ContextRow {
           text: "‹ Back"
-          textColor: Color.bar.active
+          textColor: Color.accent
           onTriggered: { if (root) root.settingsSubmenu = "appearance" }
         }
 
@@ -920,7 +940,7 @@ BorderSurface {
 
         ContextRow {
           text: "‹ Back"
-          textColor: Color.bar.active
+          textColor: Color.accent
           onTriggered: { if (root) root.settingsSubmenu = "size_spacing" }
         }
 
@@ -961,7 +981,7 @@ BorderSurface {
 
         ContextRow {
           text: "‹ Back"
-          textColor: Color.bar.active
+          textColor: Color.accent
           onTriggered: { if (root) root.settingsSubmenu = "size_spacing" }
         }
 
@@ -1143,7 +1163,7 @@ BorderSurface {
 
       ContextRow {
         text: "Safely Eject / Unmount"
-        textColor: Color.urgent || Color.bar.active
+        textColor: Color.urgent || Color.accent
         onTriggered: {
           if (root) {
             root.ejectDrive(root.contextDriveDev, root.contextDriveMount, root.contextDriveName)
@@ -1344,4 +1364,5 @@ BorderSurface {
       }
     }
   }
+}
 }

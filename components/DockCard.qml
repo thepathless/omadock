@@ -107,7 +107,11 @@ Item {
       } else if (targetAppId !== "" && targetAppId !== dragId) {
         root.createAppGroupFromDrop(targetAppId, dragId)
       } else {
-        root.setPinned(DockModel.reorderPinned(root.pinnedIds, dragId, beforeId))
+        var isAlreadyPinned = Boolean(root.pinnedIds && root.pinnedIds.indexOf(dragId) >= 0)
+        var isDroppedOnPinned = Boolean(beforeId !== "" && root.pinnedIds && root.pinnedIds.indexOf(beforeId) >= 0)
+        if (isAlreadyPinned || isDroppedOnPinned || sourceGroupId !== "") {
+          root.setPinned(DockModel.reorderPinned(root.pinnedIds, dragId, beforeId))
+        }
       }
       root.dragSourceGroupId = ""
     } else {
@@ -433,7 +437,7 @@ Item {
       width: Style.space(2)
       height: root ? (root.iconSize + Style.space(4)) : 36
       radius: 1
-      color: Color.bar.active
+      color: Color.accent
       z: 10
     }
   }

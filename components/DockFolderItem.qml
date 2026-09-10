@@ -33,7 +33,7 @@ Item {
 
   readonly property string resolvedSource: {
     var _tv = root ? root.themeVersion : 0
-    return DockModel.resolveThemedFolderIcon(fitem.icon, root ? root.currentIconThemeName : "Yaru", root ? root.folderColor : "theme")
+    return DockModel.resolveThemedFolderIcon(fitem.icon, root ? root.currentIconThemeName : "Yaru", root ? root.folderColor : "theme", root ? root.appLibrary : null)
   }
   readonly property bool isSymbolic: resolvedSource.indexOf("-symbolic.svg") >= 0 || resolvedSource.indexOf("symbolic") >= 0
   readonly property color symbolicColor: {
@@ -107,7 +107,7 @@ Item {
     width: Style.space(4)
     height: Style.space(4)
     radius: width / 2
-    color: Color.bar.active
+    color: Color.accent
   }
 
   MouseArea {
@@ -139,7 +139,6 @@ Item {
     showTooltips: root ? root.showTooltips : true
     tooltipDelay: root ? root.tooltipDelay : 450
     contextAppId: root ? root.contextAppId : ""
-    x: (fitem.width - width) / 2
     y: -height - Style.space(8)
   }
 }

@@ -24,6 +24,17 @@ BorderSurface {
   padding: Style.space(4)
   width: bubbleLabel.implicitWidth + contentLeftInset + contentRightInset
   height: bubbleLabel.implicitHeight + contentTopInset + contentBottomInset
+  x: {
+    var p = parent
+    var localCenter = p ? ((p.width - width) / 2) : 0
+    var targetWin = (typeof root !== "undefined" && root) ? root.contentItemRef : null
+    if (!p || !targetWin) return localCenter
+    var pt = p.mapToItem(targetWin, 0, 0)
+    if (!pt) return localCenter
+    var winX = pt.x + localCenter
+    var clampedWinX = Math.max(Style.gapsOut, Math.min(targetWin.width - width - Style.gapsOut, winX))
+    return clampedWinX - pt.x
+  }
 
   onHoveredChanged: {
     if (bubble.hovered) dwell.restart()

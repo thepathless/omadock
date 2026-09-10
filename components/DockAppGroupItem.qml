@@ -89,8 +89,8 @@ Item {
         width: parent.width + Style.space(8)
         height: width
         radius: root ? root.effectiveCardRadius : Style.cornerRadius
-        color: Util.alpha(Color.bar.active, 0.22)
-        border.color: Color.bar.active
+        color: Util.alpha(Color.accent, 0.22)
+        border.color: Color.accent
         border.width: 1.5
         z: -1
         SequentialAnimation on opacity {
@@ -186,7 +186,7 @@ Item {
         height: Style.space(4)
         radius: height / 2
         color: (gitem.groupRunningInfo.active && index === 0) || gitem.isOpen
-          ? Color.bar.active
+          ? Color.accent
           : Util.alpha(root ? root.dockForeground : Color.bar.text, 0.88)
         border.color: Qt.rgba(0, 0, 0, 0.45)
         border.width: 1
@@ -225,7 +225,6 @@ Item {
     showTooltips: root ? root.showTooltips : true
     tooltipDelay: root ? root.tooltipDelay : 450
     contextAppId: root ? root.contextAppId : ""
-    x: (gitem.width - width) / 2
     y: -height - Style.space(8)
   }
 }

@@ -100,6 +100,7 @@ BorderSurface {
         themeVersion: root ? root.themeVersion : 0
         currentIconThemeName: root ? root.currentIconThemeName : "Yaru"
         folderColor: root ? root.folderColor : "theme"
+        appLibrary: root ? root.appLibrary : null
         onTriggered: {
           Util.execDetached("uwsm-app -- xdg-open " + Util.shellQuote(modelData.path))
           if (root) root.closeFolderStack()

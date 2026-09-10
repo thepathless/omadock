@@ -43,6 +43,17 @@ Item {
   property real dragStartX: 0
   property real bounceY: 0
   property real homeCenter: 0
+
+  Connections {
+    target: root
+    function onDragAppIdChanged() {
+      if ((!root || !root.dragAppId) && item.isDragging) {
+        item.isDragging = false
+        item._dragJustEnded = true
+      }
+    }
+  }
+
   readonly property bool isDropTarget: (root && root.dropTargetAppId === item.appId && root.dragAppId !== item.appId)
   property real magnifyScale: {
     if (!root) return 1
@@ -108,7 +119,7 @@ Item {
   onPulsingChanged: if (!item.pulsing) item.pulse = 1.0
 
   SequentialAnimation on pulse {
-    running: item.pulsing
+    running: item.pulsing && (root ? root.dockVisible : false)
     loops: Animation.Infinite
     NumberAnimation { from: 1.0; to: 0.35; duration: 650; easing.type: Easing.InOutQuad }
     NumberAnimation { from: 0.35; to: 1.0; duration: 650; easing.type: Easing.InOutQuad }
@@ -123,7 +134,7 @@ Item {
   onBouncingChanged: if (!item.bouncing) item.bounceY = 0
 
   SequentialAnimation on bounceY {
-    running: item.bouncing
+    running: item.bouncing && (root ? root.dockVisible : false)
     loops: Animation.Infinite
     NumberAnimation { from: 0; to: -Style.space(13); duration: 260; easing.type: Easing.OutQuad }
     NumberAnimation { from: -Style.space(13); to: 0; duration: 260; easing.type: Easing.OutBounce }
@@ -153,8 +164,8 @@ Item {
       width: (root ? root.baseIconArt : 32) * item.magnifyScale + Style.space(8)
       height: width
       radius: root ? root.effectiveCardRadius : Style.cornerRadius
-      color: Util.alpha(Color.bar.active, 0.22)
-      border.color: Color.bar.active
+      color: Util.alpha(Color.accent, 0.22)
+      border.color: Color.accent
       border.width: 1.5
       z: -1
       SequentialAnimation on opacity {
@@ -241,7 +252,7 @@ Item {
         // 2. Open visible window: Solid circle
         // 3. Minimized window: Hollow circle (transparent fill with solid border)
         color: winActive
-          ? Color.bar.active
+          ? Color.accent
           : (winMinimized
               ? "transparent"
               : (item.urgent ? Color.urgent : Util.alpha(root ? root.dockForeground : Color.bar.text, 0.88)))
@@ -418,7 +429,16 @@ Item {
     borderSpec: Border.surfaceSpec("tooltip", "border", Color.tooltip.border, 1)
     radius: Style.cornerRadius > 0 ? Style.cornerRadius : 8
     padding: Style.space(6)
-    x: (item.width - width) / 2
+    x: {
+      var targetWin = root ? root.contentItemRef : null
+      var localCenter = (item.width - width) / 2
+      if (!targetWin) return localCenter
+      var pt = item.mapToItem(targetWin, 0, 0)
+      if (!pt) return localCenter
+      var winX = pt.x + localCenter
+      var clampedWinX = Math.max(Style.gapsOut, Math.min(targetWin.width - width - Style.gapsOut, winX))
+      return clampedWinX - pt.x
+    }
     y: -height - Style.space(10)
     width: tooltipContent.implicitWidth + contentLeftInset + contentRightInset
     height: tooltipContent.implicitHeight + contentTopInset + contentBottomInset
@@ -442,8 +462,8 @@ Item {
 
     Column {
       id: tooltipContent
-      x: parent.contentLeftInset
-      y: parent.contentTopInset
+      x: itemTooltip.contentLeftInset
+      y: itemTooltip.contentTopInset
       spacing: Style.space(3)
 
       Text {
@@ -471,7 +491,7 @@ Item {
             height: Style.space(5)
             radius: width / 2
             anchors.verticalCenter: parent.verticalCenter
-            color: isSelected ? Color.accent : (isWinFocused ? Color.bar.active : Util.alpha(Color.tooltip.text, 0.5))
+            color: isSelected ? Color.accent : (isWinFocused ? Color.accent : Util.alpha(Color.tooltip.text, 0.5))
             border.color: isSelected ? Color.accent : "transparent"
             border.width: 1
           }
