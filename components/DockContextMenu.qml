@@ -38,6 +38,16 @@ BorderSurface {
   anchors.bottomMargin: Style.space(6)
   x: Math.max(Style.gapsOut, Math.min((targetWindow ? targetWindow.width : 1920) - width - Style.gapsOut, (root ? root.contextX : 0) - width / 2))
 
+  onVisibleChanged: {
+    if (!visible) menuFlickable.contentY = 0
+  }
+
+  Connections {
+    target: root
+    function onContextAppIdChanged() { menuFlickable.contentY = 0 }
+    function onSettingsSubmenuChanged() { menuFlickable.contentY = 0 }
+  }
+
   Flickable {
     id: menuFlickable
     anchors.left: parent.left
