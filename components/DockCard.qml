@@ -13,6 +13,8 @@ Item {
 
   property alias dockCard: dockCard
   property alias cardHover: cardHover
+  property alias dockHitbox: dockHitbox
+  property alias hitboxHover: hitboxHover
   property alias row: row
   property alias pinnedRepeater: pinnedRepeater
   property alias appGroupsRepeater: appGroupsRepeater
@@ -135,12 +137,33 @@ Item {
   }
 
   Behavior on anchors.bottomMargin {
-    NumberAnimation { duration: 240; easing.type: Easing.OutCubic }
+    NumberAnimation {
+      duration: (root && root.dockVisible) ? 300 : 260
+      easing.type: (root && root.dockVisible) ? Easing.OutCubic : Easing.InCubic
+    }
   }
 
   opacity: (root && root.dockVisible) ? 1 : 0
   Behavior on opacity {
-    NumberAnimation { duration: 180 }
+    NumberAnimation {
+      duration: (root && root.dockVisible) ? 220 : 260
+      easing.type: (root && root.dockVisible) ? Easing.OutQuad : Easing.InQuad
+    }
+  }
+
+  // Expanded interactive hitbox: eliminates dead gaps below dockCard and adds generous hysteresis
+  Item {
+    id: dockHitbox
+    x: -Style.space(24)
+    y: (root && root.dockVisible) ? -Style.space(18) : 0
+    width: dockCard.width + Style.space(48)
+    height: dockCard.height + ((root && root.dockVisible) ? (Style.gapsOut + Style.space(18)) : 0)
+    z: -1
+
+    HoverHandler {
+      id: hitboxHover
+      onHoveredChanged: if (root) root.syncVisibility()
+    }
   }
 
   Item {

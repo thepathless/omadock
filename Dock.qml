@@ -16,6 +16,7 @@ Item {
   readonly property alias dockCardComp: dockCardComp
   readonly property alias dockCard: dockCardComp.dockCard
   readonly property alias cardHover: dockCardComp.cardHover
+  readonly property alias hitboxHover: dockCardComp.hitboxHover
   readonly property alias pinnedRepeater: dockCardComp.pinnedRepeater
   readonly property alias minimizedTilesRepeater: dockCardComp.minimizedTilesRepeater
   readonly property alias runningRepeater: dockCardComp.runningRepeater
@@ -602,7 +603,7 @@ Item {
 
   Timer {
     id: hideTimer
-    interval: 350
+    interval: 550
     onTriggered: root.dockVisible = false
   }
 
@@ -1127,7 +1128,7 @@ Item {
       return
     }
 
-    var isHovered = (root.cardHover && root.cardHover.hovered) || (revealHover && revealHover.hovered) || root.contextAppId !== "" || root.dragAppId !== "" || root.activeStackFolder !== "" || root.activeAppGroupId !== ""
+    var isHovered = (root.cardHover && root.cardHover.hovered) || (root.hitboxHover && root.hitboxHover.hovered) || (revealHover && revealHover.hovered) || root.contextAppId !== "" || root.dragAppId !== "" || root.activeStackFolder !== "" || root.activeAppGroupId !== ""
 
     // Hovered, Context Menu Open, or Dragging: keep visible
     if (isHovered) {
@@ -2858,7 +2859,7 @@ Item {
     implicitHeight: Math.max(650, Math.round((root.dockScreen ? root.dockScreen.height : 1080) - Style.space(36)))
 
     mask: Region {
-      item: dockCardComp.dockCard
+      item: (root.dockVisible && dockCardComp && dockCardComp.dockHitbox) ? dockCardComp.dockHitbox : dockCardComp.dockCard
       regions: [
         Region { item: contextMenuComp },
         Region { item: folderStackPopoverComp },
