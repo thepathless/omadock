@@ -304,6 +304,104 @@ function parsePinned(raw) {
   return out
 }
 
+// ------------------------------------------------- safety ceilings
+//
+// Mutable config/theme/notification files are read by the long-lived shell
+// process, so every read is gated by a byte ceiling and every persisted
+// collection is bounded before it can reach dock state. Limits are 25-100x the
+// largest legitimate file the dock itself writes, so valid configs behave
+// byte-for-byte identically; only hostile or corrupted inputs get rejected.
+
+var MAX_CONFIG_BYTES = 1048576        // omadock.json (largest real file ~40 KB)
+var MAX_DOCK_JSON_BYTES = 65536       // dock.json (largest real file ~2 KB)
+var MAX_ICONS_THEME_BYTES = 4096      // icons.theme (one line)
+var MAX_COLORS_TOML_BYTES = 262144    // colors.toml (~10 KB)
+var MAX_NOTIFICATIONS_BYTES = 16384   // notifications.json (~60 bytes)
+
+var MAX_APP_GROUPS = 32
+var MAX_APP_GROUP_NAME = 120
+var MAX_APP_GROUP_ICON = 120
+var MAX_APP_GROUP_ID = 120
+var MAX_APP_GROUP_APPS = 16
+var MAX_PINNED_FOLDERS = 12
+var MAX_FOLDER_PATH = 512
+var MAX_FOLDER_NAME = 120
+var MAX_FOLDER_ICON = 120
+
+// Byte ceiling applied to text read from a watched file. The returned slice is
+// never parsed further when the file exceeds the cap, so an oversized file can
+// neither grow shell memory nor amplify parse work. Oversize input yields "".
+function readCapped(raw, maxBytes) {
+  var text = String(raw == null ? "" : raw)
+  if (!maxBytes || maxBytes <= 0) maxBytes = MAX_CONFIG_BYTES
+  // Char-count approximation: UTF-8 chars occupy 1-4 bytes, so chars <= bytes.
+  // A slice that fits by chars is guaranteed to fit by bytes when kept small;
+  // checking bytes-per-char keeps the cap honest for multibyte content.
+  if (text.length <= maxBytes) {
+    var bytes = 0
+    for (var i = 0; i < text.length; i++) {
+      var c = text.charCodeAt(i)
+      bytes += c < 0x80 ? 1 : (c < 0x800 ? 2 : (c < 0x10000 ? 3 : 4))
+      if (bytes > maxBytes) return ""
+    }
+    return text
+  }
+  return ""
+}
+
+// Shape-bound generic list: keeps at most `max` entries that pass `predicate`.
+function boundList(arr, max, predicate) {
+  if (!isList(arr)) return []
+  var src = toArray(arr)
+  var out = []
+  for (var i = 0; i < src.length && out.length < max; i++) {
+    var v = src[i]
+    if (predicate(v)) out.push(v)
+  }
+  return out
+}
+
+function _boundedStr(v, max) {
+  var s = String(v == null ? "" : v).trim()
+  return s.length > max ? "" : s
+}
+
+// Persisted app groups: drop malformed entries, cap counts and field lengths.
+// Keeps the exact { id, name, icon, apps, cols } shape the dock writes.
+function boundAppGroups(arr) {
+  return boundList(arr, MAX_APP_GROUPS, function(g) {
+    if (!g || typeof g !== "object" || isList(g)) return false
+    if (!_boundedStr(g.id, MAX_APP_GROUP_ID)) return false
+    return true
+  }).map(function(g) {
+    var apps = boundList(g.apps, MAX_APP_GROUP_APPS, function(a) {
+      return !!_boundedStr(a, MAX_APP_GROUP_ID)
+    }).map(function(a) { return _boundedStr(a, MAX_APP_GROUP_ID) })
+    var name = _boundedStr(g.name, MAX_APP_GROUP_NAME)
+    return {
+      id: _boundedStr(g.id, MAX_APP_GROUP_ID),
+      name: name || "Group",
+      icon: _boundedStr(g.icon, MAX_APP_GROUP_ICON) || "folder",
+      apps: apps,
+      cols: Math.max(1, Math.min(6, Math.round(Number(g.cols) || 3)))
+    }
+  })
+}
+
+// Persisted pinned folders: drop malformed entries, cap counts and lengths.
+function boundPinnedFolders(arr) {
+  return boundList(arr, MAX_PINNED_FOLDERS, function(f) {
+    if (!f || typeof f !== "object" || isList(f)) return false
+    return !!_boundedStr(f.path, MAX_FOLDER_PATH)
+  }).map(function(f) {
+    return {
+      path: _boundedStr(f.path, MAX_FOLDER_PATH),
+      name: _boundedStr(f.name, MAX_FOLDER_NAME) || "Folder",
+      icon: _boundedStr(f.icon, MAX_FOLDER_ICON) || "folder"
+    }
+  })
+}
+
 function serializePinned(pinnedIds) {
   var arr = toArray(pinnedIds)
   var cleaned = []

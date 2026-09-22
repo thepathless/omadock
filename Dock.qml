@@ -1172,6 +1172,35 @@ Item {
   }
 
   // ------------------------------------------------- file views
+  //
+  // Watched files feed the long-lived shell process, so every read is gated by
+  // a byte ceiling (DockModel.readCapped) before it can reach JSON.parse or
+  // dock state, and reload cycles are debounced (fileChanged only fires from
+  // the filesystem watcher, never from our own atomic writes — the debounce
+  // coalesces rapid external edit bursts and the _savingConfig guard keeps the
+  // read after a save from re-applying stale data).
+
+  // Coalesces rapid external change bursts into one reload per file.
+  Timer {
+    id: configReloadDebounce
+    interval: 120
+    repeat: false
+    onTriggered: {
+      configFile.reload()
+      root.loadConfig()
+      root.scanRemovableDrives()
+    }
+  }
+
+  Timer {
+    id: dockReloadDebounce
+    interval: 120
+    repeat: false
+    onTriggered: {
+      dockFile.reload()
+      root.loadPinned()
+    }
+  }
 
   FileView {
     id: configFile
@@ -1184,7 +1213,8 @@ Item {
       root.scanRemovableDrives()
     }
     onFileChanged: {
-      if (!root._savingConfig) configFile.reload()
+      if (root._savingConfig) return
+      configReloadDebounce.restart()
     }
   }
 
@@ -1194,7 +1224,7 @@ Item {
     watchChanges: true
     atomicWrites: true
     onLoaded: root.loadPinned()
-    onFileChanged: dockFile.reload()
+    onFileChanged: dockReloadDebounce.restart()
   }
 
   FileView {
@@ -1202,19 +1232,9 @@ Item {
     path: Quickshell.env("HOME") + "/.local/state/omarchy/current/theme/icons.theme"
     watchChanges: true
     printErrors: false
-    onLoaded: {
-      try {
-        var t = String(themeIconsFile.text() || "").trim()
-        if (t) root.currentIconThemeName = t
-      } catch (e) {}
-      root.handleThemeChanged()
-    }
+    onLoaded: root.handleThemeChanged()
     onFileChanged: {
       themeIconsFile.reload()
-      try {
-        var t = String(themeIconsFile.text() || "").trim()
-        if (t) root.currentIconThemeName = t
-      } catch (e) {}
       root.handleThemeChanged()
     }
   }
@@ -1243,7 +1263,7 @@ Item {
       return root.notifService.doNotDisturb
     }
     try {
-      var txt = String(dndConfigFile.text() || "").trim()
+      var txt = DockModel.readCapped(dndConfigFile.text(), DockModel.MAX_NOTIFICATIONS_BYTES).trim()
       if (txt) {
         var parsed = JSON.parse(txt)
         if (parsed && typeof parsed.dnd === "boolean") return parsed.dnd
@@ -1528,11 +1548,11 @@ Item {
   // ------------------------------------------------- functions
 
   function loadPinned() {
-    root.pinnedIds = DockModel.parsePinned(dockFile.text())
+    root.pinnedIds = DockModel.parsePinned(DockModel.readCapped(dockFile.text(), DockModel.MAX_DOCK_JSON_BYTES))
   }
 
   function loadConfig() {
-    var raw = String(configFile.text() || "").trim()
+    var raw = DockModel.readCapped(configFile.text(), DockModel.MAX_CONFIG_BYTES).trim()
     var parsed = {}
     if (raw) {
       try {
@@ -1545,7 +1565,9 @@ Item {
     if (root.alignment !== "left" && root.alignment !== "right") root.alignment = "center"
     root.showRemovableDrives = parsed ? parsed.showRemovableDrives !== false : true
     if (parsed && DockModel.isList(parsed.appGroups)) {
-      root.appGroups = parsed.appGroups
+      // Persisted collections are shape- and size-bounded before reaching the
+      // long-lived shell (see DockModel boundAppGroups / boundPinnedFolders).
+      root.appGroups = DockModel.boundAppGroups(parsed.appGroups)
     } else {
       root.appGroups = []
     }
@@ -1591,7 +1613,7 @@ Item {
       ? Math.max(0, Math.min(5000, Math.round(parsed.tooltipDelay)))
       : 450
     if (parsed && DockModel.isList(parsed.pinnedFolders)) {
-      root.pinnedFolders = parsed.pinnedFolders
+      root.pinnedFolders = DockModel.boundPinnedFolders(parsed.pinnedFolders)
     } else {
       root.pinnedFolders = [
         { path: "~/Downloads", name: "Downloads", icon: "folder-download" }
@@ -1606,7 +1628,7 @@ Item {
 
   function handleThemeChanged() {
     try {
-      var t = String(themeIconsFile.text() || "").trim()
+      var t = DockModel.readCapped(themeIconsFile.text(), DockModel.MAX_ICONS_THEME_BYTES).trim()
       if (t) root.currentIconThemeName = t
     } catch (e) {}
     root.themeVersion++
@@ -2429,7 +2451,7 @@ Item {
   function saveConfig() {
     var conf = {}
     try {
-      var txt = String(configFile.text() || "").trim()
+      var txt = DockModel.readCapped(configFile.text(), DockModel.MAX_CONFIG_BYTES).trim()
       if (txt) conf = JSON.parse(txt) || {}
     } catch (e) {
       conf = {}
@@ -2437,7 +2459,7 @@ Item {
     conf.alignment = root.alignment || "center"
     delete conf.position
     conf.showRemovableDrives = root.showRemovableDrives
-    conf.appGroups = root.appGroups || []
+    conf.appGroups = DockModel.boundAppGroups(root.appGroups)
     conf.autohide = root.autohide
     conf.intelligentAutohide = root.intelligentAutohide
     conf.showAppsButton = root.showAppsButton
@@ -2463,7 +2485,7 @@ Item {
     conf.urgentSoundName = root.urgentSoundName
     conf.revealDelay = root.revealDelay
     conf.tooltipDelay = root.tooltipDelay
-    conf.pinnedFolders = root.pinnedFolders
+    conf.pinnedFolders = DockModel.boundPinnedFolders(root.pinnedFolders)
     root._savingConfig = true
     configFile.setText(JSON.stringify(conf, null, 2))
     Qt.callLater(function() { root._savingConfig = false })
