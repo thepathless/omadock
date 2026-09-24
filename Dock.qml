@@ -143,7 +143,9 @@ Item {
     function launch(desktopId, name) {
       var id = String(desktopId || "")
       if (id === "") return
-      var desktopFile = id.slice(-8) === ".desktop" ? id : (id + ".desktop")
+      // Desktop entry ids never carry the file suffix, but some ids end in
+      // ".desktop" themselves (org.telegram.desktop), so always append it.
+      var desktopFile = id + ".desktop"
       Quickshell.execDetached(["uwsm-app", "--", "gtk-launch", "--", desktopFile])
     }
   }
