@@ -143,8 +143,9 @@ Item {
     function launch(desktopId, name) {
       var id = String(desktopId || "")
       if (id === "") return
-      var desktopFile = id.slice(-8) === ".desktop" ? id : (id + ".desktop")
-      Quickshell.execDetached(["uwsm-app", "--", "gtk-launch", "--", desktopFile])
+      // Always append .desktop — DesktopEntry.id strips the extension, so
+      // ids like org.telegram.desktop need it re-added to resolve correctly.
+      Quickshell.execDetached(["uwsm-app", "--", "gtk-launch", "--", id + ".desktop"])
     }
   }
 
