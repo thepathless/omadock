@@ -49,6 +49,7 @@ Crafted in the spirit of **Omakase (おまかせ)** — curated elegance and eff
 - **📁 App Group Folders**: 2x2 live preview grid, popover tray, drag-to-group, in-place title editing, drag-to-pin, and drag-out extraction to ungroup/unpin.
 - **💾 Removable Media Auto-Docking**: USB and removable drive detection with mountpoint badges, storage tooltips, and contextual eject/unmount actions.
 - **📐 Dock Alignment Options**: Bottom alignment support (`center`, `left`, `right`) with dynamic coordinate compensation and Hyprland workspace integration.
+- **🖥️ Multi-Monitor Docks**: One dock per monitor, each listing only the windows open on that monitor — like the Windows taskbar on every display.
 - **⚡ FreeDesktop Jump Lists**: Contextual quick actions for supported desktop applications.
 - **📂 Folder Stacks & Popovers**: 1-click popovers for recent files with automatic theme sync and color presets.
 - **🔔 Attention Glow & Canberra Chimes**: Bouncing alerts and audio chimes for background notifications.
@@ -192,6 +193,15 @@ Flexible screen placement tailored to your workflow:
 - **Dynamic Coordinate Compensation**: Popovers, tooltips, and context menus automatically measure available screen margins and reposition themselves to prevent clipping against display boundaries.
 - **Smooth Cubic Transitions**: Position shifts glide smoothly via hardware-accelerated cubic bezier animations.
 
+#### 🖥️ Multi-Monitor Docks
+
+Enable **Settings → Placement & Alignment → Show on All Monitors** (or `"multiMonitor": true`) to run a dock on every connected monitor:
+
+- **Per-Monitor Apps**: Each dock shows the windows open on its own monitor, with pinned apps on every dock. A window dragged, or a workspace moved, to another monitor moves its icon to that monitor's dock. Turn off **Only This Monitor's Apps** (`"perMonitorApps": false`) to list every window on every dock.
+- **Minimized Tiles Follow Their Origin**: A parked window's preview tile appears on the dock of the monitor it was minimized from, whichever dock minimized it.
+- **Hotplug Aware**: Docks appear and disappear as monitors are connected or removed.
+- **Keybindings Act Where You Are**: `minimizeActive` and `restoreLast` target the focused monitor's dock first; `toggleVisibility`, `reveal` and `hide` apply to every dock.
+
 ---
 
 ### ⚡ 9. FreeDesktop Jump Lists & Zero-CPU Autohide
@@ -322,6 +332,9 @@ Settings persist in `~/.config/omarchy/omadock.json` and are editable live:
 | Key | Type | Default | Description |
 | :--- | :--- | :--- | :--- |
 | `alignment` | `string` | `"center"` | Dock placement along screen edge: `"center"`, `"left"`, `"right"`. |
+| `screen` | `string` | first monitor | Monitor for the single dock (e.g. `"DP-3"`). With `multiMonitor`, the dock on this monitor plays alert sounds. |
+| `multiMonitor` | `bool` | `false` | Runs one dock on every connected monitor. |
+| `perMonitorApps` | `bool` | `true` | With `multiMonitor`, each dock lists only the windows on its own monitor. |
 | `autohide` | `bool` | `true` | Enables dock autohiding on hover exit. |
 | `intelligentAutohide` | `bool` | `true` | Hides dock only when windows overlap its bounding box (AABB). |
 | `showRemovableDrives` | `bool` | `true` | Auto-detect and display removable USB thumb drives and storage. |

@@ -43,7 +43,8 @@ Item {
   // breaks revival, so the fallback picks the first genuine screen instead
   // of blindly trusting screens[0].
   function pickScreen() {
-    var s = root.screenName ? root.screenForName(root.screenName) : null
+    var name = root.forcedScreenName || root.screenName
+    var s = name ? root.screenForName(name) : null
     if (s) return s
     var list = Quickshell.screens
     for (var i = 0; i < list.length; i++) {
@@ -54,6 +55,92 @@ Item {
   }
 
   readonly property var dockScreen: root.pickScreen()
+
+  // ------------------------------------------------- multi-monitor
+  // Set by DockHost when one dock runs per monitor. forcedScreenName pins this
+  // instance to its monitor regardless of the "screen" config key; isPrimary
+  // marks the one dock that owns global side effects (alert sounds);
+  // sharedState carries parked-window bookkeeping across all docks so a tile
+  // lands on the monitor its window was minimized from, whichever dock did it.
+  property string forcedScreenName: ""
+  property bool isPrimary: true
+  property bool ipcEnabled: true
+  property QtObject sharedState: null
+  property bool multiMonitor: false
+  property bool perMonitorApps: true
+  readonly property bool filterByMonitor: root.perMonitorApps && root.forcedScreenName !== ""
+
+  function monitorNameForWorkspace(target) {
+    if (!target || !Hyprland.workspaces) return ""
+    var list = Hyprland.workspaces.values || []
+    for (var i = 0; i < list.length; i++) {
+      var ws = list[i]
+      if (!ws) continue
+      if (String(ws.name || "") === target || String(ws.id) === target)
+        return (ws.monitor && ws.monitor.name) ? String(ws.monitor.name) : ""
+    }
+    return ""
+  }
+
+  // The monitor a window belongs to. A parked window sits on the shared
+  // special workspace, so it belongs to the monitor it was minimized from.
+  function monitorNameForHypr(h) {
+    if (!h) return ""
+    var addr = root.windowAddress(h)
+    var origin = (addr && root.minimizedOrigins) ? root.minimizedOrigins[addr] : undefined
+    if (origin !== undefined) {
+      var fromOrigin = root.monitorNameForWorkspace(String(origin))
+      if (fromOrigin) return fromOrigin
+    }
+    // The workspace's monitor tracks moveworkspace events; the window's own
+    // monitor is only a fallback.
+    var mon = (h.workspace && h.workspace.monitor) ? h.workspace.monitor : h.monitor
+    return (mon && mon.name) ? String(mon.name) : ""
+  }
+
+  // Unresolved handles count as local: a window may show on every dock for a
+  // beat while Hyprland catches up, but it never vanishes from all of them.
+  function isHyprOnThisMonitor(h) {
+    if (!root.filterByMonitor) return true
+    var name = root.monitorNameForHypr(h)
+    return name === "" || name === root.forcedScreenName
+  }
+
+  function isToplevelOnThisMonitor(top) {
+    if (!root.filterByMonitor) return true
+    var h = root.hyprToplevelFor(top)
+    return h ? root.isHyprOnThisMonitor(h) : true
+  }
+
+  onFilterByMonitorChanged: modelTimer.restart()
+
+  property bool _syncingShared: false
+  onMinimizedOriginsChanged: root.pushSharedState()
+  onParkedAtChanged: root.pushSharedState()
+  onSharedStateChanged: root.pullSharedState()
+
+  function pushSharedState() {
+    if (!root.sharedState || root._syncingShared) return
+    root._syncingShared = true
+    root.sharedState.minimizedOrigins = root.minimizedOrigins
+    root.sharedState.parkedAt = root.parkedAt
+    root._syncingShared = false
+  }
+
+  function pullSharedState() {
+    if (!root.sharedState || root._syncingShared) return
+    root._syncingShared = true
+    root.minimizedOrigins = root.sharedState.minimizedOrigins || ({})
+    root.parkedAt = root.sharedState.parkedAt || ({})
+    root._syncingShared = false
+    modelTimer.restart()
+  }
+
+  Connections {
+    target: root.sharedState
+    function onMinimizedOriginsChanged() { root.pullSharedState() }
+    function onParkedAtChanged() { root.pullSharedState() }
+  }
 
   function screenForName(name) {
     var list = Quickshell.screens
@@ -445,8 +532,10 @@ Item {
   readonly property var groupedSection: root.dockModel.grouped || []
 
   function refreshDock() {
+    var tops = ToplevelManager.toplevels ? ToplevelManager.toplevels.values : []
+    if (root.filterByMonitor) tops = tops.filter(root.isToplevelOnThisMonitor)
     root.dockModel = root.appLibrary
-      ? DockModel.buildEntries(root.pinnedIds, (ToplevelManager.toplevels ? ToplevelManager.toplevels.values : []), root.appRows,
+      ? DockModel.buildEntries(root.pinnedIds, tops, root.appRows,
                                root.appLibrary, root.hyprToplevelFor, root.minimizedWorkspace, root.minimizedOrigins, root.appGroups)
       : { pinned: [], running: [] }
     root.rescanMinimizedWindows()
@@ -465,6 +554,7 @@ Item {
       var isParked = (h.workspace && String(h.workspace.name || "") === root.minimizedWorkspace)
                   || (root.minimizedOrigins && root.minimizedOrigins[addr] !== undefined)
       if (!isParked) continue
+      if (!root.isHyprOnThisMonitor(h)) continue
       var top = root.liveToplevelForAddress(addr)
       var title = String((top && top.title) || h.title || "Window")
       var appId = ""
@@ -1466,6 +1556,10 @@ Item {
       if (n === "openwindow" || n === "closewindow" || n === "urgent"
           || n === "movewindow" || n === "movewindowv2"
           || n === "workspace" || n === "workspacev2") modelTimer.restart()
+      // Per-monitor docks: a workspace (and its windows) changing monitor
+      // moves those apps to another dock.
+      if (root.filterByMonitor && (n === "moveworkspace" || n === "moveworkspacev2"
+          || n === "monitoradded" || n === "monitorremoved")) modelSettleTimer.restart()
       // Park/restore moves get one deferred rebuild: the 40ms rebuild can land
       // inside Quickshell's Hyprland-handle lag and freeze pre-move state into
       // the model (stale isMinimized kept the running icon beside its tile).
@@ -1555,7 +1649,8 @@ Item {
     }
 
     // Play notification alert sound (suppressed if DND is active)
-    if (root.urgentSound && root.urgentSoundName !== "none" && !root.isDndActive) {
+    // Only one dock chimes when several run side by side.
+    if (root.isPrimary && root.urgentSound && root.urgentSoundName !== "none" && !root.isDndActive) {
       Quickshell.execDetached(["canberra-gtk-play", "-i", root.urgentSoundName])
     }
   }
@@ -1622,6 +1717,8 @@ Item {
     root.launchBounce = parsed && parsed.launchBounce !== false
     root.advancedTooltips = parsed && parsed.advancedTooltips !== false
     root.screenName = parsed && typeof parsed.screen === "string" ? parsed.screen : ""
+    root.multiMonitor = parsed ? parsed.multiMonitor === true : false
+    root.perMonitorApps = parsed ? parsed.perMonitorApps !== false : true
     root.configuredIconSize = parsed && typeof parsed.iconSize === "number" ? parsed.iconSize : 0
     if (parsed && (parsed.opacity === "theme" || parsed.opacity === "auto" || parsed.opacity === -1)) {
       root.dockOpacity = -1.0
@@ -2392,22 +2489,35 @@ Item {
   // so users can bind them in ~/.config/hypr/bindings.lua, e.g.:
   //   o.bind("SUPER + M", "Minimize focused",
   //     "exec qs -p /usr/share/omarchy/shell ipc call omadock minimizeActive")
+  function minimizeActive() {
+    var addr = root.activeWindowAddress
+    if (addr !== "") root.minimizeToplevel(addr)
+  }
+
+  // Returns whether a window was restored, so DockHost can fall through to the
+  // next monitor's dock when this one has nothing parked.
+  function restoreLast() {
+    var parked = []
+    var all = root.pinnedSection.concat(root.runningSection)
+    for (var i = 0; i < all.length; i++) {
+      if (!all[i]) continue
+      parked = parked.concat(root.parkedWindows(all[i].windowList || []))
+    }
+    if (parked.length === 0) return false
+    return root.restoreWindow(root.oldestParked(parked), "")
+  }
+
+  // With several docks running, DockHost owns the "omadock" target instead.
   IpcHandler {
     target: "omadock"
+    enabled: root.ipcEnabled
 
     function minimizeActive(): void {
-      var addr = root.activeWindowAddress
-      if (addr !== "") root.minimizeToplevel(addr)
+      root.minimizeActive()
     }
 
     function restoreLast(): void {
-      var parked = []
-      var all = root.pinnedSection.concat(root.runningSection)
-      for (var i = 0; i < all.length; i++) {
-        if (!all[i]) continue
-        parked = parked.concat(root.parkedWindows(all[i].windowList || []))
-      }
-      if (parked.length > 0) root.restoreWindow(root.oldestParked(parked), "")
+      root.restoreLast()
     }
 
     function toggleVisibility(): void {
@@ -2509,6 +2619,8 @@ Item {
     conf.launchBounce = root.launchBounce
     conf.advancedTooltips = root.advancedTooltips
     if (root.screenName) conf.screen = root.screenName
+    conf.multiMonitor = root.multiMonitor
+    conf.perMonitorApps = root.perMonitorApps
     if (root.configuredIconSize > 0) conf.iconSize = root.configuredIconSize
     else delete conf.iconSize
     conf.opacity = root.dockOpacity < 0 ? "theme" : root.dockOpacity

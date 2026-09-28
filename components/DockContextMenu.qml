@@ -165,6 +165,34 @@ BorderSurface {
           checked: root ? root.alignment === "right" : false
           onTriggered: { if (root) root.setDockAlignment("right") }
         }
+
+        ContextRow {
+          text: "Monitors"
+          isHeader: true
+        }
+
+        ContextRow {
+          text: "Show on All Monitors"
+          checked: root ? root.multiMonitor : false
+          onTriggered: {
+            if (root) {
+              root.multiMonitor = !root.multiMonitor
+              root.saveConfig()
+            }
+          }
+        }
+
+        ContextRow {
+          text: "Only This Monitor's Apps"
+          checked: root ? root.perMonitorApps : true
+          visible: root ? root.multiMonitor : false
+          onTriggered: {
+            if (root) {
+              root.perMonitorApps = !root.perMonitorApps
+              root.saveConfig()
+            }
+          }
+        }
       }
 
       // App Folders & Groups Category Page
