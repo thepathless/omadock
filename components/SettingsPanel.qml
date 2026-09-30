@@ -1128,6 +1128,17 @@ PanelWindow {
               value: root ? root.itemSpacing : 4
               onCommitted: function(v) { root.setItemSpacing(Math.round(v)) }
             }
+            SliderRow {
+              label: "Panel spacing"
+              hint: "Gap between the panels when sections are split."
+              visible: root ? root.splitSections : false
+              minimum: 0
+              maximum: 48
+              step: 1
+              suffix: " px"
+              value: root ? root.sectionSpacing : 18
+              onCommitted: function(v) { root.setOption("sectionSpacing", Math.round(v)) }
+            }
           }
 
           // ================================================= Folders

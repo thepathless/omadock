@@ -418,8 +418,8 @@ Item {
   readonly property real gapWidth: Style.space(root.itemSpacing)
   // Split sections turn each separator into the gap between two panels. Each
   // panel reaches the card padding past its outer icons, so the separator
-  // slot is widened until the visible gap matches the gap between two icons.
-  readonly property real sectionGap: root.gapWidth + root.iconSlot - root.baseIconArt
+  // slot is sized to leave the chosen visible gap between the panels.
+  readonly property real sectionGap: Style.space(root.sectionSpacing)
   readonly property real separatorWidth: root.splitSections
     ? Math.max(Style.space(1), root.sectionGap + 2 * root.baseRowLeft - 2 * root.gapWidth)
     : Style.space(1)
@@ -943,6 +943,8 @@ Item {
   property string currentIconThemeName: "Yaru"
   property string folderColor: "theme"
   property int itemSpacing: 4
+  // Gap between the panels when sections are split.
+  property int sectionSpacing: 18
   property string minimizeMode: "active"
   readonly property bool clickToMinimize: root.minimizeMode !== "off"
   property bool showUrgentHint: true
@@ -2040,6 +2042,7 @@ Item {
     root.groupIconEffects = (parsed && parsed.groupIconEffects === "none") ? "none" : "theme"
     root.folderColor = parsed && typeof parsed.folderColor === "string" ? parsed.folderColor : "theme"
     root.itemSpacing = parsed && typeof parsed.itemSpacing === "number" ? parsed.itemSpacing : 4
+    root.sectionSpacing = parsed && typeof parsed.sectionSpacing === "number" ? Math.max(0, Math.min(48, Math.round(parsed.sectionSpacing))) : 18
     if (parsed && typeof parsed.minimizeMode === "string") {
       root.minimizeMode = parsed.minimizeMode
     } else if (parsed && parsed.clickToMinimize === true) {
@@ -3265,6 +3268,7 @@ Item {
     conf.groupIconEffects = root.groupIconEffects
     conf.folderColor = root.folderColor
     conf.itemSpacing = root.itemSpacing
+    conf.sectionSpacing = root.sectionSpacing
     conf.minimizeMode = root.minimizeMode
     conf.clickToMinimize = root.minimizeMode !== "off"
     conf.showUrgentHint = root.showUrgentHint
