@@ -804,6 +804,12 @@ PanelWindow {
               }
               onPicked: function(v) { root.setDockShape(v) }
             }
+            SwitchRow {
+              label: "Split sections"
+              hint: "Each part between the dividers becomes its own panel, with a gap in place of the divider."
+              checked: root ? root.splitSections : false
+              onToggled: root.setOption("splitSections", !root.splitSections)
+            }
             ChoiceRow {
               label: "Indicators"
               hint: "The dots and bars under icons. Theme follows the corners above."

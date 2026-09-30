@@ -416,7 +416,13 @@ Item {
   // exist, so it doubles as the right tile divider.
   readonly property bool hasSeparator: (root.pinnedSection.length > 0 || root.hasTiles) && root.visibleRunningCount > 0
   readonly property real gapWidth: Style.space(root.itemSpacing)
-  readonly property real separatorWidth: Style.space(1)
+  // Split sections turn each separator into the gap between two panels. Each
+  // panel reaches the card padding past its outer icons, so the separator
+  // slot is widened until the visible gap matches the gap between two icons.
+  readonly property real sectionGap: root.gapWidth + root.iconSlot - root.baseIconArt
+  readonly property real separatorWidth: root.splitSections
+    ? Math.max(Style.space(1), root.sectionGap + 2 * root.baseRowLeft - 2 * root.gapWidth)
+    : Style.space(1)
   readonly property int groupSlots: (root.appGroups && DockModel.isList(root.appGroups)) ? root.appGroups.length : 0
   readonly property int folderSlots: root.pinnedFolders ? root.pinnedFolders.length : 0
   readonly property int driveSlots: (root.showRemovableDrives && root.mountedDrives) ? root.mountedDrives.length : 0
@@ -820,6 +826,9 @@ Item {
   // Static film grain over the background card, 0 (off) .. 1.
   property real grain: 0
   property bool showShadow: true
+  // Draw each section of the dock (the parts between separators) as its own
+  // panel, with a gap where the separator line would be.
+  property bool splitSections: false
   // Shadow opacity, 0..1.
   property real shadowStrength: 0.4
   // Compositor blur behind the dock: "system" leaves it to the user's own
@@ -2005,6 +2014,7 @@ Item {
     root.gradientStrength = parsed && typeof parsed.gradientStrength === "number" ? Math.max(0, Math.min(1, parsed.gradientStrength)) : 0.6
     root.grain = parsed && typeof parsed.grain === "number" ? Math.max(0, Math.min(1, parsed.grain)) : 0
     root.showShadow = parsed ? parsed.showShadow !== false : true
+    root.splitSections = parsed ? parsed.splitSections === true : false
     root.shadowStrength = parsed && typeof parsed.shadowStrength === "number"
       ? Math.max(0, Math.min(1, parsed.shadowStrength))
       : 0.4
@@ -3236,6 +3246,7 @@ Item {
     conf.gradientStrength = root.gradientStrength
     conf.grain = root.grain
     conf.showShadow = root.showShadow
+    conf.splitSections = root.splitSections
     conf.shadowStrength = root.shadowStrength
     conf.blur = root.blurMode
     if (root.blurSize > 0) conf.blurSize = root.blurSize

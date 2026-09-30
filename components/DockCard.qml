@@ -252,46 +252,68 @@ Item {
     }
   }
 
-  // Card shadow: the card's own shape (same radius), blurred and dropped a
+  // Horizontal extents of the background panels, in card coordinates. One
+  // panel spans the card; with split sections each visible separator cuts
+  // it, and every panel reaches the card inset past its outer items, as the
+  // card itself does. Snapped to device pixels so the rims stay crisp.
+  readonly property var segments: {
+    var full = [{ x: 0, width: dockCard.width }]
+    if (!root || !root.splitSections) return full
+    var inset = dockCard.contentLeftInset
+    var seps = [leftTileSeparator, separator, folderSeparator]
+    var out = []
+    var start = 0
+    for (var i = 0; i < seps.length; i++) {
+      var sep = seps[i]
+      if (!sep.visible) continue
+      var end = dockCard.devSnap(row.x + sep.x - row.spacing + inset)
+      out.push({ x: start, width: Math.max(0, end - start) })
+      start = dockCard.devSnap(row.x + sep.x + sep.width + row.spacing - inset)
+    }
+    out.push({ x: start, width: Math.max(0, dockCard.width - start) })
+    return out
+  }
+
+  // Card shadow: each panel's own shape (same radius), blurred and dropped a
   // little, so a square card casts a square-ish shadow instead of a soft
   // oval. Only drawn under a visible background; without one, each icon
-  // casts its own shadow instead (see DockIconArt).
-  Item {
-    id: cardShadow
-    readonly property real spread: Style.space(12)
-    visible: root ? (root.showShadow && root.showBackground && root.shadowStrength > 0) : true
-    // Follows the card out of view; a blur left behind would hang on screen
-    // after the dock has gone.
-    opacity: cardWrapper.opacity
-    anchors.fill: dockCard
-    anchors.margins: -spread
-    anchors.topMargin: -spread + Style.space(3)
-    anchors.bottomMargin: -spread - Style.space(3)
-    z: 0
-    layer.enabled: true
-    layer.effect: MultiEffect {
-      blurEnabled: true
-      blur: 1.0
-      blurMax: 20
-    }
+  // casts its own shadow instead (see DockIconArt). All shadows sit under
+  // all panels, so one panel's shadow never darkens its neighbour.
+  // The model is a count, not the segment list: the list is rebuilt whenever
+  // a separator moves, and delegates should follow it, not be recreated.
+  Repeater {
+    model: cardWrapper.segments.length
+    delegate: Item {
+      id: cardShadow
+      readonly property var segment: cardWrapper.segments[index] || { x: 0, width: 0 }
+      readonly property real spread: Style.space(12)
+      visible: root ? (root.showShadow && root.showBackground && root.shadowStrength > 0) : true
+      // Follows the card out of view; a blur left behind would hang on screen
+      // after the dock has gone.
+      opacity: cardWrapper.opacity
+      x: dockCard.x + segment.x - spread
+      y: dockCard.y - spread + Style.space(3)
+      width: segment.width + spread * 2
+      height: dockCard.height + spread * 2
+      z: 0
+      layer.enabled: true
+      layer.effect: MultiEffect {
+        blurEnabled: true
+        blur: 1.0
+        blurMax: 20
+      }
 
-    Rectangle {
-      anchors.fill: parent
-      anchors.margins: cardShadow.spread
-      radius: dockCard.radius
-      color: Qt.rgba(0, 0, 0, root ? root.shadowStrength : 0.4)
+      Rectangle {
+        anchors.fill: parent
+        anchors.margins: cardShadow.spread
+        radius: dockCard.radius
+        color: Qt.rgba(0, 0, 0, root ? root.shadowStrength : 0.4)
+      }
     }
   }
 
   BorderSurface {
     id: dockCard
-
-    readonly property color effectiveBgColor: {
-      if (!root) return Color.bar.background
-      if (root.dockBgColor === "none") return Qt.rgba(0, 0, 0, 0.25)
-      if (root.dockBgColor === "theme" || !root.dockBgColor) return Color.bar.background
-      return root.dockBgColor
-    }
 
     // Whole device pixels for the rim and the padding: at a fractional scale
     // (1.5) a 1.5 px rim puts everything inside the card a fraction of a pixel
@@ -300,62 +322,27 @@ Item {
     readonly property real dpr: root ? root.outputScale : 1
     function devSnap(v) { return v <= 0 ? 0 : Math.max(1, Math.round(v * dockCard.dpr)) / dockCard.dpr }
     readonly property real effectiveBorderWidth: dockCard.devSnap(root ? root.borderWidth : 1.5)
-    readonly property color effectiveBorderColor: {
-      if (!root) return Util.alpha(Color.menu.border, 0.48)
-      // Specular Frosted Glass Rim: Crisp highlight with high alpha for contrast on dark and light surfaces
-      var autoAlpha = (root.effectiveDockOpacity < 0.25 || root.dockBgColor === "none")
-        ? 0.48
-        : Math.max(0.24, root.effectiveDockOpacity * 0.35)
-      // Manual override from Settings → Appearance → Border opacity.
-      var rimAlpha = root.borderOpacity < 0 ? autoAlpha : Math.max(0.0, Math.min(1.0, root.borderOpacity))
-      return Util.alpha(root.dockForeground, rimAlpha)
-    }
 
-    // A gradient fill is drawn by the layer below instead of the card colour.
-    readonly property bool gradientFill: root ? (root.showBackground && root.bgFill === "gradient") : false
-    color: (root && (!root.showBackground || dockCard.gradientFill)) ? "transparent"
-      : ((root && root.dockBgColor === "none") ? effectiveBgColor : Util.alpha(effectiveBgColor, root ? root.effectiveDockOpacity : 1.0))
+    // The panels below paint the fill and the rim. The card keeps a clear
+    // rim of the same width, so its content insets do not depend on how many
+    // panels there are.
+    color: "transparent"
     borderSpec: (root && !root.showBorder)
       ? Border.none()
-      : Border.flat(dockCard.effectiveBorderColor, dockCard.effectiveBorderWidth)
+      : Border.flat("transparent", dockCard.effectiveBorderWidth)
     radius: root ? root.cardRadius(height) : Style.cornerRadius
     padding: dockCard.devSnap(Style.space(5))
     z: 1
 
-    // Gradient fill (shaders/gradient.frag): the palette's colours fading
-    // into each other over the theme background, at the dock's opacity. Under
-    // the grain and the icons; built only while the gradient is on.
-    Loader {
-      anchors.fill: parent
-      z: 0.25
-      active: dockCard.gradientFill
-      sourceComponent: ShaderEffect {
-        readonly property var palette: root ? root.gradientColors : []
-        property color base: Util.alpha(Color.bar.background, root ? root.effectiveDockOpacity : 1.0)
-        property color c1: palette.length > 0 ? palette[0] : "transparent"
-        property color c2: palette.length > 1 ? palette[1] : c1
-        property color c3: palette.length > 2 ? palette[2] : c2
-        property real count: palette.length > 2 ? 3 : 2
-        property real strength: root ? root.gradientStrength : 0.6
-        property real radius: dockCard.radius
-        property size size: Qt.size(width, height)
-        fragmentShader: Qt.resolvedUrl("../shaders/gradient.frag.qsb")
-      }
-    }
-
-    // Film grain over the background (shaders/grain.frag), in the style of
-    // Zen / Arc browser themes: soft grey specks at low opacity, cut to the
-    // card's rounded shape. Static, so it costs nothing between frames;
-    // built only while grain is on.
-    Loader {
-      anchors.fill: parent
-      z: 0.5
-      active: root ? (root.showBackground && root.grain > 0) : false
-      sourceComponent: ShaderEffect {
-        property real strength: root ? root.grain : 0
-        property real radius: dockCard.radius
-        property size size: Qt.size(width, height)
-        fragmentShader: Qt.resolvedUrl("../shaders/grain.frag.qsb")
+    Repeater {
+      model: cardWrapper.segments.length
+      delegate: DockSurface {
+        readonly property var segment: cardWrapper.segments[index] || { x: 0, width: 0 }
+        rootRef: cardWrapper.rootRef
+        borderWidth: dockCard.effectiveBorderWidth
+        x: segment.x
+        width: segment.width
+        height: dockCard.height
       }
     }
 
@@ -471,12 +458,14 @@ Item {
 
       // Divider between pinned apps and the minimized-tile section.
       Rectangle {
+        id: leftTileSeparator
         visible: root ? root.hasLeftTileSeparator : false
         anchors.verticalCenter: parent.verticalCenter
         anchors.verticalCenterOffset: root ? root.iconCenterOffset : 0
-        width: Style.space(1)
+        width: root ? root.separatorWidth : Style.space(1)
         height: root ? (root.iconSize * 0.7) : 24
-        color: Util.alpha(root ? root.dockForeground : Color.bar.text, 0.25)
+        // With split sections the separator is the gap between two panels.
+        color: (root && root.splitSections) ? "transparent" : Util.alpha(root ? root.dockForeground : Color.bar.text, 0.25)
       }
 
       // ------------------------------------------ minimized window tiles
@@ -498,9 +487,10 @@ Item {
         visible: root ? root.hasSeparator : false
         anchors.verticalCenter: parent.verticalCenter
         anchors.verticalCenterOffset: root ? root.iconCenterOffset : 0
-        width: Style.space(1)
+        width: root ? root.separatorWidth : Style.space(1)
         height: root ? (root.iconSize * 0.7) : 24
-        color: Util.alpha(root ? root.dockForeground : Color.bar.text, 0.25)
+        // With split sections the separator is the gap between two panels.
+        color: (root && root.splitSections) ? "transparent" : Util.alpha(root ? root.dockForeground : Color.bar.text, 0.25)
       }
 
       Repeater {
@@ -556,9 +546,10 @@ Item {
         visible: root ? root.hasFolderSeparator : false
         anchors.verticalCenter: parent.verticalCenter
         anchors.verticalCenterOffset: root ? root.iconCenterOffset : 0
-        width: Style.space(1)
+        width: root ? root.separatorWidth : Style.space(1)
         height: root ? (root.iconSize * 0.7) : 24
-        color: Util.alpha(root ? root.dockForeground : Color.bar.text, 0.25)
+        // With split sections the separator is the gap between two panels.
+        color: (root && root.splitSections) ? "transparent" : Util.alpha(root ? root.dockForeground : Color.bar.text, 0.25)
       }
 
       Repeater {
