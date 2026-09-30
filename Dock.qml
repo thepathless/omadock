@@ -528,17 +528,25 @@ Item {
     return (0.2126 * value.r + 0.7152 * value.g + 0.0722 * value.b) > 0.5
   }
 
-  // Corner radius for the dock card. "rounded" tracks the card's own height, so
-  // the panel keeps the same visual softness at any icon size.
+  // Corner radius for the dock card. An automatic "rounded" tracks the card's
+  // own height, so the panel keeps the same visual softness at any icon size.
+  readonly property real cardRadiusHeight: dockCard.height > 0 ? dockCard.height : (root.iconSlot + Style.space(10))
+  readonly property int autoRoundedRadius: Math.max(Style.space(14), Math.min(Style.space(28), Math.round(root.cardRadiusHeight * 0.26)))
+  // A hand-set "rounded" radius stays a few pixels short of a pill, which is
+  // a shape of its own.
+  readonly property int maxRoundedRadius: Math.max(2, Math.floor(root.cardRadiusHeight / 2) - 4)
+  readonly property int roundedRadius: root.cornerRadius >= 0
+    ? Math.max(2, Math.min(root.maxRoundedRadius, root.cornerRadius))
+    : root.autoRoundedRadius
   readonly property int effectiveCardRadius: {
-    var h = dockCard.height > 0 ? dockCard.height : (root.iconSlot + Style.space(10))
+    var h = root.cardRadiusHeight
     if (root.dockShape === "round" || root.dockShape === "pill") return Math.round(h / 2)
     if (root.dockShape === "square") return 0
     if (root.dockShape === "theme" || root.dockShape === "auto") {
       var n = Style.cornerRadius
       return (typeof n === "number" && isFinite(n) && n >= 0) ? n : Math.max(14, Style.space(14))
     }
-    return Math.max(Style.space(14), Math.min(Style.space(28), Math.round(h * 0.26)))
+    return root.roundedRadius
   }
 
   function cardRadius(height) {
@@ -758,6 +766,9 @@ Item {
     return Math.max(0.0, Math.min(1.0, root.dockOpacity))
   }
   property string dockShape: "rounded"
+  // Corner radius for the "rounded" shape in logical pixels, set by hand in
+  // Settings; negative keeps the automatic one that follows the dock height.
+  property int cornerRadius: -1
   property string dockBgColor: "theme"
   property bool showBackground: true
   // Background fill: "solid" (dockBgColor) or "gradient" (below).
@@ -2009,6 +2020,7 @@ Item {
       root.borderOpacity = -1.0
     }
     root.dockShape = parsed && typeof parsed.shape === "string" ? parsed.shape : "rounded"
+    root.cornerRadius = parsed && typeof parsed.cornerRadius === "number" ? Math.max(2, Math.round(parsed.cornerRadius)) : -1
     root.dockBgColor = parsed && typeof parsed.bgColor === "string" ? parsed.bgColor : "theme"
     root.showBackground = parsed ? parsed.showBackground !== false : true
     root.bgFill = (parsed && parsed.bgFill === "gradient") ? "gradient" : "solid"
@@ -3242,6 +3254,8 @@ Item {
     conf.opacity = root.dockOpacity < 0 ? "theme" : root.dockOpacity
     conf.borderOpacity = root.borderOpacity < 0 ? "theme" : root.borderOpacity
     conf.shape = root.dockShape
+    if (root.cornerRadius >= 0) conf.cornerRadius = root.cornerRadius
+    else delete conf.cornerRadius
     conf.bgColor = root.dockBgColor
     conf.showBackground = root.showBackground
     conf.bgFill = root.bgFill

@@ -804,6 +804,16 @@ PanelWindow {
               }
               onPicked: function(v) { root.setDockShape(v) }
             }
+            SliderRow {
+              label: "Corner radius"
+              visible: root ? root.dockShape === "rounded" : false
+              minimum: 2
+              maximum: root ? root.maxRoundedRadius : 24
+              step: 1
+              suffix: " px"
+              value: root ? root.roundedRadius : 14
+              onCommitted: function(v) { root.setOption("cornerRadius", Math.round(v)) }
+            }
             SwitchRow {
               label: "Split sections"
               hint: "Each part between the dividers becomes its own panel, with a gap in place of the divider."
