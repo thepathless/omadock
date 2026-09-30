@@ -255,20 +255,26 @@ Item {
   // Horizontal extents of the background panels, in card coordinates. One
   // panel spans the card; with split sections each visible separator cuts
   // it, and every panel reaches the card inset past its outer items, as the
-  // card itself does. Snapped to device pixels so the rims stay crisp.
+  // card itself does. Each cut snaps its left edge to the window's device
+  // pixel grid and adds the gap snapped once, so every gap comes out the
+  // same number of device pixels wide; snapping both edges on their own
+  // let neighbouring gaps differ by a pixel.
   readonly property var segments: {
     var full = [{ x: 0, width: dockCard.width }]
     if (!root || !root.splitSections) return full
+    var dpr = dockCard.dpr
+    var origin = cardWrapper.x + dockCard.x
     var inset = dockCard.contentLeftInset
+    var gap = Math.max(1, Math.round(root.sectionGap * dpr)) / dpr
     var seps = [leftTileSeparator, separator, folderSeparator]
     var out = []
     var start = 0
     for (var i = 0; i < seps.length; i++) {
       var sep = seps[i]
       if (!sep.visible) continue
-      var end = dockCard.devSnap(row.x + sep.x - row.spacing + inset)
+      var end = Math.round((row.x + sep.x - row.spacing + inset + origin) * dpr) / dpr - origin
       out.push({ x: start, width: Math.max(0, end - start) })
-      start = dockCard.devSnap(row.x + sep.x + sep.width + row.spacing - inset)
+      start = end + gap
     }
     out.push({ x: start, width: Math.max(0, dockCard.width - start) })
     return out
