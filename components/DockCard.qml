@@ -18,7 +18,6 @@ Item {
   property alias row: row
   property alias pinnedRowRepeater: pinnedRowRepeater
   property alias minimizedTilesRepeater: minimizedTilesRepeater
-  property alias runningRepeater: runningRepeater
   property alias foldersRepeater: foldersRepeater
   property alias drivesRepeater: drivesRepeater
   readonly property bool folderDropActive: folderDrop.containsDrag
@@ -260,6 +259,23 @@ Item {
     if (removeArmed) root.removeAppGroup(gid)
     else if (idx >= 0) root.moveAppGroup(gid, idx)
     root.syncVisibility()
+  }
+
+  // Keyed models for the pinned run and the running apps (KeyedListModel):
+  // a list replaced by an equal or slightly changed one keeps its delegates.
+  KeyedListModel { id: pinnedRowModel }
+  KeyedListModel { id: runningModel }
+
+  Connections {
+    target: cardWrapper.root
+    function onPinnedRowKeysChanged() { pinnedRowModel.sync(cardWrapper.root.pinnedRowKeys) }
+    function onRunningKeysChanged() { runningModel.sync(cardWrapper.root.runningKeys) }
+  }
+
+  Component.onCompleted: {
+    if (!root) return
+    pinnedRowModel.sync(root.pinnedRowKeys)
+    runningModel.sync(root.runningKeys)
   }
 
   // Dimensions driven by dockCard
@@ -529,12 +545,20 @@ Item {
       // group stands where its "before" app puts it.
       Repeater {
         id: pinnedRowRepeater
-        model: root ? root.pinnedRow : []
+        model: pinnedRowModel
         delegate: Loader {
           id: rowSlot
-          required property var modelData
+          required property string key
           required property int index
-          readonly property bool isGroup: modelData.kind === "group"
+          readonly property bool isGroup: key.indexOf("group:") === 0
+          // Looked up by key; kept through the moment a removed key has left
+          // the lookup but not yet the model.
+          property var modelData: ({})
+          Binding on modelData {
+            value: root ? root.pinnedRowByKey[rowSlot.key] : undefined
+            when: !!(root && root.pinnedRowByKey[rowSlot.key])
+            restoreMode: Binding.RestoreNone
+          }
           readonly property real home: root ? root.slotHomeCenter(root.appsSlots + index, root.appsSlots + index, false) : 0
           sourceComponent: isGroup ? groupSlotComp : appSlotComp
           // A zoomed icon raises itself over its neighbours; in the Row that
@@ -544,14 +568,14 @@ Item {
           Component {
             id: appSlotComp
             DockItem {
-              readonly property var entry: rowSlot.modelData.entry
+              readonly property var entry: rowSlot.modelData.entry || ({})
               rootRef: cardWrapper.rootRef
-              appId: entry.appId
-              name: entry.name
-              icon: entry.icon
-              running: entry.running
-              windows: entry.windows
-              windowList: entry.windowList
+              appId: entry.appId || ""
+              name: entry.name || ""
+              icon: entry.icon || ""
+              running: !!entry.running
+              windows: entry.windows || 0
+              windowList: entry.windowList || []
               homeCenter: rowSlot.home
               pinned: true
               active: root ? (entry.appId === root.activeId) : false
@@ -577,7 +601,7 @@ Item {
             id: groupSlotComp
             DockAppGroupItem {
               rootRef: cardWrapper.rootRef
-              groupData: rowSlot.modelData.group
+              groupData: rowSlot.modelData.group || ({})
               homeCenter: rowSlot.home
               onOpenGroupRequested: function(gdata, cx, cy) {
                 if (root) root.openAppGroup(gdata, cx, cy)
@@ -648,16 +672,25 @@ Item {
 
       Repeater {
         id: runningRepeater
-        model: root ? root.runningSection : []
+        model: runningModel
         delegate: DockItem {
           id: runningDockItem
+          required property string key
+          required property int index
+          // Looked up by key, as in the pinned run.
+          property var entry: ({})
+          Binding on entry {
+            value: root ? root.runningByKey[runningDockItem.key] : undefined
+            when: !!(root && root.runningByKey[runningDockItem.key])
+            restoreMode: Binding.RestoreNone
+          }
           rootRef: cardWrapper.rootRef
-          appId: modelData.appId
-          name: modelData.name
-          icon: modelData.icon
-          running: modelData.running
-          windows: modelData.windows
-          windowList: modelData.windowList
+          appId: entry.appId || ""
+          name: entry.name || ""
+          icon: entry.icon || ""
+          running: !!entry.running
+          windows: entry.windows || 0
+          windowList: entry.windowList || []
           // Wave geometry must count only icons that actually render — a
           // hidden (fully-tiled) entry occupies zero width in the Row.
           readonly property int visibleIdx: root ? root.visibleRunningSlotBefore(index) : 0
@@ -667,7 +700,7 @@ Item {
             (root.hasLeftTileSeparator ? 1 : 0) + (root.hasSeparator ? 1 : 0),
             root.tilesFixedWidth) : 0
           pinned: false
-          active: root ? (modelData.appId === root.activeId) : false
+          active: root ? (entry.appId === root.activeId) : false
           onActivateRequested: function(aid) { if (root) root.activate(aid) }
           onNewWindowRequested: function(aid) { if (root) root.launchApp(aid, null) }
           onMenuRequested: function(aid, cx, cy) { if (root) root.openContext(aid, cx, cy) }
@@ -689,7 +722,7 @@ Item {
           // Live resolver: same source as the running-dot indicator, so the
           // icon can never outlive its own tile after a lagged park.
           readonly property bool isFullyTiled: (root && root.showMinimizedTiles)
-            && DockModel.allWindowsMinimized(modelData.windowList, root ? root.liveWsNameOf : null, root ? root.minimizedWorkspace : "special:minimized")
+            && DockModel.allWindowsMinimized(entry.windowList || [], root ? root.liveWsNameOf : null, root ? root.minimizedWorkspace : "special:minimized")
           visible: !isFullyTiled
         }
       }

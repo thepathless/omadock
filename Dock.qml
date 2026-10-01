@@ -19,7 +19,6 @@ Item {
   readonly property alias cardHover: dockCardComp.cardHover
   readonly property alias hitboxHover: dockCardComp.hitboxHover
   readonly property alias minimizedTilesRepeater: dockCardComp.minimizedTilesRepeater
-  readonly property alias runningRepeater: dockCardComp.runningRepeater
   readonly property alias foldersRepeater: dockCardComp.foldersRepeater
   readonly property alias contextMenu: contextMenuComp
   readonly property alias folderStackPopover: folderStackPopoverComp
@@ -600,6 +599,24 @@ Item {
   readonly property var pinnedSection: root.dockModel.pinned || []
   // Pinned apps and app groups in dock order (DockModel.pinnedRow).
   readonly property var pinnedRow: DockModel.pinnedRow(root.pinnedSection, root.appGroups)
+
+  // Keys and lookups for the keyed Repeater models (KeyedListModel), which
+  // keep the delegates of items that stay when these lists are replaced.
+  function pinnedRowKey(item) {
+    return item.kind === "group" ? "group:" + item.id : "app:" + item.appId
+  }
+  readonly property var pinnedRowKeys: root.pinnedRow.map(root.pinnedRowKey)
+  readonly property var pinnedRowByKey: {
+    var map = {}
+    for (var i = 0; i < root.pinnedRow.length; i++) map[root.pinnedRowKey(root.pinnedRow[i])] = root.pinnedRow[i]
+    return map
+  }
+  readonly property var runningKeys: root.runningSection.map(function(e) { return e.appId })
+  readonly property var runningByKey: {
+    var map = {}
+    for (var i = 0; i < root.runningSection.length; i++) map[root.runningSection[i].appId] = root.runningSection[i]
+    return map
+  }
   readonly property var runningSection: root.dockModel.running || []
   readonly property var groupedSection: root.dockModel.grouped || []
 
