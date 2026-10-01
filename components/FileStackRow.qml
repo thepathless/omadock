@@ -106,6 +106,9 @@ Item {
         MultiEffect {
           anchors.fill: symStackImg
           source: symStackImg
+          // Symbolic icons are dark grey; colorization keeps the source's
+          // lightness, so lift it to white first or light colours come out grey.
+          brightness: 1.0
           colorization: 1.0
           colorizationColor: frow.symbolicColor
         }

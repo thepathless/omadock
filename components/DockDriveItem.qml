@@ -102,6 +102,9 @@ Item {
       MultiEffect {
         anchors.fill: symbolicImg
         source: symbolicImg
+        // Symbolic icons are dark grey; colorization keeps the source's
+        // lightness, so lift it to white first or light colours come out grey.
+        brightness: 1.0
         colorization: 1.0
         colorizationColor: root ? root.symbolicIconColor : "#ffffff"
       }
