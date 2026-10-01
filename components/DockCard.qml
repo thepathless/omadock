@@ -50,11 +50,22 @@ Item {
     return n
   }
 
-  function handleDragMoved(aid, mx) {
+  // A drag pulled this far above the card takes the item off the dock.
+  function offDockAt(my) {
+    return root ? my < -(root.iconSlot * 0.75) : false
+  }
+
+  function handleDragMoved(aid, mx, my) {
     if (!root) return
     root.dropBeforeId = ""
     root.dropTargetAppId = ""
     root.dropTargetGroupId = ""
+    root.dragPointerX = mx
+    root.dragPointerY = my
+
+    // Only a pin can be taken off; a running app that is not pinned stays.
+    root.dragRemoveArmed = root.dragSourceGroupId === "" && DockModel.isPinned(root.pinnedIds, aid) && cardWrapper.offDockAt(my)
+    if (root.dragRemoveArmed) return
 
     // 1. Check if hovering over any existing App Group
     var gCount = appGroupsRepeater ? appGroupsRepeater.count : 0
@@ -115,13 +126,18 @@ Item {
     var targetAppId = root.dropTargetAppId
     var beforeId = root.dropBeforeId
     var sourceGroupId = root.dragSourceGroupId
+    var removeArmed = root.dragRemoveArmed
 
     root.dragAppId = ""
     root.dropBeforeId = ""
     root.dropTargetGroupId = ""
     root.dropTargetAppId = ""
+    root.dragRemoveArmed = false
 
-    if (dragId !== "") {
+    if (dragId !== "" && removeArmed) {
+      root.dragSourceGroupId = ""
+      root.togglePin(dragId)
+    } else if (dragId !== "") {
       if (sourceGroupId !== "") {
         if (targetGroupId === sourceGroupId) {
           root.dragSourceGroupId = ""
@@ -146,6 +162,68 @@ Item {
     } else {
       root.dragSourceGroupId = ""
     }
+    root.syncVisibility()
+  }
+
+  // ---------------------------------------------- folder and group drags
+
+  function handleFolderDragStarted(path) {
+    if (!root) return
+    root.dragFolderPath = path
+    root.dropFolderIndex = -1
+    root.dragRemoveArmed = false
+  }
+
+  // Reorders within the folder section: from the gap before the first
+  // folder to the gap after the last one.
+  function handleFolderDragMoved(path, mx, my) {
+    if (!root) return
+    root.dragPointerX = mx
+    root.dragPointerY = my
+    root.dragRemoveArmed = cardWrapper.offDockAt(my)
+    var n = foldersRepeater.count
+    var first = n > 0 ? foldersRepeater.itemAt(0) : null
+    var last = n > 0 ? foldersRepeater.itemAt(n - 1) : null
+    var rx = mx - row.x
+    if (root.dragRemoveArmed || !first || !last
+        || rx < first.x - row.spacing || rx > last.x + last.width + row.spacing) {
+      root.dropFolderIndex = -1
+      return
+    }
+    var idx = cardWrapper.folderInsertIndex(rx)
+    root.dropFolderIndex = idx
+    root.dropIndicatorX = idx < n
+      ? row.x + foldersRepeater.itemAt(idx).x - row.spacing / 2 - Style.space(1)
+      : row.x + last.x + last.width + row.spacing / 2 - Style.space(1)
+  }
+
+  function handleFolderDragDropped(path) {
+    if (!root) return
+    var removeArmed = root.dragRemoveArmed
+    var idx = root.dropFolderIndex
+    root.dragFolderPath = ""
+    root.dropFolderIndex = -1
+    root.dragRemoveArmed = false
+    if (removeArmed) root.toggleFolderPin(path, "", "")
+    else if (idx >= 0) root.moveFolder(path, idx)
+    root.syncVisibility()
+  }
+
+  // Groups are only dragged off the dock; they keep their place otherwise.
+  function handleGroupDragMoved(gid, mx, my) {
+    if (!root) return
+    root.dragGroupId = gid
+    root.dragPointerX = mx
+    root.dragPointerY = my
+    root.dragRemoveArmed = cardWrapper.offDockAt(my)
+  }
+
+  function handleGroupDragDropped(gid) {
+    if (!root) return
+    var removeArmed = root.dragRemoveArmed
+    root.dragGroupId = ""
+    root.dragRemoveArmed = false
+    if (removeArmed) root.removeAppGroup(gid)
     root.syncVisibility()
   }
 
@@ -438,7 +516,7 @@ Item {
               root.dropTargetGroupId = ""
             }
           }
-          onDragMoved: function(aid, mx) { cardWrapper.handleDragMoved(aid, mx) }
+          onDragMoved: function(aid, mx, my) { cardWrapper.handleDragMoved(aid, mx, my) }
           onDragDropped: function(aid) { cardWrapper.handleDragDropped(aid) }
         }
       }
@@ -459,6 +537,9 @@ Item {
           onMenuRequested: function(gdata, cx, cy) {
             if (root) root.openAppGroupContext(gdata, cx, cy)
           }
+          onDragStarted: function(gid) { cardWrapper.handleGroupDragMoved(gid, 0, 0) }
+          onDragMoved: function(gid, mx, my) { cardWrapper.handleGroupDragMoved(gid, mx, my) }
+          onDragDropped: function(gid) { cardWrapper.handleGroupDragDropped(gid) }
         }
       }
 
@@ -533,7 +614,7 @@ Item {
               root.dropTargetGroupId = ""
             }
           }
-          onDragMoved: function(aid, mx) { cardWrapper.handleDragMoved(aid, mx) }
+          onDragMoved: function(aid, mx, my) { cardWrapper.handleDragMoved(aid, mx, my) }
           onDragDropped: function(aid) { cardWrapper.handleDragDropped(aid) }
 
           // When an unpinned app has ALL its windows minimized and tiles are
@@ -578,6 +659,9 @@ Item {
           onMenuRequested: function(fpath, fname, cx, cy) {
             if (root) root.openFolderContext(fpath, fname, cx, cy)
           }
+          onDragStarted: function(fpath) { cardWrapper.handleFolderDragStarted(fpath) }
+          onDragMoved: function(fpath, mx, my) { cardWrapper.handleFolderDragMoved(fpath, mx, my) }
+          onDragDropped: function(fpath) { cardWrapper.handleFolderDragDropped(fpath) }
         }
       }
 
@@ -642,7 +726,9 @@ Item {
 
     // Drop indicator line
     Rectangle {
-      visible: (root && root.dragAppId !== "" && root.dropTargetAppId === "" && root.dropTargetGroupId === "") ? true : false
+      visible: root ? (!root.dragRemoveArmed
+        && ((root.dragAppId !== "" && root.dropTargetAppId === "" && root.dropTargetGroupId === "")
+          || (root.dragFolderPath !== "" && root.dropFolderIndex >= 0))) : false
       x: root ? root.dropIndicatorX : 0
       anchors.verticalCenter: row.verticalCenter
       width: Style.space(2)
@@ -650,6 +736,31 @@ Item {
       radius: 1
       color: Color.accent
       z: 10
+    }
+
+    // Over the pointer while a drag is pulled off the dock: letting go here
+    // takes the item away. Styled like the hover tooltips.
+    BorderSurface {
+      visible: root ? root.dragRemoveArmed : false
+      z: 300
+      color: Color.tooltip.background
+      borderSpec: Border.surfaceSpec("tooltip", "border", Color.tooltip.border, 1)
+      radius: Style.cornerRadius
+      padding: Style.space(4)
+      width: removeLabel.implicitWidth + contentLeftInset + contentRightInset
+      height: removeLabel.implicitHeight + contentTopInset + contentBottomInset
+      x: Math.round((root ? root.dragPointerX : 0) - width / 2)
+      y: Math.round((root ? root.dragPointerY : 0) - height - Style.space(16))
+
+      Text {
+        id: removeLabel
+        anchors.centerIn: parent
+        text: root && root.dragGroupId !== "" ? "Remove group" : "Unpin"
+        textFormat: Text.PlainText
+        color: Color.tooltip.text
+        font.family: Style.font.family
+        font.pixelSize: Style.font.caption
+      }
     }
   }
 }

@@ -24,6 +24,12 @@ Item {
 
   signal openStackRequested(string path, string name, real cx, real cy)
   signal menuRequested(string path, string name, real cx, real cy)
+  signal dragStarted(string path)
+  signal dragMoved(string path, real x, real y)
+  signal dragDropped(string path)
+
+  // Faded while dragged, fainter still once pulled off the dock.
+  opacity: area.dragging ? ((root && root.dragRemoveArmed) ? 0.12 : 0.35) : 1.0
 
   width: (root ? (root.iconSlot * (root.waveHover ? fitem.magnifyScale : 1)) : 0) + fitem.gapWidth
   height: root ? root.iconSlot : 0
@@ -129,14 +135,19 @@ Item {
     kind: "active"
   }
 
-  MouseArea {
+  DockPressDrag {
     id: area
     anchors.fill: parent
     hoverEnabled: true
     acceptedButtons: Qt.LeftButton | Qt.RightButton
-    cursorShape: Qt.PointingHandCursor
+    cursorShape: dragging ? Qt.ClosedHandCursor : Qt.PointingHandCursor
+    mapTarget: root ? root.dockCard : null
 
-    onClicked: function(mouse) {
+    onDragStarted: fitem.dragStarted(fitem.folderPath)
+    onDragMoved: function(x, y) { fitem.dragMoved(fitem.folderPath, x, y) }
+    onDragFinished: fitem.dragDropped(fitem.folderPath)
+
+    onTapped: function(mouse) {
       var targetWin = root ? root.contentItemRef : null
       if (mouse.button === Qt.RightButton) {
         var mappedPos = targetWin ? fitem.mapToItem(targetWin, fitem.width / 2, 0) : null

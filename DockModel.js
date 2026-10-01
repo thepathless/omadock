@@ -470,6 +470,20 @@ function reorderPinned(pinnedIds, appId, insertBeforeId) {
   return arr
 }
 
+// A copy of list with the item at from moved before the item now at
+// insertIndex (to the end when insertIndex is past the last item). Returns
+// list itself when nothing moves.
+function moveBefore(list, from, insertIndex) {
+  var arr = toArray(list)
+  if (from < 0 || from >= arr.length) return list
+  var to = Math.max(0, Math.min(arr.length, insertIndex))
+  if (to === from || to === from + 1) return list
+  var next = arr.slice()
+  var moved = next.splice(from, 1)[0]
+  next.splice(to > from ? to - 1 : to, 0, moved)
+  return next
+}
+
 function entryFor(appRows, appId) {
   var want = stripDesktop(appId)
   if (!want || !appRows) return null

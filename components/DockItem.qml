@@ -28,7 +28,7 @@ Item {
   signal newWindowRequested(string appId)
   signal menuRequested(string appId, real cx, real cy)
   signal dragStarted(string appId)
-  signal dragMoved(string appId, real x)
+  signal dragMoved(string appId, real x, real y)
   signal dragDropped(string appId)
   signal wheelScrolled(string appId, int direction)
 
@@ -41,6 +41,7 @@ Item {
   property bool isDragging: false
   property bool _dragJustEnded: false
   property real dragStartX: 0
+  property real dragStartY: 0
   property real bounceY: 0
   property real homeCenter: 0
 
@@ -127,7 +128,8 @@ Item {
     NumberAnimation { from: 0.35; to: 1.0; duration: 650; easing.type: Easing.InOutQuad }
   }
 
-  opacity: item.isDragging ? 0.35 : 1.0
+  // Fainter still once pulled off the dock, where letting go unpins it.
+  opacity: item.isDragging ? ((root && root.dragRemoveArmed) ? 0.12 : 0.35) : 1.0
   Behavior on opacity {
     NumberAnimation { duration: 120 }
   }
@@ -356,6 +358,7 @@ Item {
     onPressed: function(mouse) {
       if (mouse.button === Qt.LeftButton && (item.pinned || item.running)) {
         item.dragStartX = mouse.x
+        item.dragStartY = mouse.y
         item.isDragging = false
         item._dragJustEnded = false
       }
@@ -363,14 +366,15 @@ Item {
 
     onPositionChanged: function(mouse) {
       if (area.pressed && mouse.buttons & Qt.LeftButton && (item.pinned || item.running)) {
-        var dist = Math.abs(mouse.x - item.dragStartX)
+        // Either direction: pulling an icon straight up takes it off the dock.
+        var dist = Math.abs(mouse.x - item.dragStartX) + Math.abs(mouse.y - item.dragStartY)
         if (!item.isDragging && dist > 8) {
           item.isDragging = true
           item.dragStarted(item.appId)
         }
         if (item.isDragging) {
-          var pt = dockCard ? item.mapToItem(dockCard, mouse.x, 0) : null
-          item.dragMoved(item.appId, pt ? pt.x : mouse.x)
+          var pt = dockCard ? item.mapToItem(dockCard, mouse.x, mouse.y) : null
+          item.dragMoved(item.appId, pt ? pt.x : mouse.x, pt ? pt.y : mouse.y)
         }
       }
     }

@@ -699,6 +699,19 @@ Item {
   property string dropTargetGroupId: ""
   property string dragSourceGroupId: ""
   property real dropIndicatorX: 0
+  // Pinned folders and app groups are dragged too: folders to reorder them,
+  // and either one off the dock to take it away.
+  property string dragFolderPath: ""
+  property string dragGroupId: ""
+  // Insert index among the pinned folders for the dragged folder; -1 while
+  // the pointer is outside the folder section.
+  property int dropFolderIndex: -1
+  // The drag has been pulled up off the dock: letting go unpins or removes.
+  property bool dragRemoveArmed: false
+  // Pointer of the drag in progress, in dock card coordinates.
+  property real dragPointerX: 0
+  property real dragPointerY: 0
+  readonly property bool dockDragActive: root.dragAppId !== "" || root.dragFolderPath !== "" || root.dragGroupId !== ""
 
   // ------------------------------------------------- context menu
 
@@ -1533,7 +1546,7 @@ Item {
       return
     }
 
-    var isHovered = (root.cardHover && root.cardHover.hovered) || (root.hitboxHover && root.hitboxHover.hovered) || (revealHover && revealHover.hovered) || root.contextAppId !== "" || root.dragAppId !== "" || root.activeStackFolder !== "" || root.activeAppGroupId !== "" || root.settingsPanelOpen || root.externalDragOver || root.appDropTargetId !== ""
+    var isHovered = (root.cardHover && root.cardHover.hovered) || (root.hitboxHover && root.hitboxHover.hovered) || (revealHover && revealHover.hovered) || root.contextAppId !== "" || root.dockDragActive || root.activeStackFolder !== "" || root.activeAppGroupId !== "" || root.settingsPanelOpen || root.externalDragOver || root.appDropTargetId !== ""
 
     // Hovered, Context Menu Open, or Dragging: keep visible
     if (isHovered) {
@@ -3779,6 +3792,20 @@ Item {
     root.saveConfig()
   }
 
+  // Moves a pinned folder so it lands before the folder now at insertIndex
+  // (the end when insertIndex is past the last one).
+  function moveFolder(path, insertIndex) {
+    var list = root.pinnedFolders || []
+    var from = -1
+    for (var i = 0; i < list.length; i++) {
+      if (list[i] && list[i].path === path) { from = i; break }
+    }
+    var next = DockModel.moveBefore(list, from, insertIndex)
+    if (next === list) return
+    root.pinnedFolders = next
+    root.saveConfig()
+  }
+
   // Widest piece of content in the open menu. Only implicit widths are read, so
   // feeding the result back into every row cannot loop.
   function menuContentWidth(item) {
@@ -3911,8 +3938,8 @@ Item {
     // Global dismiss area - catches clicks outside context menu, folder stack, or app group popup
     Item {
       id: globalDismiss
-      width: (root.contextAppId !== "" || root.activeStackFolder !== "" || root.activeAppGroupId !== "" || root.dragAppId !== "") ? dockWindow.width : 0
-      height: (root.contextAppId !== "" || root.activeStackFolder !== "" || root.activeAppGroupId !== "" || root.dragAppId !== "") ? dockWindow.height : 0
+      width: (root.contextAppId !== "" || root.activeStackFolder !== "" || root.activeAppGroupId !== "" || root.dockDragActive) ? dockWindow.width : 0
+      height: (root.contextAppId !== "" || root.activeStackFolder !== "" || root.activeAppGroupId !== "" || root.dockDragActive) ? dockWindow.height : 0
 
       MouseArea {
         anchors.fill: parent
@@ -3940,6 +3967,7 @@ Item {
             root.dropTargetAppId = ""
             root.dropTargetGroupId = ""
             root.dragSourceGroupId = ""
+            root.dragRemoveArmed = false
             root.syncVisibility()
           }
         }

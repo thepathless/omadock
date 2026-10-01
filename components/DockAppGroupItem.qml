@@ -20,6 +20,12 @@ Item {
 
   signal openGroupRequested(var gdata, real cx, real cy)
   signal menuRequested(var gdata, real cx, real cy)
+  signal dragStarted(string groupId)
+  signal dragMoved(string groupId, real x, real y)
+  signal dragDropped(string groupId)
+
+  // Faded while dragged, fainter still once pulled off the dock.
+  opacity: groupArea.dragging ? ((root && root.dragRemoveArmed) ? 0.12 : 0.35) : 1.0
 
   width: root ? (root.iconSlot * (root.waveHover ? gitem.magnifyScale : 1)) : 0
   height: root ? root.iconSlot : 0
@@ -212,14 +218,19 @@ Item {
     }
   }
 
-  MouseArea {
+  DockPressDrag {
     id: groupArea
     anchors.fill: parent
     hoverEnabled: true
     acceptedButtons: Qt.LeftButton | Qt.RightButton
-    cursorShape: Qt.PointingHandCursor
+    cursorShape: dragging ? Qt.ClosedHandCursor : Qt.PointingHandCursor
+    mapTarget: root ? root.dockCard : null
 
-    onClicked: function(mouse) {
+    onDragStarted: gitem.dragStarted(gitem.groupId)
+    onDragMoved: function(x, y) { gitem.dragMoved(gitem.groupId, x, y) }
+    onDragFinished: gitem.dragDropped(gitem.groupId)
+
+    onTapped: function(mouse) {
       var targetWin = root ? root.contentItemRef : null
       if (mouse.button === Qt.RightButton) {
         var mappedPos = targetWin ? gitem.mapToItem(targetWin, gitem.width / 2, 0) : null
