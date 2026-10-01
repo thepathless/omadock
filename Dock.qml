@@ -953,6 +953,13 @@ Item {
   property int themeVersion: 0
   property string currentIconThemeName: "Yaru"
   property string folderColor: "theme"
+  // Colour for symbolic folder and drive icons in the original icon style:
+  // the folder colour setting, or white or black to suit the theme.
+  readonly property color symbolicIconColor: {
+    if (root.folderColor === "white") return "#ffffff"
+    if (root.folderColor === "black") return "#111111"
+    return (Color.bar.background.hslLightness < 0.5 || Color.background.hslLightness < 0.5) ? "#ffffff" : "#111111"
+  }
   property int itemSpacing: 4
   // Gap between the panels when sections are split.
   property int sectionSpacing: 18

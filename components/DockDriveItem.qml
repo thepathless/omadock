@@ -1,4 +1,5 @@
 import QtQuick
+import QtQuick.Effects
 import Quickshell
 import qs.Commons
 import qs.Ui
@@ -39,10 +40,12 @@ Item {
     var _tv = root ? root.themeVersion : 0
     var iconName = ditem.icon || "drive-removable-media-usb"
     if (iconName.indexOf("/") === 0 || iconName.indexOf("file://") === 0) return iconName
-    var fileUri = DockModel.resolveDriveIcon(iconName, root ? root.currentIconThemeName : "Yaru", root ? root.appLibrary : null)
+    var fileUri = DockModel.resolveDriveIcon(iconName, root ? root.currentIconThemeName : "Yaru", root ? root.appLibrary : null, root ? root.folderColor : "theme")
     if (fileUri && fileUri !== "") return fileUri
     return root && root.appLibrary ? root.appLibrary.iconSource("drive-removable-media-usb") : "file:///usr/share/icons/Yaru/256x256/devices/drive-removable-media-usb.png"
   }
+
+  readonly property bool isSymbolic: resolvedSource.indexOf("symbolic") >= 0
 
   Behavior on magnifyScale {
     NumberAnimation { duration: 110; easing.type: Easing.OutQuad }
@@ -55,6 +58,11 @@ Item {
     anchors.horizontalCenter: parent.horizontalCenter
     anchors.verticalCenter: parent.verticalCenter
 
+    // Symbolic icons are grey templates; in the original style they take
+    // the folder colour, as folder icons do. Every other case goes through
+    // the dock's icon style.
+    readonly property bool themedSymbolic: ditem.isSymbolic && (!root || root.iconStyle === "original" || (root.iconHoverOriginal && driveArea.containsMouse))
+
     DockIconArt {
       id: driveIconImg
       anchors.horizontalCenter: parent.horizontalCenter
@@ -64,7 +72,7 @@ Item {
       height: width
       source: ditem.resolvedSource
       renderSize: root ? root.maxIconArt : 64
-      visible: String(source) !== ""
+      visible: String(source) !== "" && !iconSlot.themedSymbolic
       iconStyle: root ? root.iconStyle : "original"
       tint: root ? root.iconTintColor : Color.bar.text
       grid: root ? root.iconGrid : 16
@@ -73,6 +81,30 @@ Item {
       dropShadow: root ? root.iconShadow : false
       shadowStrength: root ? root.shadowStrength : 0.4
       showOriginal: root ? (root.iconHoverOriginal && driveArea.containsMouse) : false
+    }
+
+    Item {
+      anchors.fill: driveIconImg
+      visible: iconSlot.themedSymbolic
+
+      Image {
+        id: symbolicImg
+        anchors.fill: parent
+        source: ditem.resolvedSource
+        sourceSize: Qt.size((root ? root.iconSize : 36) * 4, (root ? root.iconSize : 36) * 4)
+        fillMode: Image.PreserveAspectFit
+        asynchronous: true
+        smooth: true
+        mipmap: true
+        visible: false
+      }
+
+      MultiEffect {
+        anchors.fill: symbolicImg
+        source: symbolicImg
+        colorization: 1.0
+        colorizationColor: root ? root.symbolicIconColor : "#ffffff"
+      }
     }
   }
 

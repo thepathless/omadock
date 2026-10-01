@@ -967,9 +967,28 @@ function resolveAppName(appLibrary, appRows, appId) {
   return id
 }
 
-function resolveDriveIcon(iconName, themeName, appLibrary) {
+function resolveDriveIcon(iconName, themeName, appLibrary, folderColorMode) {
   var name = String(iconName || "drive-removable-media-usb").trim()
   if (name.indexOf("/") === 0 || name.indexOf("file://") === 0) return name
+
+  // Drives follow the folder colour, so they sit next to the folders in the
+  // same style: wherever folders use Adwaita's monochrome outlines (white,
+  // black or symbolic, or a theme with no Yaru colour), drives do too.
+  var theme = String(themeName || "").trim()
+  var yaruTheme = theme === "Yaru" || (theme.indexOf("Yaru-") === 0 && theme !== "Yaru-gray" && theme !== "Yaru-grey")
+  var mode = String(folderColorMode || "theme")
+  if (mode === "white" || mode === "black" || mode === "symbolic"
+      || ((mode === "theme" || mode === "auto") && !yaruTheme)) {
+    var symbolicMap = {
+      "drive-removable-media-usb": "media-removable",
+      "usb-pendrive": "media-removable",
+      "drive-removable-media": "drive-removable-media",
+      "media-removable": "media-removable",
+      "drive-harddisk-usb": "drive-harddisk-usb",
+      "media-optical": "media-optical"
+    }
+    return "file:///usr/share/icons/Adwaita/symbolic/devices/" + (symbolicMap[name] || "drive-removable-media") + "-symbolic.svg"
+  }
 
   // Try iconIndex/theme resolution first for theme resilience
   if (appLibrary) {

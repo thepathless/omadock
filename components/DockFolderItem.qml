@@ -48,11 +48,7 @@ Item {
     return DockModel.resolveThemedFolderIcon(fitem.icon, root ? root.currentIconThemeName : "Yaru", root ? root.folderColor : "theme", root ? root.appLibrary : null)
   }
   readonly property bool isSymbolic: resolvedSource.indexOf("-symbolic.svg") >= 0 || resolvedSource.indexOf("symbolic") >= 0
-  readonly property color symbolicColor: {
-    if (root && root.folderColor === "white") return "#ffffff"
-    if (root && root.folderColor === "black") return "#111111"
-    return (Color.bar.background.hslLightness < 0.5 || Color.background.hslLightness < 0.5) ? "#ffffff" : "#111111"
-  }
+  readonly property color symbolicColor: root ? root.symbolicIconColor : "#ffffff"
 
   Behavior on magnifyScale {
     NumberAnimation { duration: 110; easing.type: Easing.OutQuad }
