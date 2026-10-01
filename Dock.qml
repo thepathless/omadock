@@ -427,6 +427,9 @@ Item {
   readonly property int folderSlots: root.pinnedFolders ? root.pinnedFolders.length : 0
   readonly property int driveSlots: (root.showRemovableDrives && root.mountedDrives) ? root.mountedDrives.length : 0
   readonly property bool hasFolderSeparator: (root.folderSlots > 0 || root.driveSlots > 0) && (root.pinnedSection.length > 0 || root.groupSlots > 0 || root.hasTiles || root.visibleRunningCount > 0)
+  // Folders | drives divider: drives come and go with the hardware, so they
+  // get a section of their own instead of trailing the pinned folders.
+  readonly property bool hasDriveSeparator: root.folderSlots > 0 && root.driveSlots > 0
 
   // Minimized-window preview tiles (macOS-style section on the dock's right).
   // In minimizeMode "all", a parked app's windows compress into ONE stacked
@@ -473,12 +476,14 @@ Item {
   readonly property int elementTotal: root.visibleSlotTotal
     + (root.hasSeparator ? 1 : 0)
     + (root.hasFolderSeparator ? 1 : 0)
+    + (root.hasDriveSeparator ? 1 : 0)
     + (root.hasLeftTileSeparator ? 1 : 0)
     + (root.hasTiles ? root.tileCount : 0)
 
   readonly property real baseRowWidth: root.visibleSlotTotal * root.iconSlot
     + (root.hasSeparator ? root.separatorWidth : 0)
     + (root.hasFolderSeparator ? root.separatorWidth : 0)
+    + (root.hasDriveSeparator ? root.separatorWidth : 0)
     + (root.hasLeftTileSeparator ? root.separatorWidth : 0)
     + (root.hasTiles ? root.tileCount * root.tileWidth : 0)
     + Math.max(0, root.elementTotal - 1) * root.gapWidth

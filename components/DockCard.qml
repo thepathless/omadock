@@ -266,7 +266,7 @@ Item {
     var origin = cardWrapper.x + dockCard.x
     var inset = dockCard.contentLeftInset
     var gap = Math.max(1, Math.round(root.sectionGap * dpr)) / dpr
-    var seps = [leftTileSeparator, separator, folderSeparator]
+    var seps = [leftTileSeparator, separator, folderSeparator, driveSeparator]
     var out = []
     var start = 0
     for (var i = 0; i < seps.length; i++) {
@@ -591,6 +591,17 @@ Item {
         Behavior on width { NumberAnimation { duration: 160; easing.type: Easing.OutCubic } }
       }
 
+      Rectangle {
+        id: driveSeparator
+        visible: root ? root.hasDriveSeparator : false
+        anchors.verticalCenter: parent.verticalCenter
+        anchors.verticalCenterOffset: root ? root.iconCenterOffset : 0
+        width: root ? root.separatorWidth : Style.space(1)
+        height: root ? (root.iconSize * 0.7) : 24
+        // With split sections the separator is the gap between two panels.
+        color: (root && root.splitSections) ? "transparent" : Util.alpha(root ? root.dockForeground : Color.bar.text, 0.25)
+      }
+
       Repeater {
         id: drivesRepeater
         model: (root && root.showRemovableDrives) ? root.mountedDrives : []
@@ -604,9 +615,9 @@ Item {
           fstype: modelData.fstype || ""
           icon: modelData.icon || "drive-removable-media"
           homeCenter: root ? root.slotHomeCenter(
-            root.appsSlots + root.pinnedSection.length + root.groupSlots + (root.hasLeftTileSeparator ? 1 : 0) + (root.hasSeparator ? 1 : 0) + root.tileElements + root.visibleRunningCount + (root.hasFolderSeparator ? 1 : 0) + root.pinnedFolders.length + index,
+            root.appsSlots + root.pinnedSection.length + root.groupSlots + (root.hasLeftTileSeparator ? 1 : 0) + (root.hasSeparator ? 1 : 0) + root.tileElements + root.visibleRunningCount + (root.hasFolderSeparator ? 1 : 0) + root.pinnedFolders.length + (root.hasDriveSeparator ? 1 : 0) + index,
             root.appsSlots + root.pinnedSection.length + root.groupSlots + root.visibleRunningCount + root.pinnedFolders.length + index,
-            (root.hasLeftTileSeparator ? 1 : 0) + (root.hasSeparator ? 1 : 0) + (root.hasFolderSeparator ? 1 : 0),
+            (root.hasLeftTileSeparator ? 1 : 0) + (root.hasSeparator ? 1 : 0) + (root.hasFolderSeparator ? 1 : 0) + (root.hasDriveSeparator ? 1 : 0),
             root.tilesFixedWidth) : 0
           onOpenStackRequested: function(fpath, fname, cx, cy) {
             if (root) root.openFolderStack(fpath, fname, cx)
