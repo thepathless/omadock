@@ -213,6 +213,7 @@ BorderSurface {
         themeVersion: root ? root.themeVersion : 0
         currentIconThemeName: root ? root.currentIconThemeName : "Yaru"
         folderColor: root ? root.folderColor : "theme"
+        symbolicColor: root ? root.symbolicColorOn(Color.menu.background) : "#ffffff"
         appLibrary: root ? root.appLibrary : null
         onTriggered: folderStackPopover.activate(modelData)
         onDragFinished: function(action) { folderStackPopover.dragDone(action) }
@@ -239,6 +240,7 @@ BorderSurface {
         themeVersion: root ? root.themeVersion : 0
         currentIconThemeName: root ? root.currentIconThemeName : "Yaru"
         folderColor: root ? root.folderColor : "theme"
+        symbolicColor: root ? root.symbolicColorOn(Color.menu.background) : "#ffffff"
         appLibrary: root ? root.appLibrary : null
         onTriggered: folderStackPopover.activate(modelData)
         onDragFinished: function(action) { folderStackPopover.dragDone(action) }

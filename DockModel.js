@@ -863,7 +863,7 @@ function resolveThemedFolderIcon(iconName, themeName, folderColorMode, appLibrar
   // Explicit white, black, or symbolic mode — deliberately monochrome Adwaita outlines.
   // These are intentionally hardcoded for B&W Omarchy themes (vantablack, white, etc.)
   // and must NOT be intercepted by the iconIndex which may return colored variants.
-  if (folderColorMode === "white" || folderColorMode === "black" || folderColorMode === "symbolic") {
+  if (folderColorMode === "white" || folderColorMode === "black" || folderColorMode === "bw" || folderColorMode === "symbolic") {
     return "file:///usr/share/icons/Adwaita/symbolic/places/" + name + "-symbolic.svg"
   }
 
@@ -987,11 +987,12 @@ function resolveDriveIcon(iconName, themeName, appLibrary, folderColorMode) {
 
   // Drives follow the folder colour, so they sit next to the folders in the
   // same style: wherever folders use Adwaita's monochrome outlines (white,
-  // black or symbolic, or a theme with no Yaru colour), drives do too.
+  // black, black-or-white or symbolic, or a theme with no Yaru colour),
+  // drives do too.
   var theme = String(themeName || "").trim()
   var yaruTheme = theme === "Yaru" || (theme.indexOf("Yaru-") === 0 && theme !== "Yaru-gray" && theme !== "Yaru-grey")
   var mode = String(folderColorMode || "theme")
-  if (mode === "white" || mode === "black" || mode === "symbolic"
+  if (mode === "white" || mode === "black" || mode === "bw" || mode === "symbolic"
       || ((mode === "theme" || mode === "auto") && !yaruTheme)) {
     var symbolicMap = {
       "drive-removable-media-usb": "media-removable",

@@ -47,11 +47,8 @@ Item {
     return DockModel.resolveFileItemIcon(frow.icon, frow.currentIconThemeName, frow.folderColor, frow.appLibrary || null)
   }
   readonly property bool isIconSymbolic: resolvedIconSource.indexOf("-symbolic.svg") >= 0 || resolvedIconSource.indexOf("symbolic") >= 0
-  readonly property color symbolicColor: {
-    if (frow.folderColor === "white") return "#ffffff"
-    if (frow.folderColor === "black") return "#111111"
-    return (Color.bar.background.hslLightness < 0.5 || Color.background.hslLightness < 0.5) ? "#ffffff" : "#111111"
-  }
+  // Set by the popup, which knows the backdrop the row sits on.
+  property color symbolicColor: "#ffffff"
 
   Rectangle {
     anchors.fill: parent

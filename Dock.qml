@@ -971,11 +971,18 @@ Item {
   property int themeVersion: 0
   property string currentIconThemeName: "Yaru"
   property string folderColor: "theme"
-  // Colour for symbolic folder and drive icons in the original icon style:
-  // the folder colour setting, or white or black to suit the theme.
-  readonly property color symbolicIconColor: {
+  // Colour for symbolic folder and drive icons in the original icon style,
+  // on the dock's own backdrop.
+  readonly property color symbolicIconColor: root.symbolicColorOn(root.iconBackdropColor)
+
+  // Symbolic icon colour over a given backdrop: white or black when set,
+  // for "bw" whichever of the two contrasts more with that backdrop (so a
+  // folder can be dark on the dock and light in a dark stack popup), and
+  // otherwise white or black to suit the theme.
+  function symbolicColorOn(backdrop) {
     if (root.folderColor === "white") return "#ffffff"
     if (root.folderColor === "black") return "#111111"
+    if (root.folderColor === "bw") return root.blackOrWhiteOn(backdrop)
     return (Color.bar.background.hslLightness < 0.5 || Color.background.hslLightness < 0.5) ? "#ffffff" : "#111111"
   }
   property int itemSpacing: 4
@@ -2133,6 +2140,7 @@ Item {
     if (!colorId || colorId === "theme" || colorId === "auto") return "Auto (Theme)"
     if (colorId === "white") return "White"
     if (colorId === "black") return "Black"
+    if (colorId === "bw") return "Black or white"
     var map = {
       "Yaru-sage": "Sage Green",
       "Yaru-olive": "Olive",

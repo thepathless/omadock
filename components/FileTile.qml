@@ -1,4 +1,5 @@
 import QtQuick
+import QtQuick.Effects
 import Quickshell
 import qs.Commons
 import "../DockModel.js" as DockModel
@@ -18,6 +19,8 @@ Item {
   property int themeVersion: 0
   property string currentIconThemeName: "Yaru"
   property string folderColor: "theme"
+  // Set by the popup, which knows the backdrop the tile sits on.
+  property color symbolicColor: "#ffffff"
   property var appLibrary: null
 
   signal triggered()
@@ -28,6 +31,7 @@ Item {
     var _tv = tile.themeVersion
     return DockModel.resolveFileItemIcon(tile.icon, tile.currentIconThemeName, tile.folderColor, tile.appLibrary || null)
   }
+  readonly property bool isIconSymbolic: resolvedIconSource.indexOf("symbolic") >= 0
   readonly property bool hasPreview: tile.thumb !== "" && preview.status !== Image.Error
 
   width: Style.space(92)
@@ -69,14 +73,25 @@ Item {
     }
 
     Image {
+      id: iconImg
       anchors.fill: parent
-      visible: !tile.hasPreview
+      visible: !tile.hasPreview && !tile.isIconSymbolic
       source: tile.resolvedIconSource
       sourceSize: Qt.size(Style.space(112), Style.space(112))
       fillMode: Image.PreserveAspectFit
       asynchronous: true
       smooth: true
       mipmap: true
+    }
+
+    // Symbolic icons are grey templates: recoloured as in the list view.
+    MultiEffect {
+      anchors.fill: iconImg
+      visible: !tile.hasPreview && tile.isIconSymbolic
+      source: iconImg
+      brightness: 1.0
+      colorization: 1.0
+      colorizationColor: tile.symbolicColor
     }
   }
 

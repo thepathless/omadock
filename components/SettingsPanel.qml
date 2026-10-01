@@ -1230,6 +1230,16 @@ PanelWindow {
                 onClicked: root.setFolderColor("theme")
               }
 
+              // Monochrome outlines in black or white, whichever reads
+              // better on what is behind them: the dock, or a stack popup.
+              Button {
+                text: "Auto B/W"
+                foreground: Color.menu.text
+                bordered: true
+                selected: root ? root.folderColor === "bw" : false
+                onClicked: root.setFolderColor("bw")
+              }
+
               Repeater {
                 model: [
                   { id: "white", color: "#ffffff" },
