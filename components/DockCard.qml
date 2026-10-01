@@ -544,15 +544,23 @@ Item {
       }
 
       // Divider between pinned apps and the minimized-tile section.
-      Rectangle {
+      Item {
         id: leftTileSeparator
         visible: root ? root.hasLeftTileSeparator : false
         anchors.verticalCenter: parent.verticalCenter
         anchors.verticalCenterOffset: root ? root.iconCenterOffset : 0
         width: root ? root.separatorWidth : Style.space(1)
         height: root ? (root.iconSize * 0.7) : 24
-        // With split sections the separator is the gap between two panels.
-        color: (root && root.splitSections) ? "transparent" : Util.alpha(root ? root.dockForeground : Color.bar.text, 0.25)
+
+        // The line, centred in its slot. With split sections the slot is
+        // the gap between two panels and no line is drawn.
+        Rectangle {
+          visible: !(root && root.splitSections)
+          anchors.centerIn: parent
+          width: Style.space(1)
+          height: parent.height
+          color: Util.alpha(root ? root.dockForeground : Color.bar.text, 0.25)
+        }
       }
 
       // ------------------------------------------ minimized window tiles
@@ -569,15 +577,23 @@ Item {
         }
       }
 
-      Rectangle {
+      Item {
         id: separator
         visible: root ? root.hasSeparator : false
         anchors.verticalCenter: parent.verticalCenter
         anchors.verticalCenterOffset: root ? root.iconCenterOffset : 0
         width: root ? root.separatorWidth : Style.space(1)
         height: root ? (root.iconSize * 0.7) : 24
-        // With split sections the separator is the gap between two panels.
-        color: (root && root.splitSections) ? "transparent" : Util.alpha(root ? root.dockForeground : Color.bar.text, 0.25)
+
+        // The line, centred in its slot. With split sections the slot is
+        // the gap between two panels and no line is drawn.
+        Rectangle {
+          visible: !(root && root.splitSections)
+          anchors.centerIn: parent
+          width: Style.space(1)
+          height: parent.height
+          color: Util.alpha(root ? root.dockForeground : Color.bar.text, 0.25)
+        }
       }
 
       Repeater {
@@ -628,15 +644,23 @@ Item {
         }
       }
 
-      Rectangle {
+      Item {
         id: folderSeparator
         visible: root ? root.hasFolderSeparator : false
         anchors.verticalCenter: parent.verticalCenter
         anchors.verticalCenterOffset: root ? root.iconCenterOffset : 0
         width: root ? root.separatorWidth : Style.space(1)
         height: root ? (root.iconSize * 0.7) : 24
-        // With split sections the separator is the gap between two panels.
-        color: (root && root.splitSections) ? "transparent" : Util.alpha(root ? root.dockForeground : Color.bar.text, 0.25)
+
+        // The line, centred in its slot. With split sections the slot is
+        // the gap between two panels and no line is drawn.
+        Rectangle {
+          visible: !(root && root.splitSections)
+          anchors.centerIn: parent
+          width: Style.space(1)
+          height: parent.height
+          color: Util.alpha(root ? root.dockForeground : Color.bar.text, 0.25)
+        }
       }
 
       Repeater {
@@ -675,15 +699,23 @@ Item {
         Behavior on width { NumberAnimation { duration: 160; easing.type: Easing.OutCubic } }
       }
 
-      Rectangle {
+      Item {
         id: driveSeparator
         visible: root ? root.hasDriveSeparator : false
         anchors.verticalCenter: parent.verticalCenter
         anchors.verticalCenterOffset: root ? root.iconCenterOffset : 0
         width: root ? root.separatorWidth : Style.space(1)
         height: root ? (root.iconSize * 0.7) : 24
-        // With split sections the separator is the gap between two panels.
-        color: (root && root.splitSections) ? "transparent" : Util.alpha(root ? root.dockForeground : Color.bar.text, 0.25)
+
+        // The line, centred in its slot. With split sections the slot is
+        // the gap between two panels and no line is drawn.
+        Rectangle {
+          visible: !(root && root.splitSections)
+          anchors.centerIn: parent
+          width: Style.space(1)
+          height: parent.height
+          color: Util.alpha(root ? root.dockForeground : Color.bar.text, 0.25)
+        }
       }
 
       Repeater {
