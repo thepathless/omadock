@@ -68,10 +68,8 @@ Item {
   Timer {
     id: configReloadDebounce
     interval: 120
-    onTriggered: {
-      configFile.reload()
-      host.loadConfig()
-    }
+    // The read is asynchronous; onLoaded applies it once it lands.
+    onTriggered: configFile.reload()
   }
 
   // Parked-window bookkeeping, shared so any dock can restore a window that

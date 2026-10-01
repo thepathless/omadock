@@ -44,15 +44,19 @@ Item {
   signal fileChanged()
 
   // One-shot gated read. Safe to call at any time: a superseded in-flight
-  // read is terminated and re-queued.
+  // read is terminated and re-queued. It is asynchronous: text is still the
+  // previous content when reload() returns, so read it from onLoaded only.
   function reload() {
     if (!root.path) return
     gate.running = false
     gate.running = true
   }
 
+  // The file now holds exactly content, so text follows it at once; a caller
+  // merging into text (saveConfig) must not see the content from before.
   function setText(content) {
     watcher.setText(content)
+    root.text = content
   }
 
   Component.onCompleted: root.reload()

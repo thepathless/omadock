@@ -1663,21 +1663,15 @@ Item {
     id: configReloadDebounce
     interval: 120
     repeat: false
-    onTriggered: {
-      configFile.reload()
-      root.loadConfig()
-      root.scanRemovableDrives()
-    }
+    // The read is asynchronous; onLoaded applies it once it lands.
+    onTriggered: configFile.reload()
   }
 
   Timer {
     id: dockReloadDebounce
     interval: 120
     repeat: false
-    onTriggered: {
-      dockFile.reload()
-      root.loadPinned()
-    }
+    onTriggered: dockFile.reload()
   }
 
   CappedFileView {
@@ -1713,10 +1707,7 @@ Item {
     maxBytes: DockModel.MAX_ICONS_THEME_BYTES
     watchChanges: true
     onLoaded: root.handleThemeChanged()
-    onFileChanged: {
-      themeIconsFile.reload()
-      root.handleThemeChanged()
-    }
+    onFileChanged: themeIconsFile.reload()
   }
 
   CappedFileView {
@@ -1725,10 +1716,7 @@ Item {
     maxBytes: DockModel.MAX_COLORS_TOML_BYTES
     watchChanges: true
     onLoaded: root.handleThemeChanged()
-    onFileChanged: {
-      themeColorsFile.reload()
-      root.handleThemeChanged()
-    }
+    onFileChanged: themeColorsFile.reload()
   }
 
   CappedFileView {
