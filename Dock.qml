@@ -18,7 +18,6 @@ Item {
   readonly property alias dockCard: dockCardComp.dockCard
   readonly property alias cardHover: dockCardComp.cardHover
   readonly property alias hitboxHover: dockCardComp.hitboxHover
-  readonly property alias pinnedRepeater: dockCardComp.pinnedRepeater
   readonly property alias minimizedTilesRepeater: dockCardComp.minimizedTilesRepeater
   readonly property alias runningRepeater: dockCardComp.runningRepeater
   readonly property alias foldersRepeater: dockCardComp.foldersRepeater
@@ -599,6 +598,8 @@ Item {
   property var minimizedWindows: []
   property string _minimizedSig: ""
   readonly property var pinnedSection: root.dockModel.pinned || []
+  // Pinned apps and app groups in dock order (DockModel.pinnedRow).
+  readonly property var pinnedRow: DockModel.pinnedRow(root.pinnedSection, root.appGroups)
   readonly property var runningSection: root.dockModel.running || []
   readonly property var groupedSection: root.dockModel.grouped || []
 
@@ -710,8 +711,9 @@ Item {
   // Insert index among the pinned folders for the dragged folder; -1 while
   // the pointer is outside the folder section.
   property int dropFolderIndex: -1
-  // The same among the app groups for the dragged group.
-  property int dropGroupIndex: -1
+  // Insert index in pinnedRow for a pinned app or group being dragged;
+  // -1 while the pointer is outside the pinned run.
+  property int dropRowIndex: -1
   // The drag has been pulled up off the dock: letting go unpins or removes.
   property bool dragRemoveArmed: false
   // Pointer of the drag in progress, in dock card coordinates.
@@ -1381,12 +1383,20 @@ Item {
       folderName = targetEntry.name + " & more"
     }
 
+    // The group takes the place of the app it was dropped on.
+    var pinsNow = root.pinnedIds || []
+    var at = pinsNow.indexOf(targetAppId)
+    var anchor = ""
+    for (var n = at + 1; at >= 0 && n < pinsNow.length; n++) {
+      if (pinsNow[n] !== targetAppId && pinsNow[n] !== draggedAppId) { anchor = pinsNow[n]; break }
+    }
     var newGroup = {
       id: "group_" + Date.now(),
       name: folderName,
       icon: "folder",
       apps: [targetAppId, draggedAppId],
-      cols: 3
+      cols: 3,
+      before: anchor
     }
     root.appGroups = (root.appGroups || []).concat([newGroup])
 
@@ -1411,7 +1421,7 @@ Item {
       if (g && g.id === groupId) {
         var curApps = DockModel.toArray(g.apps)
         if (curApps.indexOf(appId) < 0) curApps.push(appId)
-        next.push({ id: g.id, name: g.name, icon: g.icon, apps: curApps, cols: g.cols || 3 })
+        next.push({ id: g.id, name: g.name, icon: g.icon, apps: curApps, cols: g.cols || 3, before: g.before || "" })
       } else {
         next.push(g)
       }
@@ -1435,7 +1445,7 @@ Item {
     for (var i = 0; i < groups.length; i++) {
       var g = groups[i]
       if (g && g.id === groupId) {
-        next.push({ id: g.id, name: newName.trim(), icon: g.icon, apps: g.apps, cols: g.cols || 3 })
+        next.push({ id: g.id, name: newName.trim(), icon: g.icon, apps: g.apps, cols: g.cols || 3, before: g.before || "" })
       } else {
         next.push(g)
       }
@@ -1459,7 +1469,7 @@ Item {
     for (var i = 0; i < groups.length; i++) {
       var g = groups[i]
       if (g && g.id === groupId) {
-        next.push({ id: g.id, name: g.name, icon: g.icon, apps: g.apps, cols: c })
+        next.push({ id: g.id, name: g.name, icon: g.icon, apps: g.apps, cols: c, before: g.before || "" })
       } else {
         next.push(g)
       }
@@ -1487,7 +1497,7 @@ Item {
         }
         remainingApps = filtered
         if (filtered.length > 1) {
-          next.push({ id: g.id, name: g.name, icon: g.icon, apps: filtered, cols: g.cols || 3 })
+          next.push({ id: g.id, name: g.name, icon: g.icon, apps: filtered, cols: g.cols || 3, before: g.before || "" })
         }
       } else {
         next.push(g)
@@ -3516,8 +3526,23 @@ Item {
   }
 
   function setPinned(next) {
+    // A group standing before an app that is no longer pinned moves before
+    // the next one that is, instead of dropping to the end.
+    var groups = DockModel.reanchorGroups(root.appGroups, root.pinnedIds, next)
     root.pinnedIds = next
     dockFile.setText(DockModel.serializePinned(next))
+    if (groups !== root.appGroups) {
+      root.appGroups = groups
+      root.saveConfig()
+    }
+  }
+
+  // Puts pinned apps and app groups in the order of a pinnedRow.
+  function applyPinnedRow(row) {
+    var state = DockModel.rowState(row, root.pinnedIds)
+    root.appGroups = state.groups
+    root.setPinned(state.pins)
+    root.saveConfig()
   }
 
   function togglePin(appId) {
@@ -3834,18 +3859,17 @@ Item {
     root.saveConfig()
   }
 
-  // Move an app group or a pinned folder so it lands before the one now at
-  // insertIndex (the end when insertIndex is past the last one).
+  // Move an app group within the pinned run, or a pinned folder among the
+  // folders, so it lands before the item now at insertIndex (the end when
+  // insertIndex is past the last one).
   function moveAppGroup(groupId, insertIndex) {
-    var list = root.appGroups || []
+    var row = root.pinnedRow
     var from = -1
-    for (var i = 0; i < list.length; i++) {
-      if (list[i] && list[i].id === groupId) { from = i; break }
+    for (var i = 0; i < row.length; i++) {
+      if (row[i].kind === "group" && row[i].id === groupId) { from = i; break }
     }
-    var next = DockModel.moveBefore(list, from, insertIndex)
-    if (next === list) return
-    root.appGroups = next
-    root.saveConfig()
+    var next = DockModel.moveBefore(row, from, insertIndex)
+    if (next !== row) root.applyPinnedRow(next)
   }
 
   function moveFolder(path, insertIndex) {

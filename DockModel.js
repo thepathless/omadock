@@ -383,9 +383,100 @@ function boundAppGroups(arr) {
       name: name || "Group",
       icon: _boundedStr(g.icon, MAX_APP_GROUP_ICON) || "folder",
       apps: apps,
-      cols: Math.max(1, Math.min(6, Math.round(Number(g.cols) || 3)))
+      cols: Math.max(1, Math.min(6, Math.round(Number(g.cols) || 3))),
+      // Pinned app the group stands before in the dock; "" for the end.
+      before: _boundedStr(g.before, MAX_APP_GROUP_ID) || ""
     }
   })
+}
+
+// ---------------------------------------------------------------- pinned row
+// Pinned apps and app groups share one run of the dock. Pins keep their own
+// order (pinnedIds); each group records the pinned app it stands before
+// (group.before, "" for the end of the run).
+
+// The run in dock order: { kind: "app", appId, entry } and { kind: "group",
+// id, group } items. Groups whose app is not in entries go to the end; groups
+// before the same app keep their order in groups.
+function pinnedRow(entries, groups) {
+  var apps = toArray(entries)
+  var list = toArray(groups)
+  var present = {}
+  for (var i = 0; i < apps.length; i++) if (apps[i]) present[apps[i].appId] = true
+  var byAnchor = {}
+  var tail = []
+  for (var g = 0; g < list.length; g++) {
+    var grp = list[g]
+    if (!grp) continue
+    var item = { kind: "group", id: grp.id, group: grp }
+    var anchor = grp.before || ""
+    if (anchor && present[anchor]) (byAnchor[anchor] = byAnchor[anchor] || []).push(item)
+    else tail.push(item)
+  }
+  var row = []
+  for (var a = 0; a < apps.length; a++) {
+    var e = apps[a]
+    if (!e) continue
+    var before = byAnchor[e.appId] || []
+    for (var b = 0; b < before.length; b++) row.push(before[b])
+    row.push({ kind: "app", appId: e.appId, entry: e })
+  }
+  return row.concat(tail)
+}
+
+// Pins and groups that put the dock in the order of row: pins in row order
+// (with any pinned id the row does not show kept at the end), and each group
+// standing before the next app after it in the row.
+function rowState(row, pinnedIds) {
+  var items = toArray(row)
+  var pins = []
+  var groups = []
+  var pending = []
+  for (var i = 0; i < items.length; i++) {
+    var it = items[i]
+    if (!it) continue
+    if (it.kind === "app") {
+      pins.push(it.appId)
+      for (var p = 0; p < pending.length; p++) pending[p].before = it.appId
+      pending = []
+    } else if (it.kind === "group") {
+      var copy = {}
+      for (var k in it.group) copy[k] = it.group[k]
+      copy.before = ""
+      groups.push(copy)
+      pending.push(copy)
+    }
+  }
+  var shown = {}
+  for (var s = 0; s < pins.length; s++) shown[pins[s]] = true
+  var ids = toArray(pinnedIds)
+  for (var r = 0; r < ids.length; r++) if (!shown[ids[r]]) pins.push(ids[r])
+  return { pins: pins, groups: groups }
+}
+
+// Groups re-anchored for a change of pins: a group whose app is no longer
+// pinned moves before the next app after it in oldPins that still is.
+function reanchorGroups(groups, oldPins, newPins) {
+  var list = toArray(groups)
+  var older = toArray(oldPins)
+  var kept = {}
+  var newer = toArray(newPins)
+  for (var n = 0; n < newer.length; n++) kept[newer[n]] = true
+  var changed = false
+  var out = list.map(function(g) {
+    if (!g || !g.before || kept[g.before]) return g
+    var from = older.indexOf(g.before)
+    var anchor = ""
+    for (var i = from + 1; from >= 0 && i < older.length; i++) {
+      if (kept[older[i]]) { anchor = older[i]; break }
+    }
+    var copy = {}
+    for (var k in g) copy[k] = g[k]
+    copy.before = anchor
+    changed = true
+    return copy
+  })
+  return changed ? out : list
 }
 
 // Persisted pinned folders: drop malformed entries, cap counts and lengths.

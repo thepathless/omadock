@@ -16,8 +16,7 @@ Item {
   property alias dockHitbox: dockHitbox
   property alias hitboxHover: hitboxHover
   property alias row: row
-  property alias pinnedRepeater: pinnedRepeater
-  property alias appGroupsRepeater: appGroupsRepeater
+  property alias pinnedRowRepeater: pinnedRowRepeater
   property alias minimizedTilesRepeater: minimizedTilesRepeater
   property alias runningRepeater: runningRepeater
   property alias foldersRepeater: foldersRepeater
@@ -67,56 +66,60 @@ Item {
     root.dragRemoveArmed = root.dragSourceGroupId === "" && DockModel.isPinned(root.pinnedIds, aid) && cardWrapper.offDockAt(my)
     if (root.dragRemoveArmed) return
 
-    // 1. Check if hovering over any existing App Group
-    var gCount = appGroupsRepeater ? appGroupsRepeater.count : 0
-    for (var g = 0; g < gCount; g++) {
-      var grp = appGroupsRepeater.itemAt(g)
-      if (!grp || !grp.visible) continue
-      var grpGlobalX = row.x + grp.x
-      var grpCenter = grpGlobalX + grp.width / 2
-      if (Math.abs(mx - grpCenter) < (grp.width * 0.45)) {
-        root.dropTargetGroupId = grp.groupId
+    // Over the middle of a group: add to it. Over the middle of another
+    // pinned app: make a group of the two. Otherwise a place in the run.
+    var rx = mx - row.x
+    var n = pinnedRowRepeater.count
+    for (var i = 0; i < n; i++) {
+      var slot = pinnedRowRepeater.itemAt(i)
+      var it = slot ? slot.item : null
+      if (!it) continue
+      var centre = slot.x + slot.width / 2
+      if (slot.isGroup) {
+        if (Math.abs(rx - centre) < slot.width * 0.45) {
+          root.dropTargetGroupId = it.groupId
+          root.dropRowIndex = -1
+          return
+        }
+      } else if (it.appId !== aid && Math.abs(rx - centre) < slot.width * 0.38) {
+        root.dropTargetAppId = it.appId
+        root.dropRowIndex = -1
         return
       }
     }
 
-    // 2. Check if hovering over the center body of another pinned icon to create a folder
-    var count = pinnedRepeater ? pinnedRepeater.count : 0
-    for (var i = 0; i < count; i++) {
-      var child = pinnedRepeater.itemAt(i)
-      if (!child || !child.visible || child.appId === aid) continue
-      var childGlobalX = row.x + child.x
-      var childCenter = childGlobalX + child.width / 2
-      if (Math.abs(mx - childCenter) < (child.width * 0.38)) {
-        root.dropTargetAppId = child.appId
-        return
-      }
-    }
-
-    // 3. Reorder insertion marker between pinned icons
-    var found = false
-    for (var j = 0; j < count; j++) {
-      var ch = pinnedRepeater.itemAt(j)
-      if (!ch || !ch.visible) continue
-      var chX = row.x + ch.x
-      var chCenter = chX + ch.width / 2
-      if (mx < chCenter) {
-        root.dropBeforeId = ch.appId
-        root.dropIndicatorX = chX - Style.space(1)
-        found = true
+    var idx = cardWrapper.rowInsertIndex(rx)
+    root.dropRowIndex = idx
+    if (idx < 0) return
+    root.dropIndicatorX = cardWrapper.rowIndicatorX(idx)
+    // The first app at or after the drop, for moves that work in pin order.
+    for (var j = idx; j < n; j++) {
+      var s2 = pinnedRowRepeater.itemAt(j)
+      if (s2 && !s2.isGroup && s2.item && s2.item.appId !== aid) {
+        root.dropBeforeId = s2.item.appId
         break
       }
     }
-    if (!found && count > 0) {
-      for (var k = count - 1; k >= 0; k--) {
-        var lastChild = pinnedRepeater.itemAt(k)
-        if (lastChild && lastChild.visible) {
-          root.dropBeforeId = ""
-          root.dropIndicatorX = row.x + lastChild.x + lastChild.width + Style.space(1)
-          break
-        }
-      }
+  }
+
+  // Insert index in the pinned run for a pointer at row x: before the first
+  // item whose centre lies right of it, so past the end of the run (over the
+  // running apps, say) means its end. -1 when the run is empty.
+  function rowInsertIndex(rx) {
+    var n = pinnedRowRepeater.count
+    if (n === 0) return -1
+    for (var i = 0; i < n; i++) {
+      var slot = pinnedRowRepeater.itemAt(i)
+      if (slot && rx < slot.x + slot.width / 2) return i
     }
+    return n
+  }
+
+  function rowIndicatorX(idx) {
+    var n = pinnedRowRepeater.count
+    if (idx < n) return row.x + pinnedRowRepeater.itemAt(idx).x - row.spacing / 2 - Style.space(1)
+    var last = pinnedRowRepeater.itemAt(n - 1)
+    return row.x + last.x + last.width + row.spacing / 2 - Style.space(1)
   }
 
   function handleDragDropped(aid) {
@@ -127,11 +130,13 @@ Item {
     var beforeId = root.dropBeforeId
     var sourceGroupId = root.dragSourceGroupId
     var removeArmed = root.dragRemoveArmed
+    var rowIdx = root.dropRowIndex
 
     root.dragAppId = ""
     root.dropBeforeId = ""
     root.dropTargetGroupId = ""
     root.dropTargetAppId = ""
+    root.dropRowIndex = -1
     root.dragRemoveArmed = false
 
     if (dragId !== "" && removeArmed) {
@@ -153,9 +158,26 @@ Item {
         root.createAppGroupFromDrop(targetAppId, dragId)
       } else {
         var isAlreadyPinned = Boolean(root.pinnedIds && root.pinnedIds.indexOf(dragId) >= 0)
-        var isDroppedOnPinned = Boolean(beforeId !== "" && root.pinnedIds && root.pinnedIds.indexOf(beforeId) >= 0)
-        if (isAlreadyPinned || isDroppedOnPinned || sourceGroupId !== "") {
+        var rowNow = root.pinnedRow
+        if (sourceGroupId !== "") {
+          // Out of an open group: the group has just changed under the drag,
+          // so place the app by pin order alone.
           root.setPinned(DockModel.reorderPinned(root.pinnedIds, dragId, beforeId))
+        } else if (rowIdx >= 0 && (isAlreadyPinned || rowIdx < rowNow.length)) {
+          // A pinned app moves within the run; a running one dropped before
+          // any item of it gets pinned there. Groups keep their places.
+          var from = -1
+          for (var r = 0; r < rowNow.length; r++) {
+            if (rowNow[r].kind === "app" && rowNow[r].appId === dragId) { from = r; break }
+          }
+          var nextRow
+          if (from >= 0) {
+            nextRow = DockModel.moveBefore(rowNow, from, rowIdx)
+          } else {
+            nextRow = rowNow.slice()
+            nextRow.splice(rowIdx, 0, { kind: "app", appId: dragId })
+          }
+          if (nextRow !== rowNow) root.applyPinnedRow(nextRow)
         }
       }
       root.dragSourceGroupId = ""
@@ -209,12 +231,12 @@ Item {
     root.syncVisibility()
   }
 
-  // App groups reorder among themselves, after the pinned apps, the way
-  // folders do among folders: an accent line marks where the group lands.
+  // App groups move anywhere in the pinned run, among the pinned apps; an
+  // accent line marks where the group lands.
   function handleGroupDragStarted(gid) {
     if (!root) return
     root.dragGroupId = gid
-    root.dropGroupIndex = -1
+    root.dropRowIndex = -1
     root.dragRemoveArmed = false
   }
 
@@ -223,32 +245,17 @@ Item {
     root.dragPointerX = mx
     root.dragPointerY = my
     root.dragRemoveArmed = cardWrapper.offDockAt(my)
-    var n = appGroupsRepeater.count
-    var first = n > 0 ? appGroupsRepeater.itemAt(0) : null
-    var last = n > 0 ? appGroupsRepeater.itemAt(n - 1) : null
-    var rx = mx - row.x
-    if (root.dragRemoveArmed || n < 2 || !first || !last
-        || rx < first.x - row.spacing || rx > last.x + last.width + row.spacing) {
-      root.dropGroupIndex = -1
-      return
-    }
-    var idx = n
-    for (var i = 0; i < n; i++) {
-      var it = appGroupsRepeater.itemAt(i)
-      if (it && rx < it.x + it.width / 2) { idx = i; break }
-    }
-    root.dropGroupIndex = idx
-    root.dropIndicatorX = idx < n
-      ? row.x + appGroupsRepeater.itemAt(idx).x - row.spacing / 2 - Style.space(1)
-      : row.x + last.x + last.width + row.spacing / 2 - Style.space(1)
+    var idx = root.dragRemoveArmed ? -1 : cardWrapper.rowInsertIndex(mx - row.x)
+    root.dropRowIndex = idx
+    if (idx >= 0) root.dropIndicatorX = cardWrapper.rowIndicatorX(idx)
   }
 
   function handleGroupDragDropped(gid) {
     if (!root) return
     var removeArmed = root.dragRemoveArmed
-    var idx = root.dropGroupIndex
+    var idx = root.dropRowIndex
     root.dragGroupId = ""
-    root.dropGroupIndex = -1
+    root.dropRowIndex = -1
     root.dragRemoveArmed = false
     if (removeArmed) root.removeAppGroup(gid)
     else if (idx >= 0) root.moveAppGroup(gid, idx)
@@ -518,56 +525,71 @@ Item {
         }
       }
 
+      // Pinned apps and app groups share one run (root.pinnedRow): each
+      // group stands where its "before" app puts it.
       Repeater {
-        id: pinnedRepeater
-        model: root ? root.pinnedSection : []
-        delegate: DockItem {
-          rootRef: cardWrapper.rootRef
-          appId: modelData.appId
-          name: modelData.name
-          icon: modelData.icon
-          running: modelData.running
-          windows: modelData.windows
-          windowList: modelData.windowList
-          homeCenter: root ? root.slotHomeCenter(root.appsSlots + index, root.appsSlots + index, false) : 0
-          pinned: true
-          active: root ? (modelData.appId === root.activeId) : false
-          onActivateRequested: function(aid) { if (root) root.activate(aid) }
-          onNewWindowRequested: function(aid) { if (root) root.launchApp(aid, null) }
-          onMenuRequested: function(aid, cx, cy) { if (root) root.openContext(aid, cx, cy) }
-          onWheelScrolled: function(aid, dir) { if (root) root.cycleApp(aid, dir) }
-          onDragStarted: function(aid) {
-            if (root) {
-              root.dragAppId = aid
-              root.dropBeforeId = ""
-              root.dropTargetAppId = ""
-              root.dropTargetGroupId = ""
+        id: pinnedRowRepeater
+        model: root ? root.pinnedRow : []
+        delegate: Loader {
+          id: rowSlot
+          required property var modelData
+          required property int index
+          readonly property bool isGroup: modelData.kind === "group"
+          readonly property real home: root ? root.slotHomeCenter(root.appsSlots + index, root.appsSlots + index, false) : 0
+          sourceComponent: isGroup ? groupSlotComp : appSlotComp
+          // A zoomed icon raises itself over its neighbours; in the Row that
+          // takes the slot's z.
+          z: item ? item.z : 0
+
+          Component {
+            id: appSlotComp
+            DockItem {
+              readonly property var entry: rowSlot.modelData.entry
+              rootRef: cardWrapper.rootRef
+              appId: entry.appId
+              name: entry.name
+              icon: entry.icon
+              running: entry.running
+              windows: entry.windows
+              windowList: entry.windowList
+              homeCenter: rowSlot.home
+              pinned: true
+              active: root ? (entry.appId === root.activeId) : false
+              onActivateRequested: function(aid) { if (root) root.activate(aid) }
+              onNewWindowRequested: function(aid) { if (root) root.launchApp(aid, null) }
+              onMenuRequested: function(aid, cx, cy) { if (root) root.openContext(aid, cx, cy) }
+              onWheelScrolled: function(aid, dir) { if (root) root.cycleApp(aid, dir) }
+              onDragStarted: function(aid) {
+                if (root) {
+                  root.dragAppId = aid
+                  root.dropBeforeId = ""
+                  root.dropTargetAppId = ""
+                  root.dropTargetGroupId = ""
+                  root.dropRowIndex = -1
+                }
+              }
+              onDragMoved: function(aid, mx, my) { cardWrapper.handleDragMoved(aid, mx, my) }
+              onDragDropped: function(aid) { cardWrapper.handleDragDropped(aid) }
             }
           }
-          onDragMoved: function(aid, mx, my) { cardWrapper.handleDragMoved(aid, mx, my) }
-          onDragDropped: function(aid) { cardWrapper.handleDragDropped(aid) }
-        }
-      }
 
-      Repeater {
-        id: appGroupsRepeater
-        model: (root && root.appGroups) ? root.appGroups : []
-        delegate: DockAppGroupItem {
-          rootRef: cardWrapper.rootRef
-          groupData: modelData
-          homeCenter: root ? root.slotHomeCenter(
-            root.appsSlots + root.pinnedSection.length + index,
-            root.appsSlots + root.pinnedSection.length + index,
-            false) : 0
-          onOpenGroupRequested: function(gdata, cx, cy) {
-            if (root) root.openAppGroup(gdata, cx, cy)
+          Component {
+            id: groupSlotComp
+            DockAppGroupItem {
+              rootRef: cardWrapper.rootRef
+              groupData: rowSlot.modelData.group
+              homeCenter: rowSlot.home
+              onOpenGroupRequested: function(gdata, cx, cy) {
+                if (root) root.openAppGroup(gdata, cx, cy)
+              }
+              onMenuRequested: function(gdata, cx, cy) {
+                if (root) root.openAppGroupContext(gdata, cx, cy)
+              }
+              onDragStarted: function(gid) { cardWrapper.handleGroupDragStarted(gid) }
+              onDragMoved: function(gid, mx, my) { cardWrapper.handleGroupDragMoved(gid, mx, my) }
+              onDragDropped: function(gid) { cardWrapper.handleGroupDragDropped(gid) }
+            }
           }
-          onMenuRequested: function(gdata, cx, cy) {
-            if (root) root.openAppGroupContext(gdata, cx, cy)
-          }
-          onDragStarted: function(gid) { cardWrapper.handleGroupDragStarted(gid) }
-          onDragMoved: function(gid, mx, my) { cardWrapper.handleGroupDragMoved(gid, mx, my) }
-          onDragDropped: function(gid) { cardWrapper.handleGroupDragDropped(gid) }
         }
       }
 
@@ -787,9 +809,9 @@ Item {
     // Drop indicator line
     Rectangle {
       visible: root ? (!root.dragRemoveArmed
-        && ((root.dragAppId !== "" && root.dropTargetAppId === "" && root.dropTargetGroupId === "")
+        && ((root.dragAppId !== "" && root.dropTargetAppId === "" && root.dropTargetGroupId === "" && root.dropRowIndex >= 0)
           || (root.dragFolderPath !== "" && root.dropFolderIndex >= 0)
-          || (root.dragGroupId !== "" && root.dropGroupIndex >= 0))) : false
+          || (root.dragGroupId !== "" && root.dropRowIndex >= 0))) : false
       x: root ? root.dropIndicatorX : 0
       anchors.verticalCenter: row.verticalCenter
       width: Style.space(2)
