@@ -980,11 +980,22 @@ Item {
   // folder can be dark on the dock and light in a dark stack popup), and
   // otherwise white or black to suit the theme.
   function symbolicColorOn(backdrop) {
-    if (root.folderColor === "white") return "#ffffff"
-    if (root.folderColor === "black") return "#111111"
-    if (root.folderColor === "bw") return root.blackOrWhiteOn(backdrop)
-    return (Color.bar.background.hslLightness < 0.5 || Color.background.hslLightness < 0.5) ? "#ffffff" : "#111111"
+    var c
+    if (root.folderColor === "white") c = Qt.color("#ffffff")
+    else if (root.folderColor === "black") c = Qt.color("#111111")
+    else if (root.folderColor === "bw") c = root.blackOrWhiteOn(backdrop)
+    else c = Qt.color((Color.bar.background.hslLightness < 0.5 || Color.background.hslLightness < 0.5) ? "#ffffff" : "#111111")
+    // Pure white glares next to the app icons; mix a little of the backdrop
+    // into light glyphs so they sit in the panel instead.
+    if (c.hslLightness > 0.5) {
+      var bg = Qt.color(backdrop)
+      var k = root.symbolicLightSoftening
+      c = Qt.rgba(c.r + (bg.r - c.r) * k, c.g + (bg.g - c.g) * k, c.b + (bg.b - c.b) * k, 1)
+    }
+    return c
   }
+  // Share of the backdrop mixed into light symbolic glyphs.
+  readonly property real symbolicLightSoftening: 0.25
   property int itemSpacing: 4
   // Gap between the panels when sections are split.
   property int sectionSpacing: 18
