@@ -209,21 +209,49 @@ Item {
     root.syncVisibility()
   }
 
-  // Groups are only dragged off the dock; they keep their place otherwise.
-  function handleGroupDragMoved(gid, mx, my) {
+  // App groups reorder among themselves, after the pinned apps, the way
+  // folders do among folders: an accent line marks where the group lands.
+  function handleGroupDragStarted(gid) {
     if (!root) return
     root.dragGroupId = gid
+    root.dropGroupIndex = -1
+    root.dragRemoveArmed = false
+  }
+
+  function handleGroupDragMoved(gid, mx, my) {
+    if (!root) return
     root.dragPointerX = mx
     root.dragPointerY = my
     root.dragRemoveArmed = cardWrapper.offDockAt(my)
+    var n = appGroupsRepeater.count
+    var first = n > 0 ? appGroupsRepeater.itemAt(0) : null
+    var last = n > 0 ? appGroupsRepeater.itemAt(n - 1) : null
+    var rx = mx - row.x
+    if (root.dragRemoveArmed || n < 2 || !first || !last
+        || rx < first.x - row.spacing || rx > last.x + last.width + row.spacing) {
+      root.dropGroupIndex = -1
+      return
+    }
+    var idx = n
+    for (var i = 0; i < n; i++) {
+      var it = appGroupsRepeater.itemAt(i)
+      if (it && rx < it.x + it.width / 2) { idx = i; break }
+    }
+    root.dropGroupIndex = idx
+    root.dropIndicatorX = idx < n
+      ? row.x + appGroupsRepeater.itemAt(idx).x - row.spacing / 2 - Style.space(1)
+      : row.x + last.x + last.width + row.spacing / 2 - Style.space(1)
   }
 
   function handleGroupDragDropped(gid) {
     if (!root) return
     var removeArmed = root.dragRemoveArmed
+    var idx = root.dropGroupIndex
     root.dragGroupId = ""
+    root.dropGroupIndex = -1
     root.dragRemoveArmed = false
     if (removeArmed) root.removeAppGroup(gid)
+    else if (idx >= 0) root.moveAppGroup(gid, idx)
     root.syncVisibility()
   }
 
@@ -537,7 +565,7 @@ Item {
           onMenuRequested: function(gdata, cx, cy) {
             if (root) root.openAppGroupContext(gdata, cx, cy)
           }
-          onDragStarted: function(gid) { cardWrapper.handleGroupDragMoved(gid, 0, 0) }
+          onDragStarted: function(gid) { cardWrapper.handleGroupDragStarted(gid) }
           onDragMoved: function(gid, mx, my) { cardWrapper.handleGroupDragMoved(gid, mx, my) }
           onDragDropped: function(gid) { cardWrapper.handleGroupDragDropped(gid) }
         }
@@ -760,7 +788,8 @@ Item {
     Rectangle {
       visible: root ? (!root.dragRemoveArmed
         && ((root.dragAppId !== "" && root.dropTargetAppId === "" && root.dropTargetGroupId === "")
-          || (root.dragFolderPath !== "" && root.dropFolderIndex >= 0))) : false
+          || (root.dragFolderPath !== "" && root.dropFolderIndex >= 0)
+          || (root.dragGroupId !== "" && root.dropGroupIndex >= 0))) : false
       x: root ? root.dropIndicatorX : 0
       anchors.verticalCenter: row.verticalCenter
       width: Style.space(2)

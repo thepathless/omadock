@@ -710,6 +710,8 @@ Item {
   // Insert index among the pinned folders for the dragged folder; -1 while
   // the pointer is outside the folder section.
   property int dropFolderIndex: -1
+  // The same among the app groups for the dragged group.
+  property int dropGroupIndex: -1
   // The drag has been pulled up off the dock: letting go unpins or removes.
   property bool dragRemoveArmed: false
   // Pointer of the drag in progress, in dock card coordinates.
@@ -3832,8 +3834,20 @@ Item {
     root.saveConfig()
   }
 
-  // Moves a pinned folder so it lands before the folder now at insertIndex
-  // (the end when insertIndex is past the last one).
+  // Move an app group or a pinned folder so it lands before the one now at
+  // insertIndex (the end when insertIndex is past the last one).
+  function moveAppGroup(groupId, insertIndex) {
+    var list = root.appGroups || []
+    var from = -1
+    for (var i = 0; i < list.length; i++) {
+      if (list[i] && list[i].id === groupId) { from = i; break }
+    }
+    var next = DockModel.moveBefore(list, from, insertIndex)
+    if (next === list) return
+    root.appGroups = next
+    root.saveConfig()
+  }
+
   function moveFolder(path, insertIndex) {
     var list = root.pinnedFolders || []
     var from = -1
