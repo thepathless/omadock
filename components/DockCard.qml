@@ -559,7 +559,7 @@ Item {
           anchors.centerIn: parent
           width: Style.space(1)
           height: parent.height
-          color: Util.alpha(root ? root.dockForeground : Color.bar.text, 0.25)
+          color: root ? root.dividerColor : Util.alpha(Color.bar.text, 0.25)
         }
       }
 
@@ -592,7 +592,7 @@ Item {
           anchors.centerIn: parent
           width: Style.space(1)
           height: parent.height
-          color: Util.alpha(root ? root.dockForeground : Color.bar.text, 0.25)
+          color: root ? root.dividerColor : Util.alpha(Color.bar.text, 0.25)
         }
       }
 
@@ -659,7 +659,7 @@ Item {
           anchors.centerIn: parent
           width: Style.space(1)
           height: parent.height
-          color: Util.alpha(root ? root.dockForeground : Color.bar.text, 0.25)
+          color: root ? root.dividerColor : Util.alpha(Color.bar.text, 0.25)
         }
       }
 
@@ -714,7 +714,7 @@ Item {
           anchors.centerIn: parent
           width: Style.space(1)
           height: parent.height
-          color: Util.alpha(root ? root.dockForeground : Color.bar.text, 0.25)
+          color: root ? root.dividerColor : Util.alpha(Color.bar.text, 0.25)
         }
       }
 

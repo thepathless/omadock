@@ -921,6 +921,21 @@ Item {
     return custom.charAt(0) === "#" ? Qt.color(custom) : base
   }
 
+  // Divider lines: the backdrop mixed toward black or white, whichever
+  // contrasts more, just far enough to reach a modest 1.8:1. A fixed tint of
+  // the text colour all but vanished on light docks; this keeps the line as
+  // quiet as before on dark ones and readable on any other.
+  readonly property color dividerColor: {
+    var bg = Qt.color(root.iconBackdropColor)
+    var ink = root.blackOrWhiteOn(bg)
+    var c = bg
+    for (var t = 0.1; t <= 0.7; t += 0.05) {
+      c = Qt.rgba(bg.r + (ink.r - bg.r) * t, bg.g + (ink.g - bg.g) * t, bg.b + (ink.b - bg.b) * t, 1)
+      if (root.contrastRatio(c, bg) >= 1.8) break
+    }
+    return c
+  }
+
   // WCAG relative luminance and contrast ratio.
   function luminance(c) {
     function lin(v) { return v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4) }
