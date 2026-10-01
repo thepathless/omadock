@@ -420,13 +420,13 @@ Item {
   // panel reaches the card padding past its outer icons, so the separator
   // slot is sized to leave the chosen visible gap between the panels.
   readonly property real sectionGap: Style.space(root.sectionSpacing)
-  // Without the split, a divider's slot gets the same margin on each side
-  // that an icon has inside its own slot, so the space from an icon to the
-  // line matches the space between two icons. A line squeezed closer than
-  // that made every difference in icon width show.
+  // Without the split, a divider's slot gets half the margin an icon has
+  // inside its own slot on each side. Squeezed against its neighbours, the
+  // line made every difference in icon width show; with the full margin it
+  // stood too far apart. Half sits between the two.
   readonly property real separatorWidth: root.splitSections
     ? Math.max(Style.space(1), root.sectionGap + 2 * root.baseRowLeft - 2 * root.gapWidth)
-    : Style.space(1) + root.iconSlot - root.baseIconArt
+    : Style.space(1) + Math.round((root.iconSlot - root.baseIconArt) / 2)
   readonly property int groupSlots: (root.appGroups && DockModel.isList(root.appGroups)) ? root.appGroups.length : 0
   readonly property int folderSlots: root.pinnedFolders ? root.pinnedFolders.length : 0
   readonly property int driveSlots: (root.showRemovableDrives && root.mountedDrives) ? root.mountedDrives.length : 0
