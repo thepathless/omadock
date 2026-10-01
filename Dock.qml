@@ -922,16 +922,18 @@ Item {
   }
 
   // Divider lines: the backdrop mixed toward black or white, whichever
-  // contrasts more, just far enough to reach a modest 1.8:1. A fixed tint of
-  // the text colour all but vanished on light docks; this keeps the line as
-  // quiet as before on dark ones and readable on any other.
+  // contrasts more, just far enough to be seen and no further. A fixed tint
+  // of the text colour all but vanished on light docks. A light line on a
+  // dark dock reads at a lower ratio than a dark one on a light dock, and
+  // glares sooner, so it stops earlier.
   readonly property color dividerColor: {
     var bg = Qt.color(root.iconBackdropColor)
     var ink = root.blackOrWhiteOn(bg)
+    var target = ink.hslLightness > 0.5 ? 1.4 : 1.6
     var c = bg
-    for (var t = 0.1; t <= 0.7; t += 0.05) {
+    for (var t = 0.04; t <= 0.6; t += 0.02) {
       c = Qt.rgba(bg.r + (ink.r - bg.r) * t, bg.g + (ink.g - bg.g) * t, bg.b + (ink.b - bg.b) * t, 1)
-      if (root.contrastRatio(c, bg) >= 1.8) break
+      if (root.contrastRatio(c, bg) >= target) break
     }
     return c
   }
