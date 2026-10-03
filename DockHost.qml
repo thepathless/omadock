@@ -200,5 +200,26 @@ Item {
       var id = d[0].presetIdByName(String(name))
       return (id !== "" && d[0].applyPreset(id)) ? "ok" : "not found"
     }
+
+    // Read-only: item rectangles of the focused monitor's dock (window
+    // coordinates), used by tests/bench/bench.py and the live tests.
+    function itemGeometry(): string {
+      var d = host.orderedDocks()
+      return d.length > 0 ? d[0].itemGeometry() : "[]"
+    }
+
+    // Read-only summary for the live tests.
+    function state(): string {
+      var d = host.orderedDocks()
+      if (d.length === 0) return "{}"
+      return JSON.stringify({
+        visible: d[0].dockVisible,
+        settingsOpen: d[0].settingsPanelOpen,
+        settingsPage: d[0].settingsPanelPage,
+        activePreset: d[0].activePresetId || "",
+        items: JSON.parse(d[0].itemGeometry()).length,
+        docks: d.length
+      })
+    }
   }
 }

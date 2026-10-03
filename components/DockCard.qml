@@ -20,6 +20,7 @@ Item {
   property alias minimizedTilesRepeater: minimizedTilesRepeater
   property alias foldersRepeater: foldersRepeater
   property alias drivesRepeater: drivesRepeater
+  property alias runningRepeater: runningRepeater
   readonly property bool folderDropActive: folderDrop.containsDrag
 
   // Insert index among the pinned folders for a pointer at row x: before the

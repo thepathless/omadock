@@ -3720,6 +3720,47 @@ Item {
     return ""
   }
 
+  // Read-only snapshot of the dock items' rectangles in window coordinates,
+  // for the benchmark and live tests (IPC itemGeometry). Changes nothing.
+  function itemGeometry() {
+    var out = []
+    function add(it, kind, id, windows, urgent) {
+      if (!it || !it.visible || it.width <= 0 || it.height <= 0) return
+      var p = it.mapToItem(null, 0, 0)
+      out.push({ id: String(id || ""), kind: kind,
+                 x: Math.round(p.x), y: Math.round(p.y),
+                 w: Math.round(it.width), h: Math.round(it.height),
+                 windows: windows || 0, urgent: urgent === true,
+                 animating: it.urgentFresh === true || it.pulsing === true })
+    }
+    var card = root.dockCardComp
+    // A hidden dock only slides off screen, so its items still look visible.
+    if (!card || !root.dockVisible) return "[]"
+    var i, it
+    for (i = 0; i < card.pinnedRowRepeater.count; i++) {
+      var slot = card.pinnedRowRepeater.itemAt(i)
+      it = slot ? slot.item : null
+      if (!it) continue
+      if (it.groupData !== undefined) add(it, "group", (it.groupData || {}).id, 0, false)
+      else if (it.appId !== undefined) add(it, "app", it.appId, it.windows, it.urgent)
+    }
+    for (i = 0; i < card.runningRepeater.count; i++) {
+      it = card.runningRepeater.itemAt(i)
+      if (it) add(it, "app", it.appId, it.windows, it.urgent)
+    }
+    for (i = 0; i < card.minimizedTilesRepeater.count; i++)
+      add(card.minimizedTilesRepeater.itemAt(i), "tile", "", 1, false)
+    for (i = 0; i < card.foldersRepeater.count; i++) {
+      it = card.foldersRepeater.itemAt(i)
+      if (it) add(it, "folder", it.folderPath, 0, false)
+    }
+    for (i = 0; i < card.drivesRepeater.count; i++) {
+      it = card.drivesRepeater.itemAt(i)
+      if (it) add(it, "drive", it.mountpoint, 0, false)
+    }
+    return JSON.stringify(out)
+  }
+
   function presetNameTaken(name, exceptId) {
     var id = root.presetIdByName(name)
     return id !== "" && id !== exceptId

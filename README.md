@@ -531,6 +531,17 @@ python3 -m unittest discover -s tests/unit -p 'test_*.py'
 # Load-time smoke test (probes the running shell)
 ./tests/smoke-test.sh
 
+# Live checks against the running dock (no clicks or keys; they back up
+# and restore omadock.json): every IPC call round-trips, malformed configs
+# neither break the dock nor get rewritten by a save
+./tests/live/ipc-roundtrip.sh
+./tests/live/config-fuzz.sh
+
+# Performance: CPU, RAM and VRAM in fixed scenarios, dock on/off cost,
+# comparisons and long soak runs (see tests/bench/README.md)
+python3 tests/bench/bench.py run
+python3 tests/bench/bench.py soak --minutes 120
+
 # Inspect live compositor journal logs
 journalctl --user -xeu omarchy-shell -n 50 --no-pager
 
