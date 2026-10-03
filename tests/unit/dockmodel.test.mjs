@@ -2,7 +2,7 @@
 // globals, so it runs in a vm context; DOCKMODEL overrides the path.
 import { test } from "node:test"
 import assert from "node:assert/strict"
-import { readFileSync } from "node:fs"
+import { readFileSync, readdirSync } from "node:fs"
 import vm from "node:vm"
 
 const file = process.env.DOCKMODEL || new URL("../../DockModel.js", import.meta.url)
@@ -95,4 +95,63 @@ test("localPathsFromUrls drops paths with line breaks", () => {
 
 test("localPathsFromUrls skips malformed escapes and relative paths", () => {
   assert.deepEqual(plain(M.localPathsFromUrls(["file:///bad%E0%A4%A", "file://host/x"])), [])
+})
+
+// ------------------------------------------------- settings fuzzy search
+test("searchSettings: 'pixl' finds the pixel icon style", () => {
+  const hits = M.searchSettings("pixl")
+  assert.ok(hits.length > 0)
+  assert.equal(hits[0].key, "iconStyle")
+})
+
+test("searchSettings: 'shad' finds the shadow toggle", () => {
+  const hits = M.searchSettings("shad")
+  assert.ok(hits.length > 0)
+  assert.equal(hits[0].key, "showShadow")
+})
+
+test("searchSettings: partial words reach notification badges", () => {
+  const keys = M.searchSettings("not").map((h) => h.key)
+  assert.ok(keys.includes("badges"))
+})
+
+test("searchSettings: exact label outranks a synonym", () => {
+  const hits = M.searchSettings("opacity")
+  assert.equal(hits[0].key, "opacity")
+})
+
+test("searchSettings: every hit names a page for the jump", () => {
+  for (const hit of M.searchSettings("icon"))
+    assert.ok(["appearance", "icons", "motion", "behavior", "placement", "folders", "groups", "presets", "about"].includes(hit.page))
+})
+
+test("searchSettings: garbage queries return nothing", () => {
+  assert.deepEqual(plain(M.searchSettings("zzqxwv")), [])
+})
+
+test("fuzzyScore: order matters and gaps are allowed", () => {
+  assert.ok(M.fuzzyScore("pixl", "pixel") > 0)
+  assert.equal(M.fuzzyScore("xelpi", "pixel"), -1)
+  assert.ok(M.fuzzyScore("", "pixel"), -1)
+})
+
+// The settings panel is assembled from components/settings/; the search
+// keys must keep exactly one registering row across the whole module.
+const settingsSources = [
+  new URL("../../components/SettingsPanel.qml", import.meta.url),
+  ...readdirSync(new URL("../../components/settings/", import.meta.url))
+    .sort()
+    .map((f) => new URL(`../../components/settings/${f}`, import.meta.url)),
+].map((u) => readFileSync(u, "utf8")).join("\n")
+
+test("every search key registers exactly one settings row", () => {
+  for (const e of M.SETTINGS_SEARCH) {
+    const n = settingsSources.split(`key: "${e.key}"`).length - 1
+    assert.equal(n, 1, `expected exactly one row for search key ${e.key}, found ${n}`)
+  }
+})
+
+test("the settings module keeps no retired page ids", () => {
+  assert.ok(!settingsSources.includes('panel.page === "effects"'))
+  assert.ok(!settingsSources.includes('panel.page === "size"'))
 })

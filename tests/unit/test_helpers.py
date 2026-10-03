@@ -71,8 +71,11 @@ class PopupTests(unittest.TestCase):
     def test_watch_creation_replacement_removal_and_recreation(self):
         with tempfile.TemporaryDirectory() as folder:
             directory = Path(folder) / 'state' / 'notifications'
+            # Unbuffered binary: select() on a line-buffered text pipe goes
+            # blind to lines Python already buffered, so pipe readiness can no
+            # longer promise the next line is there to read.
             process = subprocess.Popen([sys.executable, str(ROOT / 'scripts/notification-popups.py'), str(directory)],
-                                       stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, bufsize=1)
+                                       stdout=subprocess.PIPE, stderr=subprocess.PIPE, bufsize=0)
             try:
                 self.read_until(process, [])
                 directory.mkdir(parents=True)

@@ -80,7 +80,7 @@ Crafted in the spirit of **Omakase (おまかせ)**: wave magnification, live wi
 - **🖥️ Multi-monitor** — one dock per monitor, each showing its own monitor's windows.
 - **💾 Removable media** — USB drives dock themselves; safe eject included.
 - **🔔 Attention glow & chimes** — bouncing alerts and audio pings.
-- **🔴 Pinned notification badges** — counts matching active popups on pinned apps; dismiss or expire a popup to clear it. These are not unread-message counts.
+- **🔴 Sticky notification badges** — counts matching notifications on pinned, running, and foldered apps; folder tiles sum their members. Counts stay until the app is focused. These are not unread-message counts.
 - **🖥️ CLI app identity** — Antigravity and btop keep their own icons when launched in a terminal; the terminal icon is only a fallback.
 - **⌨️ Keybindings & IPC** — wired for `~/.config/hypr/bindings.lua` out of the box.
 
@@ -189,6 +189,7 @@ Pin directories like `~/Downloads`, `~/Projects`, or custom paths directly to yo
 Organize applications into intelligent macOS / iOS-style folders directly on your dock:
 
 - **2×2 live preview grid** with window dots; the popover tray scales 2–4 columns.
+- **Popup stays open** — click cells to launch, switch, minimize and restore repeatedly; each cell shows per-window running/minimized marks, and one click on the tile's indicator dots toggles the folder's focused app.
 - **Drag-to-group, drag-to-pin** — drop one icon on another to make a folder.
 - **Inline renaming**, saved instantly.
 - **Drag-out extraction** — folders auto-dissolve when one app remains.
@@ -234,7 +235,7 @@ Deep Linux desktop and compositor integration:
 
 ### 🔔 10. Notification Badges & CLI App Identity
 
-- Pinned icons show a badge counting **matching active notification popups** — the count clears as soon as the popup leaves the stack (dismissed, expired, or replaced). These are not unread-message counts.
+- Dock icons show a badge counting **matching notifications** (pinned, running, and foldered apps alike); a folder tile sums its members' counts. Counts are **sticky**: one notification bumps the badge by one and the count stays until the app gains focus — dismissing or expiring the popup does not clear it. These are not unread-message counts.
 - Terminal-launched apps know who they are: **Antigravity** (`agy`) and **btop** keep their own product icons; the terminal's icon is only a fallback for unknown CLI tools.
 
 ---
@@ -253,7 +254,7 @@ Right-click the Omarchy logo or empty dock space to access deep customization.
 
 ### 🎛️ Settings Panel
 
-Right-clicking either one opens the full settings panel directly: a sidebar with *Appearance*, *Placement*, *Behavior*, *Effects*, *Size & Spacing*, *Presets*, *Folders* and *App Groups*, with switches, sliders and dropdowns for every option. Changes apply live, so the dock underneath previews them. Close it with <kbd>Esc</kbd>, the close button, or a click outside. The panel can also be opened from a keybind: `omarchy-shell omadock openSettings`.
+Right-clicking either one opens the full settings panel directly: a sidebar with *Appearance*, *Icons*, *Motion & Effects*, *Behavior*, *Placement*, *Folders*, *App Groups*, *Presets* and *About*, with switches, sliders and dropdowns for every option. A fuzzy search box at the top of the sidebar finds any setting by name or synonym (typos included — `pixl` reaches the pixel icon style) and picking a hit jumps to and highlights that setting's row. Changes apply live, so the dock underneath previews them. Close it with <kbd>Esc</kbd>, the close button, or a click outside. The panel can also be opened from a keybind: `omarchy-shell omadock openSettings`.
 
 The settings at a glance:
 
@@ -427,7 +428,7 @@ Settings persist in `~/.config/omarchy/omadock.json` and are editable live:
 | `blurSize` | `int` | unset | With `blur: "on"`, Hyprland's blur size `1`–`20`. Hyprland has one blur size for everything, so this applies globally; the previous value (`systemBlurSize`, recorded automatically) comes back when blur leaves `"on"`. |
 | `iconStyle` | `string` | `"original"` | `"original"`, `"mono"` (one theme colour, shading kept), `"pixel"` (coarse grid, unsmoothed) or `"dots"` (dithered dot matrix). |
 | `iconTint` | `string` | `"text"` | Colour for `mono` and `dots`: the dock's `"text"` colour, the theme `"accent"`, or `"bw"` (near black or near white, whichever contrasts more with the background). Text and accent are lightened or darkened when they would not stand out from the background. |
-| `iconGrid` | `int` | `16` | Pixels / dots across an icon for `pixel` and `dots` (`8`–`32`). |
+| `iconGrid` | `int` | `16` | Pixels / dots across an icon for `pixel` and `dots` (`8`–`32`). The pixel style snaps its cells to whole even device pixels and coarsens the grid to fit. |
 | `iconContrast` | `number` | `0` | `mono` / `dots`: adaptive contrast `0`–`1`, stretched around each icon's own average; high values flatten icons to a simple shape. |
 | `iconStrength` | `number` | `1` | `mono` / `dots`: how much of the effect covers the original icon, `0`–`1`. |
 | `iconHoverOriginal` | `bool` | `false` | With an icon style on, the hovered icon (dock, group tiles, an opened group) shows as shipped. |
@@ -436,7 +437,7 @@ Settings persist in `~/.config/omarchy/omadock.json` and are editable live:
 | `folderColor` | `string` | `"theme"` | `"theme"`, `"symbolic"`, `"white"`, `"black"`, `"Yaru-blue"`, etc. |
 | `hoverEffect` | `string` | `"zoom"` | Hover mode: magnification `"zoom"` or `"wave"`; effects `"lift"`, `"glow"`, `"glitch"` (shaders); or `"off"`. |
 | `dividerGeometry` | `string` | `"classic"` | Section divider length: `"classic"` keeps the original short lines; `"long"` uses the adjustable `dividerHeight` share. |
-| `showNotificationBadges` | `bool` | `true` | Count matching active popups on pinned icons (not unread messages); cleared when the notification leaves the popup stack. |
+| `showNotificationBadges` | `bool` | `true` | Count matching notifications on dock icons and folder tiles (not unread messages); sticky until the app is focused. |
 | `revealDelay` | `int` | `160` | Edge dwell time in milliseconds before unhiding ($0$–$2000$). |
 | `tooltipDelay` | `int` | `450` | Tooltip hover dwell delay in milliseconds ($0$–$5000$). |
 | `wheelStepDelay` | `int` | `150` | Minimum milliseconds between accepted wheel steps while browsing an app's windows ($0$–$1000$). |
@@ -476,7 +477,7 @@ Additional IPC methods available:
 - `setAlignment("center" | "left" | "right")`: Change dock alignment dynamically.
 - `setPosition("bottom" | "top" | "left" | "right")`: Change dock edge position.
 - `openSettings`: Open the settings panel on the focused monitor's dock.
-- `openSettingsPage("appearance" | "placement" | "behavior" | "effects" | "size" | "folders" | "groups" | "presets" | "about")`: Open the settings panel on a given page.
+- `openSettingsPage("appearance" | "icons" | "motion" | "behavior" | "placement" | "folders" | "groups" | "presets" | "about")`: Open the settings panel on a given page.
 - `closeSettings`: Close the settings panel.
 
 > [!NOTE]
@@ -548,7 +549,8 @@ qs -p /usr/share/omarchy/shell ipc call omadock restoreLast
 | `Dock.qml` | The dock itself: model refresh, windows, popups, badges, settings state. |
 | `DockHost.qml` | Overlay entry point declared by `manifest.json`. |
 | `DockModel.js` | Pure model logic and every safety bound (parsing caps, identity resolution). |
-| `components/` | QML UI components (dock items, popups, tooltips, settings panel, shaders). |
+| `components/` | QML UI components (dock items, popups, tooltips, shaders) and `SettingsPanel.qml`, the settings shell (sidebar, search, page assembly). |
+| `components/settings/` | The settings module: one file per settings page plus the shared row family (`SettingRow`, `SwitchRow`, `ChoiceRow`, `SliderRow`, `Swatch`, `SectionLabel`). Pages wire `root` (the Dock) into rows; the panel owns search-jump state and registers rows by their `key`. |
 | `scripts/` | Python helpers (folder/drive scans, notification watcher, keybinding setup) plus `bind-keys.sh`. |
 | `shaders/` | Hover/icon-style fragment shaders with precompiled `.qsb` bundles. |
 | `tests/unit/` | Node and Python unit suites — what CI runs on every PR. |

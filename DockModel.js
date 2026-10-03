@@ -329,8 +329,10 @@ function findNotificationTargets(allEntries, appRows, row) {
   return standardMatches
 }
 
-// A fresh count of active popups, not unread messages or notification history.
-// Rebuilding from the model handles replacements and removals without drift.
+// Badge attribution: which dock entries each row counts against. Grouped and
+// unpinned entries count too — whether a count is shown (pinned only, or at
+// all) is the UI's decision. The 512-row bound keeps a hostile snapshot from
+// amplifying attribution work.
 function notificationCounts(entries, appRows, rows) {
   var counts = {}
   if (!Array.isArray(rows)) return counts
@@ -338,10 +340,76 @@ function notificationCounts(entries, appRows, rows) {
     var matches = findNotificationTargets(entries, appRows, rows[i])
     for (var m = 0; m < matches.length; m++) {
       var id = matches[m].appId || matches[m].id
-      if (matches[m].pinned && id) counts[id] = (counts[id] || 0) + 1
+      if (id) counts[id] = (counts[id] || 0) + 1
     }
   }
   return counts
+}
+
+// One row's identity for the sticky badge store: the notification's own
+// timestamp/id when it carries one, else a content fingerprint. The file-watch
+// fallback (scripts/notification-popups.py) emits rows with neither field and
+// re-emits its whole snapshot on every change, so without the fingerprint the
+// same popups would count again on each re-emission.
+function notificationRowKey(row) {
+  if (!row) return ""
+  var ts = String(row.timestamp == null ? "" : row.timestamp)
+  var id = String(row.id == null ? "" : row.id)
+  if (ts || id) return ts + "-" + id
+  return String(row.app || "") + "\u0000" + String(row.summary || "") + "\u0000" + String(row.body || "")
+}
+
+// Sticky badge counts: +n under each of ids, at most once per spelling.
+// Returns a new map; the input is never touched. Counts stay plain
+// non-negative integers — the 99+ cap is a display concern.
+function bumpNotificationCounts(map, ids, n) {
+  var out = copyMap(map || {})
+  var step = (typeof n === "number" && isFinite(n)) ? Math.round(n) : 1
+  if (step <= 0) return out
+  var list = Array.isArray(ids) ? ids : (ids == null ? [] : [ids])
+  var seen = {}
+  for (var i = 0; i < list.length; i++) {
+    var id = String(list[i] == null ? "" : list[i])
+    if (!id || seen[id]) continue
+    seen[id] = true
+    var cur = (typeof out[id] === "number" && isFinite(out[id])) ? Math.max(0, Math.floor(out[id])) : 0
+    out[id] = cur + step
+  }
+  return out
+}
+
+// Drop the sticky counts filed under appId: every spelling
+// notificationAliasIds knows for it (CLI products file under several).
+// Returns a new map; the input is never touched.
+function clearNotificationCounts(map, appId) {
+  var out = copyMap(map || {})
+  var ids = notificationAliasIds(appId)
+  for (var i = 0; i < ids.length; i++) {
+    var id = String(ids[i] == null ? "" : ids[i])
+    if (id && out[id] !== undefined) delete out[id]
+  }
+  return out
+}
+
+// The badge total a folder tile shows: the counts of every member app summed
+// through notificationAliasIds, each spelling counted once so members filed
+// under aliases (or two members sharing one) never inflate the total.
+function groupBadgeTotal(groupApps, counts) {
+  var list = toArray(groupApps)
+  var map = counts || {}
+  var seen = {}
+  var total = 0
+  for (var i = 0; i < list.length; i++) {
+    var ids = notificationAliasIds(list[i])
+    for (var k = 0; k < ids.length; k++) {
+      var id = String(ids[k] == null ? "" : ids[k])
+      if (!id || seen[id]) continue
+      seen[id] = true
+      var v = map[id]
+      if (typeof v === "number" && isFinite(v) && v > 0) total += Math.floor(v)
+    }
+  }
+  return total
 }
 
 function parsePinned(raw) {
@@ -1355,4 +1423,117 @@ function resolveDriveIcon(iconName, themeName, appLibrary, folderColorMode) {
   }
 
   return "file:///usr/share/icons/Yaru/256x256/devices/drive-removable-media-usb.png"
+}
+
+// ------------------------------------------------------- settings search
+// Fuzzy subsequence match for the settings search box. Query characters must
+// appear in order, but may skip: typos and initials still score ("pixl"
+// matches "pixel", "shad" matches "shadow"). Word starts and runs score
+// higher so the tightest meaning wins; -1 means no match.
+function fuzzyScore(query, text) {
+  var q = String(query == null ? "" : query).toLowerCase().replace(/\s+/g, "")
+  var t = String(text == null ? "" : text).toLowerCase()
+  if (q === "" || t === "") return -1
+  var score = 0
+  var ti = 0
+  var prev = -2
+  for (var qi = 0; qi < q.length; qi++) {
+    var found = t.indexOf(q[qi], ti)
+    if (found < 0) return -1
+    if (found === prev + 1) score += 8
+    if (found === 0 || t[found - 1] === " " || t[found - 1] === "-" || t[found - 1] === "/") score += 6
+    score += Math.max(0, 4 - (found - ti))
+    prev = found
+    ti = found + 1
+  }
+  return score - (t.length - q.length) * 0.1
+}
+
+// Every searchable setting row: the key SettingsPanel registers its rows
+// under, the page it lives on, its label, and synonyms people may type.
+var SETTINGS_SEARCH = [
+  { key: "showBackground", page: "appearance", label: "Background", terms: ["fill", "bar", "panel", "off", "hide"] },
+  { key: "bgFill", page: "appearance", label: "Fill", terms: ["background", "solid", "gradient"] },
+  { key: "bgColor", page: "appearance", label: "Color", terms: ["background", "colour", "swatch", "theme"] },
+  { key: "gradientPalette", page: "appearance", label: "Palette", terms: ["gradient", "colours", "theme"] },
+  { key: "gradientStrength", page: "appearance", label: "Strength", terms: ["gradient", "blend"] },
+  { key: "opacityTheme", page: "appearance", label: "Opacity from theme", terms: ["transparency", "bar"] },
+  { key: "opacity", page: "appearance", label: "Opacity", terms: ["transparency", "translucent"] },
+  { key: "border", page: "appearance", label: "Border", terms: ["outline", "rim", "stroke"] },
+  { key: "borderWidth", page: "appearance", label: "Border width", terms: ["outline", "rim"] },
+  { key: "borderOpacityTheme", page: "appearance", label: "Border opacity from theme", terms: ["rim"] },
+  { key: "borderOpacity", page: "appearance", label: "Border opacity", terms: ["rim"] },
+  { key: "dividerLength", page: "appearance", label: "Divider length style", terms: ["divider", "lines", "classic"] },
+  { key: "dividerStyle", page: "appearance", label: "Divider style", terms: ["divider", "lines"] },
+  { key: "dividerWidth", page: "appearance", label: "Divider width", terms: ["divider"] },
+  { key: "dividerOpacity", page: "appearance", label: "Divider opacity", terms: ["divider"] },
+  { key: "dividerHeight", page: "appearance", label: "Divider height", terms: ["divider", "length"] },
+  { key: "corners", page: "appearance", label: "Corners", terms: ["shape", "rounded", "pill", "square", "radius"] },
+  { key: "cornerRadius", page: "appearance", label: "Corner radius", terms: ["rounding", "shape"] },
+  { key: "splitSections", page: "appearance", label: "Split sections", terms: ["panels", "gap"] },
+  { key: "panelSpacing", page: "appearance", label: "Panel spacing", terms: ["gap", "split"] },
+  { key: "indicators", page: "appearance", label: "Indicators", terms: ["dots", "bars", "running", "shape"] },
+  { key: "appsButton", page: "appearance", label: "Omarchy button", terms: ["launcher", "start", "menu", "logo"] },
+  { key: "removableDrives", page: "appearance", label: "Removable drives", terms: ["usb", "media", "eject"] },
+  { key: "iconStyle", page: "icons", label: "Icon style", terms: ["pixel", "pixel style", "mono", "monochrome", "dots", "dot matrix", "original"] },
+  { key: "iconTint", page: "icons", label: "Icon colour", terms: ["color", "tint", "bw", "black", "white", "accent"] },
+  { key: "iconGrid", page: "icons", label: "Pixels across", terms: ["grid", "pixel", "dots", "chunky"] },
+  { key: "iconContrast", page: "icons", label: "Contrast", terms: ["flatten", "poster"] },
+  { key: "iconStrength", page: "icons", label: "Strength", terms: ["effect", "blend"] },
+  { key: "iconHoverOriginal", page: "icons", label: "Show original on hover", terms: ["hover", "original", "plain"] },
+  { key: "iconHoverReveal", page: "icons", label: "Dithered reveal", terms: ["dither", "reveal"] },
+  { key: "iconSize", page: "icons", label: "Icon size", terms: ["big", "small", "scale"] },
+  { key: "itemSpacing", page: "icons", label: "Spacing", terms: ["gap", "distance"] },
+  { key: "hoverEffect", page: "motion", label: "Hover effect", terms: ["zoom", "wave", "lift", "glow", "glitch", "magnify"] },
+  { key: "launchBounce", page: "motion", label: "Launch bounce", terms: ["animation", "starting"] },
+  { key: "showShadow", page: "motion", label: "Shadow", terms: ["drop", "elevation", "shadow"] },
+  { key: "shadowStrength", page: "motion", label: "Shadow strength", terms: ["shadow"] },
+  { key: "blurSystem", page: "motion", label: "Blur from system", terms: ["frost", "hyprland"] },
+  { key: "blur", page: "motion", label: "Blur", terms: ["frost", "glass", "translucent"] },
+  { key: "blurSize", page: "motion", label: "Blur strength", terms: ["frost"] },
+  { key: "grain", page: "motion", label: "Grain", terms: ["noise", "film", "texture"] },
+  { key: "autohide", page: "behavior", label: "Autohide", terms: ["hide", "reveal", "visibility", "intelligent"] },
+  { key: "revealDelay", page: "behavior", label: "Reveal delay", terms: ["autohide", "delay"] },
+  { key: "minimizeMode", page: "behavior", label: "Minimize on click", terms: ["park", "click"] },
+  { key: "keepPointer", page: "behavior", label: "Keep pointer in place", terms: ["mouse", "cursor"] },
+  { key: "wheelStepDelay", page: "behavior", label: "Wheel step delay", terms: ["scroll", "wheel"] },
+  { key: "badges", page: "behavior", label: "Notification badges", terms: ["badge", "notification", "count", "dot"] },
+  { key: "urgentHint", page: "behavior", label: "Urgent highlights", terms: ["urgent", "attention", "highlight"] },
+  { key: "urgentOnNotification", page: "behavior", label: "Urgent on notification", terms: ["notification", "urgent"] },
+  { key: "urgentSound", page: "behavior", label: "Urgent sound", terms: ["bell", "chime", "audio", "alert"] },
+  { key: "tooltips", page: "behavior", label: "Tooltips", terms: ["tooltip", "hover", "label"] },
+  { key: "tooltipDelay", page: "behavior", label: "Tooltip delay", terms: ["tooltip"] },
+  { key: "windowPreviews", page: "behavior", label: "Window previews", terms: ["preview", "thumbnail"] },
+  { key: "minimizedTiles", page: "behavior", label: "Minimized window tiles", terms: ["park", "tiles", "preview"] },
+  { key: "alignment", page: "placement", label: "Alignment", terms: ["left", "center", "right", "position"] },
+  { key: "multiMonitor", page: "placement", label: "Show on all monitors", terms: ["monitor", "display", "multi"] },
+  { key: "perMonitorApps", page: "placement", label: "Only this monitor's apps", terms: ["monitor", "display"] },
+  { key: "monitorSelect", page: "placement", label: "Monitor", terms: ["display", "output", "screen"] },
+  { key: "customFolder", page: "folders", label: "Custom folder", terms: ["add", "directory", "pin"] },
+  { key: "folderColor", page: "folders", label: "Folder color", terms: ["folder", "colour", "yaru"] },
+  { key: "groupStyle", page: "groups", label: "Tile style", terms: ["group", "tile", "frame"] },
+  { key: "groupIconEffects", page: "groups", label: "Icon style", terms: ["group", "icons"] },
+  { key: "presets", page: "presets", label: "Presets", terms: ["preset", "look", "save", "restore"] },
+  { key: "updateChannel", page: "about", label: "Update channel", terms: ["update", "stable", "experimental", "switch"] }
+]
+
+// Ranked search over SETTINGS_SEARCH (or any entry list in the same shape).
+// Every query character must land in order on some term; the best-scoring
+// term of each entry is its score.
+function searchSettings(query, entries, limit) {
+  var list = entries == null ? SETTINGS_SEARCH : entries
+  var cap = limit == null ? 8 : limit
+  var out = []
+  for (var i = 0; i < list.length; i++) {
+    var e = list[i]
+    var best = fuzzyScore(query, e.label)
+    var terms = e.terms || []
+    for (var j = 0; j < terms.length; j++) {
+      var s = fuzzyScore(query, terms[j])
+      if (s > best) best = s
+    }
+    if (best >= 0) out.push({ key: e.key, page: e.page, label: e.label, score: best })
+  }
+  out.sort(function (a, b) { return b.score - a.score })
+  return out.slice(0, cap)
 }
