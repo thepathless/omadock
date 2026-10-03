@@ -151,8 +151,9 @@ BorderSurface {
           checked: root ? root.activePresetId === modelData.id : false
           onTriggered: {
             if (!root) return
-            root.applyPreset(modelData.id)
+            var id = modelData.id
             root.closeContext()
+            root.applyPresetAfterMenu(id)
           }
         }
       }

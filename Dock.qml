@@ -3779,6 +3779,22 @@ Item {
     return true
   }
 
+  // The context menu is a layer popup that Hyprland fades out over ~200 ms.
+  // Restyling the dock under it (a border changes the card height and the
+  // popup's anchor) makes the fading menu jump over the new look, so a pick
+  // from the menu waits until the fade is over.
+  Timer {
+    id: menuPresetTimer
+    property string presetId: ""
+    interval: 250
+    onTriggered: root.applyPreset(presetId)
+  }
+
+  function applyPresetAfterMenu(id) {
+    menuPresetTimer.presetId = id
+    menuPresetTimer.restart()
+  }
+
   // Keys a preset lacks (saved before they existed) keep their current value.
   function applyPreset(id) {
     var i = root.presetIndex(id)
