@@ -138,14 +138,61 @@ test('known CLI notifications match the pinned product app, not its host termina
     { appId: 'com.mitchellh.ghostty', pinned: true }], rows,
     [{ app: 'org.omarchy.agy' }])), { antigravity: 1 })
 })
-test('pinned badges count snapshots and clear on replacement/removal', () => {
+test('badges count snapshots per matching entry and clear on replacement/removal', () => {
   const apps = [{ appId: 'firefox', name: 'Firefox', pinned: true },
     { appId: 'btop', name: 'btop', pinned: false }]
   const notices = [{ app: 'Firefox', appIcon: 'firefox' }, { app: 'Firefox' }, { app: 'btop' }]
-  assert.deepEqual(plain(model.notificationCounts(apps, rows, notices)), { firefox: 2 })
+  // Unpinned entries count too: display gating moved to the UI.
+  assert.deepEqual(plain(model.notificationCounts(apps, rows, notices)), { firefox: 2, btop: 1 })
   assert.deepEqual(plain(model.notificationCounts(apps, rows, notices.slice(0, 1))), { firefox: 1 })
   assert.deepEqual(plain(model.notificationCounts(apps, rows, [{ app: 'Other' }])), {})
   assert.deepEqual(plain(model.notificationCounts(apps, rows, [])), {})
+  assert.deepEqual(plain(model.notificationCounts(apps, rows, 'not-an-array')), {})
+})
+test('grouped entries count even when unpinned (steam-in-folder badge fix)', () => {
+  // Live IPC shape: steam lives in grouped with pinned:false.
+  const grouped = [{ id: 'steam', appId: 'steam', pinned: false, running: true,
+    windowList: [{ address: '0x1', title: 'Steam', appId: 'steam' }] }]
+  assert.deepEqual(plain(model.notificationCounts(grouped, rows,
+    [{ app: 'steam', summary: 'Download complete' }])), { steam: 1 })
+  // The 512-row bound survives the gate removal.
+  assert.deepEqual(plain(model.notificationCounts(grouped, rows,
+    Array.from({ length: 600 }, () => ({ app: 'steam' })))), { steam: 512 })
+})
+test('sticky badge helpers bump, clear, and sum by alias without mutating input', () => {
+  const base = { steam: 2 }
+  assert.deepEqual(plain(model.bumpNotificationCounts(base, ['steam', 'steam', 'btop'], 1)),
+    { steam: 3, btop: 1 })
+  assert.deepEqual(plain(model.bumpNotificationCounts(base, [], 1)), { steam: 2 })
+  assert.deepEqual(plain(model.bumpNotificationCounts(base, ['x'], 0)), { steam: 2 })
+  assert.deepEqual(plain(model.bumpNotificationCounts(base, ['x'], -3)), { steam: 2 })
+  assert.deepEqual(plain(model.bumpNotificationCounts(null, ['x'], 2)), { x: 2 })
+  assert.deepEqual(base, { steam: 2 })
+
+  // Clearing drops every spelling the app may be filed under.
+  const cli = { btop: 1, 'org.omarchy.btop': 2, agy: 3, other: 4 }
+  assert.deepEqual(plain(model.clearNotificationCounts(cli, 'org.omarchy.btop')),
+    { agy: 3, other: 4 })
+  assert.deepEqual(plain(model.clearNotificationCounts(cli, 'agy')),
+    { btop: 1, 'org.omarchy.btop': 2, other: 4 })
+  assert.deepEqual(cli, { btop: 1, 'org.omarchy.btop': 2, agy: 3, other: 4 })
+
+  // Folder totals sum members via aliases, each spelling once.
+  assert.equal(model.groupBadgeTotal(['btop', 'org.omarchy.btop', 'steam'], cli), 3)
+  assert.equal(model.groupBadgeTotal(['agy'], cli), 3)
+  assert.equal(model.groupBadgeTotal([], cli), 0)
+  assert.equal(model.groupBadgeTotal(['missing'], cli), 0)
+  assert.equal(model.groupBadgeTotal(null, cli), 0)
+})
+test('row keys dedupe by timestamp/id and fingerprint watcher fallback rows', () => {
+  assert.equal(model.notificationRowKey({ timestamp: 5, id: 'x' }), '5-x')
+  assert.equal(model.notificationRowKey({ timestamp: 5, id: 'x', body: 'hi' }), '5-x')
+  // Fallback rows carry neither field: identical content is one row.
+  assert.equal(model.notificationRowKey({ app: 'steam', summary: 's', body: 'b' }),
+    model.notificationRowKey({ app: 'steam', summary: 's', body: 'b' }))
+  assert.notEqual(model.notificationRowKey({ app: 'steam', summary: 's', body: 'b' }),
+    model.notificationRowKey({ app: 'steam', summary: 's', body: 'c' }))
+  assert.equal(model.notificationRowKey(null), '')
 })
 test('PWA notification badge is not also attributed to its browser', () => {
   const apps = [{ appId: 'firefox', name: 'Firefox', pinned: true },

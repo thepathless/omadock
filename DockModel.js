@@ -329,8 +329,10 @@ function findNotificationTargets(allEntries, appRows, row) {
   return standardMatches
 }
 
-// A fresh count of active popups, not unread messages or notification history.
-// Rebuilding from the model handles replacements and removals without drift.
+// Badge attribution: which dock entries each row counts against. Grouped and
+// unpinned entries count too — whether a count is shown (pinned only, or at
+// all) is the UI's decision. The 512-row bound keeps a hostile snapshot from
+// amplifying attribution work.
 function notificationCounts(entries, appRows, rows) {
   var counts = {}
   if (!Array.isArray(rows)) return counts
@@ -338,10 +340,76 @@ function notificationCounts(entries, appRows, rows) {
     var matches = findNotificationTargets(entries, appRows, rows[i])
     for (var m = 0; m < matches.length; m++) {
       var id = matches[m].appId || matches[m].id
-      if (matches[m].pinned && id) counts[id] = (counts[id] || 0) + 1
+      if (id) counts[id] = (counts[id] || 0) + 1
     }
   }
   return counts
+}
+
+// One row's identity for the sticky badge store: the notification's own
+// timestamp/id when it carries one, else a content fingerprint. The file-watch
+// fallback (scripts/notification-popups.py) emits rows with neither field and
+// re-emits its whole snapshot on every change, so without the fingerprint the
+// same popups would count again on each re-emission.
+function notificationRowKey(row) {
+  if (!row) return ""
+  var ts = String(row.timestamp == null ? "" : row.timestamp)
+  var id = String(row.id == null ? "" : row.id)
+  if (ts || id) return ts + "-" + id
+  return String(row.app || "") + "\u0000" + String(row.summary || "") + "\u0000" + String(row.body || "")
+}
+
+// Sticky badge counts: +n under each of ids, at most once per spelling.
+// Returns a new map; the input is never touched. Counts stay plain
+// non-negative integers — the 99+ cap is a display concern.
+function bumpNotificationCounts(map, ids, n) {
+  var out = copyMap(map || {})
+  var step = (typeof n === "number" && isFinite(n)) ? Math.round(n) : 1
+  if (step <= 0) return out
+  var list = Array.isArray(ids) ? ids : (ids == null ? [] : [ids])
+  var seen = {}
+  for (var i = 0; i < list.length; i++) {
+    var id = String(list[i] == null ? "" : list[i])
+    if (!id || seen[id]) continue
+    seen[id] = true
+    var cur = (typeof out[id] === "number" && isFinite(out[id])) ? Math.max(0, Math.floor(out[id])) : 0
+    out[id] = cur + step
+  }
+  return out
+}
+
+// Drop the sticky counts filed under appId: every spelling
+// notificationAliasIds knows for it (CLI products file under several).
+// Returns a new map; the input is never touched.
+function clearNotificationCounts(map, appId) {
+  var out = copyMap(map || {})
+  var ids = notificationAliasIds(appId)
+  for (var i = 0; i < ids.length; i++) {
+    var id = String(ids[i] == null ? "" : ids[i])
+    if (id && out[id] !== undefined) delete out[id]
+  }
+  return out
+}
+
+// The badge total a folder tile shows: the counts of every member app summed
+// through notificationAliasIds, each spelling counted once so members filed
+// under aliases (or two members sharing one) never inflate the total.
+function groupBadgeTotal(groupApps, counts) {
+  var list = toArray(groupApps)
+  var map = counts || {}
+  var seen = {}
+  var total = 0
+  for (var i = 0; i < list.length; i++) {
+    var ids = notificationAliasIds(list[i])
+    for (var k = 0; k < ids.length; k++) {
+      var id = String(ids[k] == null ? "" : ids[k])
+      if (!id || seen[id]) continue
+      seen[id] = true
+      var v = map[id]
+      if (typeof v === "number" && isFinite(v) && v > 0) total += Math.floor(v)
+    }
+  }
+  return total
 }
 
 function parsePinned(raw) {

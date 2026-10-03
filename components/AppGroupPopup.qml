@@ -152,6 +152,11 @@ BorderSurface {
           readonly property var root: appGroupPopup.root
           readonly property string appId: String(modelData || "")
           readonly property string appName: root ? DockModel.resolveAppName(root.appLibrary, root.appRows, cellItem.appId) : cellItem.appId
+          // Cell badges sum the id spellings of this one app.
+          readonly property int notificationCount: {
+            if (!root || !root.showNotificationBadges) return 0
+            return DockModel.groupBadgeTotal([cellItem.appId], root.notificationBadges)
+          }
           readonly property string appIconSrc: {
             if (root && root.appLibrary) {
               var s = DockModel.resolveAppIcon(root.appLibrary, root.appRows, cellItem.appId)
@@ -164,6 +169,16 @@ BorderSurface {
           property real dragStartY: 0
           property bool isDragging: false
           property bool _dragJustEnded: false
+
+          // Per-window state, same reading as the dock's own indicator row.
+          readonly property var appEntry: root ? root.entryForId(cellItem.appId) : null
+          readonly property var appWindows: appEntry ? (appEntry.windowList || []) : []
+          function isWinMinimized(w) {
+            return !!w && ((w.isMinimized === true) || (root && root.liveWsNameOf(w) === root.minimizedWorkspace))
+          }
+          function isWinActive(w) {
+            return !!w && !!w.address && !!root && w.address === root.activeWindowAddress
+          }
 
           Rectangle {
             id: cellBg
@@ -181,20 +196,51 @@ BorderSurface {
 
               // groupIconEffects decides whether the dock's icon style reaches
               // the opened group ("theme") or its icons stay original ("none").
-              DockIconArt {
+              Item {
                 anchors.horizontalCenter: parent.horizontalCenter
                 width: Style.space(36)
                 height: Style.space(36)
-                source: cellItem.appIconSrc
-                renderSize: Style.space(36)
-                iconStyle: root && root.groupIconEffects !== "none" ? root.iconStyle : "original"
-                // The popup sits on the menu surface, not the dock card.
-                tint: root ? root.tintFor(root.iconTint, Color.menu.text, Color.menu.background) : Color.menu.text
-                grid: root ? root.iconGrid : 16
-                contrast: root ? root.iconContrast : 0
-                strength: root ? root.iconStrength : 1
-                showOriginal: root ? (root.iconHoverOriginal && cellMouseArea.containsMouse) : false
-                hoverFx: root ? root.hoverFx : null
+
+                DockIconArt {
+                  anchors.fill: parent
+                  source: cellItem.appIconSrc
+                  renderSize: Style.space(36)
+                  iconStyle: root && root.groupIconEffects !== "none" ? root.iconStyle : "original"
+                  // The popup sits on the menu surface, not the dock card.
+                  tint: root ? root.tintFor(root.iconTint, Color.menu.text, Color.menu.background) : Color.menu.text
+                  grid: root ? root.iconGrid : 16
+                  outputScale: root ? root.outputScale : 1
+                  contrast: root ? root.iconContrast : 0
+                  strength: root ? root.iconStrength : 1
+                  showOriginal: root ? (root.iconHoverOriginal && cellMouseArea.containsMouse) : false
+                  hoverFx: root ? root.hoverFx : null
+                }
+
+                // Same mark as a dock badge, sitting on the menu surface.
+                Rectangle {
+                  visible: cellItem.notificationCount > 0
+                  anchors.right: parent.right
+                  anchors.top: parent.top
+                  anchors.rightMargin: -Style.space(3)
+                  anchors.topMargin: -Style.space(3)
+                  width: Math.max(Style.space(17), cellBadgeText.implicitWidth + Style.space(8))
+                  height: Style.space(17)
+                  radius: height / 2
+                  color: Color.accent
+                  border.width: 1
+                  border.color: Color.menu.background
+                  z: 2
+                  Text {
+                    id: cellBadgeText
+                    anchors.centerIn: parent
+                    text: cellItem.notificationCount > 99 ? "99+" : String(cellItem.notificationCount)
+                    textFormat: Text.PlainText
+                    color: root && root.isLight(Color.accent) ? "#12100f" : "#f2efec"
+                    font.family: Style.font.family
+                    font.pixelSize: Style.space(10)
+                    font.bold: true
+                  }
+                }
               }
 
               Text {
@@ -207,6 +253,26 @@ BorderSurface {
                 horizontalAlignment: Text.AlignHCenter
                 elide: Text.ElideRight
                 maximumLineCount: 1
+              }
+
+              // Running/minimized state, one mark per window like the dock:
+              // active bar, open dot, parked hollow dot.
+              Row {
+                anchors.horizontalCenter: parent.horizontalCenter
+                spacing: Style.space(2)
+                visible: cellItem.appWindows.length > 0
+                Repeater {
+                  model: Math.min(3, cellItem.appWindows.length)
+                  delegate: DockIndicator {
+                    readonly property var winObj: cellItem.appWindows[index]
+                    readonly property bool winMin: cellItem.isWinMinimized(winObj)
+                    readonly property bool winActive: !winMin && cellItem.isWinActive(winObj)
+                    rootRef: root
+                    anchors.verticalCenter: parent.verticalCenter
+                    dense: true
+                    kind: winActive ? "active" : (winMin ? "minimized" : "window")
+                  }
+                }
               }
             }
 
@@ -291,11 +357,10 @@ BorderSurface {
                     root.removeAppFromGroup(appGroupPopup.activeGroup.id, cellItem.appId)
                   }
                 } else if (mouse.button === Qt.LeftButton) {
-                  // Left click: launch or focus app
-                  if (root) {
-                    root.activate(cellItem.appId)
-                    root.closeAppGroup()
-                  }
+                  // Launch, focus, or park the app. The popup stays open so
+                  // foldered apps can be switched and toggled repeatedly
+                  // without reopening the folder each time.
+                  if (root) root.activate(cellItem.appId)
                 }
               }
             }
