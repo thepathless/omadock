@@ -36,6 +36,12 @@ jobs:
       - name: Python test suites
         run: python3 -m unittest discover -s tests/unit -p 'test_*.py'
 
+      # Marketplace review rules: PlainText only, no eval, no data spliced
+      # into shell commands, no inline python; lists hyprctl eval and
+      # notify-send call sites for review without failing.
+      - name: Security grep
+        run: python3 tests/static/security-grep.py
+
   qml-lint:
     name: QML syntax gate
     runs-on: ubuntu-24.04
@@ -48,8 +54,8 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install qmllint (qt6-declarative)
-        run: pacman -Sy --noconfirm qt6-declarative
+      - name: Install qmllint and qsb (qt6-declarative, qt6-shadertools)
+        run: pacman -Sy --noconfirm qt6-declarative qt6-shadertools
 
       # Hard syntax gate: parse errors exit non-zero (255 on broken QML).
       # Typed checking against the Omarchy shell and Quickshell modules only
@@ -57,6 +63,12 @@ jobs:
       # (AGENTS.md "Verification Commands").
       - name: qmllint
         run: /usr/lib/qt6/bin/qmllint --silent Dock.qml DockHost.qml components/*.qml
+
+      # The committed .qsb binaries must be exactly what the .frag sources
+      # compile to (qsb output is deterministic), so they carry nothing the
+      # reviewed sources do not.
+      - name: Shaders match their sources
+        run: REQUIRE_QSB=1 bash tests/static/shaders-in-sync.sh
 
   manifest:
     name: Manifest schema

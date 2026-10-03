@@ -514,7 +514,7 @@ Run <code>omarchy restart shell</code> in your terminal to instantly reload the 
 
 ## 🛠️ Diagnostics & Validation
 
-Every pull request runs the test suites, a QML syntax gate and the manifest schema check in CI.
+Every pull request runs the test suites, a QML syntax gate, the security grep, a check that the compiled shaders match their sources and the manifest schema check in CI.
 
 ```bash
 # Validate manifest compliance against Omarchy 4.0.3+ standards
