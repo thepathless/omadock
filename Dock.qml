@@ -796,6 +796,10 @@ Item {
   readonly property string activeStackView: root.activeStackFolder !== "" ? root.folderViewFor(root.activeStackFolder) : "stack"
   property var activeStackEntries: []
   property int activeStackTotalCount: 0
+  // The last scan stopped at its entry budget (the folder holds more), or
+  // could not read the folder at all (timeout, unreadable).
+  property bool activeStackTruncated: false
+  property bool activeStackFailed: false
   property real activeStackX: 0
   property string contextFolderPath: ""
   property string contextFolderName: ""
@@ -1312,10 +1316,11 @@ Item {
           // header, or repopulating after the stack was closed.
           var wanted = String(root.pendingStackPath || "")
           if (parsed.folder !== wanted) return
-          root.applyStackScan(parsed.items || [], parsed.count || 0)
+          root.applyStackScan(parsed.items || [], parsed.count || 0, parsed.truncated === true, false)
         } catch (e) {
           console.warn("[omadock] Failed parsing folder scan:", e)
-          root.applyStackScan([], 0)
+          // Empty output: the helper timed out or died (a stalled mount).
+          root.applyStackScan([], 0, false, true)
         }
       }
     }
@@ -4140,11 +4145,13 @@ Item {
   // running = true while a process is already running is a no-op in
   // Quickshell, which used to let a slow older scan race the new one.
   // The scan for the pending folder landed: show it in one step.
-  function applyStackScan(items, count) {
+  function applyStackScan(items, count, truncated, failed) {
     if (root.pendingStackPath === "") return
     root.activeStackPath = root.pendingStackPath
     root.activeStackName = root.pendingStackName
     root.activeStackX = root.pendingStackX
+    root.activeStackTruncated = truncated === true
+    root.activeStackFailed = failed === true
     root.activeStackTotalCount = count
     root.activeStackEntries = items
     root.activeStackLoading = false

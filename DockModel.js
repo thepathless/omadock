@@ -615,6 +615,21 @@ function reanchorGroups(groups, oldPins, newPins) {
 // Stack orders a pinned folder may carry (scripts/list-folder.py).
 var FOLDER_SORTS = ["name", "kind", "modified", "added", "size"]
 
+// Folder stack header count: "" for none, "N+" when the scan stopped at its
+// budget (list-folder.py MAX_SCAN) and the folder holds more.
+function stackCountLabel(count, truncated) {
+  var n = Math.max(0, Math.floor(Number(count) || 0))
+  if (n === 0) return ""
+  return truncated ? n + "+" : String(n)
+}
+
+// Folder stack footer for entries not shown: "" when all are shown.
+function stackMoreLabel(count, shown, truncated) {
+  var rest = Math.max(0, Math.floor(Number(count) || 0) - Math.floor(Number(shown) || 0))
+  if (rest === 0) return ""
+  return "+ " + rest + (truncated ? "+" : "") + " more"
+}
+
 function boundPinnedFolders(arr) {
   return boundList(arr, MAX_PINNED_FOLDERS, function(f) {
     if (!f || typeof f !== "object" || isList(f)) return false
