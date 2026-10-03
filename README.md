@@ -344,6 +344,7 @@ Settings persist in `~/.config/omarchy/omadock.json` and are editable live:
   "autohide": true,
   "intelligentAutohide": true,
   "showRemovableDrives": true,
+  "warnUnsafeRemoval": true,
   "minimizeMode": "active",
   "clickToMinimize": true,
   "showMinimizedTiles": true,
@@ -403,6 +404,7 @@ Settings persist in `~/.config/omarchy/omadock.json` and are editable live:
 | `autohide` | `bool` | `true` | Enables dock autohiding on hover exit. |
 | `intelligentAutohide` | `bool` | `true` | Hides dock only when windows overlap its bounding box (AABB). |
 | `showRemovableDrives` | `bool` | `true` | Auto-detect and display removable USB thumb drives and storage. |
+| `warnUnsafeRemoval` | `bool` | `true` | Notify when a drive is pulled out while still mounted (it was not ejected first). |
 | `appGroups` | `array` | `[]` | App Folders / Groups configuration (name, custom icon, app ID list). |
 | `groupStyle` | `string` | `"rounded"` | Group tile frame: `"rounded"` (softly rounded rim), `"square"` (rim without rounding) or `"none"` (icons only). |
 | `groupIconEffects` | `string` | `"theme"` | Icons in an opened group: `"theme"` follows `iconStyle`, `"none"` keeps them original. The tile on the dock always follows `iconStyle`. |

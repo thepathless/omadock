@@ -802,6 +802,8 @@ Item {
 
   // ------------------------------------------------- removable drives state
   property bool showRemovableDrives: true
+  // Warn when a drive is pulled out while still mounted.
+  property bool warnUnsafeRemoval: true
   property var mountedDrives: []
   property string contextDriveDev: ""
   property string contextDriveMount: ""
@@ -2284,6 +2286,7 @@ Item {
     root.alignment = (parsed && (parsed.alignment || parsed.position)) ? String(parsed.alignment || parsed.position).toLowerCase() : "center"
     if (root.alignment !== "left" && root.alignment !== "right") root.alignment = "center"
     root.showRemovableDrives = parsed ? parsed.showRemovableDrives !== false : true
+    root.warnUnsafeRemoval = parsed ? parsed.warnUnsafeRemoval !== false : true
     if (parsed && DockModel.isList(parsed.appGroups)) {
       // Persisted collections are shape- and size-bounded before reaching the
       // long-lived shell (see DockModel boundAppGroups / boundPinnedFolders).
@@ -3600,6 +3603,7 @@ Item {
     conf.alignment = root.alignment || "center"
     delete conf.position
     conf.showRemovableDrives = root.showRemovableDrives
+    conf.warnUnsafeRemoval = root.warnUnsafeRemoval
     conf.appGroups = DockModel.boundAppGroups(root.appGroups)
     conf.autohide = root.autohide
     conf.intelligentAutohide = root.intelligentAutohide
@@ -3983,6 +3987,45 @@ Item {
   // Shared feedback for the "app is gone" classes (launching a stale pin,
   // pinning an unresolvable id) that used to fail silently. The label is
   // markup-escaped: notification bodies are rendered as markup.
+  // A drive pulled out while mounted (scripts/drive-removal-watch.py).
+  // The label comes from list-drives.py, already cleaned; it is escaped
+  // again because notification bodies render markup.
+  function notifyUnsafeRemoval(name) {
+    var label = String(name || "A drive").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
+    Quickshell.execDetached([
+      "notify-send", "-a", "OmaDock", "-i", "drive-removable-media", "--",
+      "Drive removed without ejecting",
+      label + " was removed while still mounted. Recent changes may not have been written; eject it from the dock next time."
+    ])
+  }
+
+  // Event driven: the script blocks on kernel uevents and mount-table
+  // changes, so it adds no idle CPU. One dock (the primary) reports.
+  Process {
+    id: driveRemovalWatch
+    command: ["python3", root.scriptPath("drive-removal-watch.py")]
+    running: root.isPrimary && root.showRemovableDrives && root.warnUnsafeRemoval
+    stdout: SplitParser {
+      splitMarker: "\n"
+      onRead: function(line) {
+        try {
+          var ev = JSON.parse(line)
+          var drives = root.mountedDrives || []
+          var name = ""
+          for (var i = 0; i < drives.length; i++) {
+            if (drives[i] && (drives[i].dev === ev.dev || drives[i].mountpoint === ev.mountpoint)) {
+              name = drives[i].name
+              break
+            }
+          }
+          root.notifyUnsafeRemoval(name || String(ev.mountpoint || "").split("/").pop())
+        } catch (e) {
+          console.warn("[omadock] Failed reading drive removal event:", e)
+        }
+      }
+    }
+  }
+
   function notifyAppMissing(name, detail) {
     var label = String(name || "This app").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
     Quickshell.execDetached([
