@@ -45,6 +45,15 @@ class PopupTests(unittest.TestCase):
             self.assertEqual(len(rows[0]['body']), 4096)
             self.assertEqual(set(rows[0]), {'app', 'appIcon', 'summary', 'body'})
 
+    def test_timestamp_identifies_each_popup(self):
+        with tempfile.TemporaryDirectory() as folder:
+            base = Path(folder)
+            (base / 'a.json').write_text(json.dumps({'app': 'A', 'timestamp': 1791036122238}))
+            (base / 'b.json').write_text(json.dumps({'app': 'B', 'timestamp': '17'}))
+            (base / 'c.json').write_text(json.dumps({'app': 'C', 'timestamp': True}))
+            stamps = {row['app']: row.get('timestamp') for row in popups.snapshots(folder)}
+            self.assertEqual(stamps, {'A': 1791036122238, 'B': None, 'C': None})
+
     def test_row_limit_and_missing_directory(self):
         self.assertEqual(popups.snapshots('/nonexistent/omadock-test'), [])
         with patch.dict(os.environ, {'HOME': '/tmp/home', 'XDG_STATE_HOME': '/tmp/ignored'}):

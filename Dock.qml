@@ -2069,18 +2069,28 @@ Item {
   }
 
   // Overlay plugins may not receive the first-party notification service.
-  // The shell's active-popup files offer a read-only, event-driven fallback.
+  // The shell's active-popup files offer a read-only, event-driven fallback,
+  // for the badges and for urgency on a new notification.
+  property bool _popupWatchPrimed: false
   Process {
     id: notificationPopupWatch
-    running: root.showNotificationBadges && !root.notifService
+    running: (root.showNotificationBadges || (root.showUrgentHint && root.urgentOnNotification)) && !root.notifService
+    // The first snapshot after (re)start only records what is already up,
+    // so a shell restart does not bounce apps for old popups.
+    onRunningChanged: if (!running) root._popupWatchPrimed = false
     command: ["python3", decodeURIComponent(Qt.resolvedUrl("scripts/notification-popups.py").toString().replace(/^file:\/\//, ""))]
     stdout: SplitParser {
       splitMarker: "\n"
       onRead: function(line) {
         try {
           var rows = JSON.parse(line)
-          root.notificationPopupRows = Array.isArray(rows) ? rows : []
+          var next = Array.isArray(rows) ? rows : []
+          var fresh = root._popupWatchPrimed ? DockModel.newPopupRows(root.notificationPopupRows, next) : []
+          root._popupWatchPrimed = true
+          root.notificationPopupRows = next
           notificationBadgeTimer.restart()
+          if (root.showUrgentHint && root.urgentOnNotification)
+            for (var i = 0; i < fresh.length; i++) root.handleNotificationReceived(fresh[i])
         } catch (e) {
           console.warn("[omadock] Failed reading notification popup snapshot:", e)
         }
