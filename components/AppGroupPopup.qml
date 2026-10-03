@@ -152,6 +152,11 @@ BorderSurface {
           readonly property var root: appGroupPopup.root
           readonly property string appId: String(modelData || "")
           readonly property string appName: root ? DockModel.resolveAppName(root.appLibrary, root.appRows, cellItem.appId) : cellItem.appId
+          // Cell badges sum the id spellings of this one app.
+          readonly property int notificationCount: {
+            if (!root || !root.showNotificationBadges) return 0
+            return DockModel.groupBadgeTotal([cellItem.appId], root.notificationBadges)
+          }
           readonly property string appIconSrc: {
             if (root && root.appLibrary) {
               var s = DockModel.resolveAppIcon(root.appLibrary, root.appRows, cellItem.appId)
@@ -181,20 +186,50 @@ BorderSurface {
 
               // groupIconEffects decides whether the dock's icon style reaches
               // the opened group ("theme") or its icons stay original ("none").
-              DockIconArt {
+              Item {
                 anchors.horizontalCenter: parent.horizontalCenter
                 width: Style.space(36)
                 height: Style.space(36)
-                source: cellItem.appIconSrc
-                renderSize: Style.space(36)
-                iconStyle: root && root.groupIconEffects !== "none" ? root.iconStyle : "original"
-                // The popup sits on the menu surface, not the dock card.
-                tint: root ? root.tintFor(root.iconTint, Color.menu.text, Color.menu.background) : Color.menu.text
-                grid: root ? root.iconGrid : 16
-                contrast: root ? root.iconContrast : 0
-                strength: root ? root.iconStrength : 1
-                showOriginal: root ? (root.iconHoverOriginal && cellMouseArea.containsMouse) : false
-                hoverFx: root ? root.hoverFx : null
+
+                DockIconArt {
+                  anchors.fill: parent
+                  source: cellItem.appIconSrc
+                  renderSize: Style.space(36)
+                  iconStyle: root && root.groupIconEffects !== "none" ? root.iconStyle : "original"
+                  // The popup sits on the menu surface, not the dock card.
+                  tint: root ? root.tintFor(root.iconTint, Color.menu.text, Color.menu.background) : Color.menu.text
+                  grid: root ? root.iconGrid : 16
+                  contrast: root ? root.iconContrast : 0
+                  strength: root ? root.iconStrength : 1
+                  showOriginal: root ? (root.iconHoverOriginal && cellMouseArea.containsMouse) : false
+                  hoverFx: root ? root.hoverFx : null
+                }
+
+                // Same mark as a dock badge, sitting on the menu surface.
+                Rectangle {
+                  visible: cellItem.notificationCount > 0
+                  anchors.right: parent.right
+                  anchors.top: parent.top
+                  anchors.rightMargin: -Style.space(3)
+                  anchors.topMargin: -Style.space(3)
+                  width: Math.max(Style.space(17), cellBadgeText.implicitWidth + Style.space(8))
+                  height: Style.space(17)
+                  radius: height / 2
+                  color: Color.accent
+                  border.width: 1
+                  border.color: Color.menu.background
+                  z: 2
+                  Text {
+                    id: cellBadgeText
+                    anchors.centerIn: parent
+                    text: cellItem.notificationCount > 99 ? "99+" : String(cellItem.notificationCount)
+                    textFormat: Text.PlainText
+                    color: root && root.isLight(Color.accent) ? "#12100f" : "#f2efec"
+                    font.family: Style.font.family
+                    font.pixelSize: Style.space(10)
+                    font.bold: true
+                  }
+                }
               }
 
               Text {

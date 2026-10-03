@@ -34,6 +34,13 @@ Item {
   readonly property bool isOpen: root ? root.activeAppGroupId === gitem.groupId : false
   readonly property bool isDropTarget: (root && (root.dropTargetGroupId === gitem.groupId || root.dropTargetAppId === gitem.groupId))
 
+  // Folder badges sum their members' counts (macOS folder badge), each id
+  // spelling counted once via DockModel's aliases.
+  readonly property int badgeCount: {
+    if (!root || !root.showNotificationBadges) return 0
+    return DockModel.groupBadgeTotal(gitem.groupApps, root.notificationBadges)
+  }
+
   // Check running / active / window stats for apps in this group
   readonly property var groupRunningInfo: {
     var hasRun = false
@@ -127,6 +134,33 @@ Item {
         anchors.fill: parent
         hovered: groupArea.containsMouse
         hoverFx: root ? root.hoverFx : null
+      }
+
+      // Badge: the folder's summed count, same mark as an app badge.
+      Rectangle {
+        visible: gitem.badgeCount > 0
+        parent: tileFx.contentItem
+        anchors.right: parent.right
+        anchors.top: parent.top
+        anchors.rightMargin: -Style.space(3)
+        anchors.topMargin: -Style.space(3)
+        width: Math.max(Style.space(17), groupBadgeText.implicitWidth + Style.space(8))
+        height: Style.space(17)
+        radius: height / 2
+        color: Color.accent
+        border.width: 1
+        border.color: Color.bar.background
+        z: 2
+        Text {
+          id: groupBadgeText
+          anchors.centerIn: parent
+          text: gitem.badgeCount > 99 ? "99+" : String(gitem.badgeCount)
+          textFormat: Text.PlainText
+          color: root && root.isLight(Color.accent) ? "#12100f" : "#f2efec"
+          font.family: Style.font.family
+          font.pixelSize: Style.space(10)
+          font.bold: true
+        }
       }
 
       // Folder tile (macOS / iOS Launchpad folder style). groupStyle picks

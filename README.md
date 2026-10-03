@@ -80,7 +80,7 @@ Crafted in the spirit of **Omakase (おまかせ)**: wave magnification, live wi
 - **🖥️ Multi-monitor** — one dock per monitor, each showing its own monitor's windows.
 - **💾 Removable media** — USB drives dock themselves; safe eject included.
 - **🔔 Attention glow & chimes** — bouncing alerts and audio pings.
-- **🔴 Pinned notification badges** — counts matching active popups on pinned apps; dismiss or expire a popup to clear it. These are not unread-message counts.
+- **🔴 Sticky notification badges** — counts matching notifications on pinned, running, and foldered apps; folder tiles sum their members. Counts stay until the app is focused. These are not unread-message counts.
 - **🖥️ CLI app identity** — Antigravity and btop keep their own icons when launched in a terminal; the terminal icon is only a fallback.
 - **⌨️ Keybindings & IPC** — wired for `~/.config/hypr/bindings.lua` out of the box.
 
@@ -234,7 +234,7 @@ Deep Linux desktop and compositor integration:
 
 ### 🔔 10. Notification Badges & CLI App Identity
 
-- Pinned icons show a badge counting **matching active notification popups** — the count clears as soon as the popup leaves the stack (dismissed, expired, or replaced). These are not unread-message counts.
+- Dock icons show a badge counting **matching notifications** (pinned, running, and foldered apps alike); a folder tile sums its members' counts. Counts are **sticky**: one notification bumps the badge by one and the count stays until the app gains focus — dismissing or expiring the popup does not clear it. These are not unread-message counts.
 - Terminal-launched apps know who they are: **Antigravity** (`agy`) and **btop** keep their own product icons; the terminal's icon is only a fallback for unknown CLI tools.
 
 ---
@@ -436,7 +436,7 @@ Settings persist in `~/.config/omarchy/omadock.json` and are editable live:
 | `folderColor` | `string` | `"theme"` | `"theme"`, `"symbolic"`, `"white"`, `"black"`, `"Yaru-blue"`, etc. |
 | `hoverEffect` | `string` | `"zoom"` | Hover mode: magnification `"zoom"` or `"wave"`; effects `"lift"`, `"glow"`, `"glitch"` (shaders); or `"off"`. |
 | `dividerGeometry` | `string` | `"classic"` | Section divider length: `"classic"` keeps the original short lines; `"long"` uses the adjustable `dividerHeight` share. |
-| `showNotificationBadges` | `bool` | `true` | Count matching active popups on pinned icons (not unread messages); cleared when the notification leaves the popup stack. |
+| `showNotificationBadges` | `bool` | `true` | Count matching notifications on dock icons and folder tiles (not unread messages); sticky until the app is focused. |
 | `revealDelay` | `int` | `160` | Edge dwell time in milliseconds before unhiding ($0$–$2000$). |
 | `tooltipDelay` | `int` | `450` | Tooltip hover dwell delay in milliseconds ($0$–$5000$). |
 | `wheelStepDelay` | `int` | `150` | Minimum milliseconds between accepted wheel steps while browsing an app's windows ($0$–$1000$). |
