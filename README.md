@@ -523,7 +523,7 @@ omarchy plugin validate ~/Projects/omadock
 # Same manifest gate CI runs (a faithful mirror of the command above)
 ./tests/manifest-check.sh .
 
-# Test suites (Node: model + perf + hardening; Python: script helpers)
+# Test suites (Node: model, perf, hardening and DockModel behaviour; Python: script helpers, drop check, the CappedFileView read gate)
 node --check DockModel.js
 node --test tests/unit/*.test.js tests/unit/*.test.mjs
 python3 -m unittest discover -s tests/unit -p 'test_*.py'
