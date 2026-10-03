@@ -637,6 +637,9 @@ Item {
   }
   readonly property var runningSection: root.dockModel.running || []
   readonly property var groupedSection: root.dockModel.grouped || []
+  // Every entry a notification may be attributed to: pinned, unpinned
+  // running, and foldered (grouped) apps alike.
+  readonly property var notifEntries: root.pinnedSection.concat(root.runningSection).concat(root.groupedSection || [])
 
   function refreshDock() {
     var tops = ToplevelManager.toplevels ? ToplevelManager.toplevels.values : []
@@ -1120,6 +1123,9 @@ Item {
   property bool showNotificationBadges: true
   property var notificationBadges: ({})
   property var notificationPopupRows: []
+  // Sticky-badge dedupe: row keys already counted, oldest evicted at 512.
+  property var _notifSeenKeys: ({})
+  property var _notifSeenOrder: []
   property bool urgentSound: true
   property string urgentSoundName: "bell"
   property var notifService: null
@@ -2057,15 +2063,47 @@ Item {
     }
   }
 
+  // Sticky badges: a count arrives with its notification and stays until its
+  // app is focused (clearNotificationBadgesFor). Rows are deduped by
+  // DockModel.notificationRowKey, so model churn and re-emitted snapshots
+  // never double-count; the seen-key store is bounded to the same 512 as the
+  // row walks. The 20ms timer debounces the several signals that ask for a
+  // rebuild.
+  function processNotifRowSticky(row) {
+    if (!row || !root.showNotificationBadges) return
+    var key = DockModel.notificationRowKey(row)
+    if (!key || root._notifSeenKeys[key]) return
+    root._notifSeenKeys[key] = true
+    root._notifSeenOrder.push(key)
+    while (root._notifSeenOrder.length > 512) delete root._notifSeenKeys[root._notifSeenOrder.shift()]
+
+    var rowCounts = DockModel.notificationCounts(root.notifEntries, root.appRows, [row])
+    var ids = []
+    for (var id in rowCounts) {
+      // A focused app shows no badge; its counts clear at the focus event.
+      if (id && !(root.activeId && DockModel.isAppMatch(id, root.activeId))) ids.push(id)
+    }
+    if (ids.length) root.notificationBadges = DockModel.bumpNotificationCounts(root.notificationBadges, ids, 1)
+  }
+
   function refreshNotificationBadges() {
-    var rows = root.showNotificationBadges ? root.notificationPopupRows : []
+    if (!root.showNotificationBadges) {
+      if (root._notifSeenOrder.length) {
+        root._notifSeenKeys = {}
+        root._notifSeenOrder = []
+      }
+      if (JSON.stringify(root.notificationBadges) !== "{}") root.notificationBadges = {}
+      return
+    }
+    // The watcher's snapshot rows hold every live popup, so nothing is lost
+    // to a dismissal between two emissions.
+    var rows = root.notificationPopupRows
     var popups = root.notifService ? root.notifService.popupModel : null
-    if (root.showNotificationBadges && popups) {
+    if (popups) {
       rows = []
       for (var i = 0; i < Math.min(popups.count, 512); i++) rows.push(popups.get(i))
     }
-    root.notificationBadges = DockModel.notificationCounts(
-      root.pinnedSection.concat(root.runningSection), root.appRows, rows)
+    for (var r = 0; r < Math.min(rows.length, 512); r++) root.processNotifRowSticky(rows[r])
   }
 
   // Overlay plugins may not receive the first-party notification service.
@@ -2103,7 +2141,7 @@ Item {
     if (ts && ts === root._lastProcessedNotifTimestamp) return
     root._lastProcessedNotifTimestamp = ts
 
-    var allEntries = root.pinnedSection.concat(root.runningSection)
+    var allEntries = root.notifEntries
     var matchedEntries = DockModel.findNotificationTargets(allEntries, root.appRows, row)
     if (!matchedEntries || matchedEntries.length === 0) return
 
@@ -2163,10 +2201,14 @@ Item {
     target: root.notifService ? root.notifService.popupModel : null
     function onRowsInserted(parent, first, last) {
       notificationBadgeTimer.restart()
-      if (!root.showUrgentHint || !root.urgentOnNotification || !root.notifService || !root.notifService.popupModel) return
+      var wantUrgent = root.showUrgentHint && root.urgentOnNotification
       for (var i = first; i <= last; i++) {
         var row = root.notifService.popupModel.get(i)
-        if (row) root.handleNotificationReceived(row)
+        if (!row) continue
+        // Counted here, not on the timer: a popup that expires before the
+        // debounce still leaves its sticky badge.
+        root.processNotifRowSticky(row)
+        if (wantUrgent) root.handleNotificationReceived(row)
       }
     }
     function onRowsRemoved(parent, first, last) { notificationBadgeTimer.restart() }
@@ -2177,7 +2219,10 @@ Item {
       if (!root.showUrgentHint || !root.urgentOnNotification || !root.notifService || !root.notifService.popupModel) return
       if (root.notifService.popupModel.count > 0) {
         var row = root.notifService.popupModel.get(0)
-        if (row) root.handleNotificationReceived(row)
+        if (row) {
+          root.processNotifRowSticky(row)
+          root.handleNotificationReceived(row)
+        }
       }
     }
   }
@@ -3315,7 +3360,7 @@ Item {
 
     var next = {}
     var dropped = false
-    var allEntries = root.pinnedSection.concat(root.runningSection).concat(root.groupedSection || [])
+    var allEntries = root.notifEntries
 
     for (var i = 0; i < keys.length; i++) {
       var key = keys[i]
@@ -3354,9 +3399,33 @@ Item {
     return dropped ? next : map
   }
 
+  // Sticky badges are "notifications you have not looked at": they clear for
+  // the app (and whatever entry owns the address) as soon as it gains focus,
+  // independently of whether any urgency entry exists.
+  function clearNotificationBadgesFor(appId, address) {
+    if (!root.notificationBadges) return
+    var next = DockModel.clearNotificationCounts(root.notificationBadges, appId)
+    var normAddr = address ? DockModel.windowAddress({ address: address }) : ""
+    if (normAddr) {
+      var allEntries = root.notifEntries
+      for (var i = 0; i < allEntries.length; i++) {
+        var entry = allEntries[i]
+        var wins = entry ? (entry.windowList || []) : []
+        for (var w = 0; w < wins.length; w++) {
+          if (wins[w] && wins[w].address === normAddr) {
+            next = DockModel.clearNotificationCounts(next, entry.appId || entry.id)
+            break
+          }
+        }
+      }
+    }
+    if (JSON.stringify(next) !== JSON.stringify(root.notificationBadges)) root.notificationBadges = next
+  }
+
   // Clears urgency entries from urgentMap for an application and its windows.
   // Called whenever an app/window receives focus or is activated/clicked by user.
   function clearUrgentApp(appId, address) {
+    root.clearNotificationBadgesFor(appId, address)
     if (!root.urgentMap) return
     var hasKeys = false
     for (var k in root.urgentMap) {
@@ -3379,7 +3448,7 @@ Item {
       changed = true
     }
 
-    var allEntries = root.pinnedSection.concat(root.runningSection).concat(root.groupedSection || [])
+    var allEntries = root.notifEntries
     var targetEntries = []
 
     for (var i = 0; i < allEntries.length; i++) {

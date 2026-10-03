@@ -1416,6 +1416,12 @@ PanelWindow {
 
                   Button {
                     visible: !presetRow.confirming
+                    text: "Apply"
+                    foreground: Color.accent
+                    onClicked: { panel.endPresetEdit(); root.applyPreset(presetRow.modelData.id) }
+                  }
+                  Button {
+                    visible: !presetRow.confirming
                     text: "Update"
                     foreground: Color.menu.text
                     onClicked: { panel.endPresetEdit(); root.updatePreset(presetRow.modelData.id) }

@@ -27,16 +27,8 @@ Item {
   // Badge counts are filed under whichever id the matching entry carries.
   // DockModel owns the id spellings, so this only sums the aliases it is told.
   readonly property int notificationCount: {
-    if (!root || !root.showNotificationBadges || !item.pinned) return 0
-    var ids = DockModel.notificationAliasIds(item.appId)
-    var seen = ({})
-    var count = 0
-    for (var i = 0; i < ids.length; i++) {
-      if (seen[ids[i]]) continue
-      seen[ids[i]] = true
-      count += root.notificationBadges[ids[i]] || 0
-    }
-    return count
+    if (!root || !root.showNotificationBadges) return 0
+    return DockModel.groupBadgeTotal([item.appId], root.notificationBadges)
   }
 
   signal activateRequested(string appId)
