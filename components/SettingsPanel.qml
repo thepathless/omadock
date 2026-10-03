@@ -4,6 +4,7 @@ import Quickshell.Io
 import Quickshell.Wayland
 import qs.Commons
 import qs.Ui
+import "../DockModel.js" as DockModel
 
 // Full-screen overlay holding the dock settings: a sidebar of categories and
 // a scrollable page of controls. Every control writes straight through the
@@ -42,18 +43,71 @@ PanelWindow {
   // Hyprland's blur size right now (decoration:blur:size), probed on open.
   property int currentBlurSize: 0
 
+  // Categories in sidebar order. Page ids are also the IPC names
+  // (openSettingsPage), so "presets" and "about" keep their ids.
   readonly property var pages: [
     { id: "appearance", label: "Appearance", glyph: "󰏘" },
-    { id: "placement", label: "Placement", glyph: "󰍹" },
+    { id: "icons", label: "Icons", glyph: "󰩨" },
+    { id: "motion", label: "Motion & Effects", glyph: "󰨙" },
     { id: "behavior", label: "Behavior", glyph: "󰒓" },
-    { id: "effects", label: "Effects", glyph: "󰨙" },
-    { id: "size", label: "Size & Spacing", glyph: "󰩨" },
+    { id: "placement", label: "Placement", glyph: "󰍹" },
     { id: "folders", label: "Folders", glyph: "󰉋" },
     { id: "groups", label: "App Groups", glyph: "󰀻" },
     { id: "presets", label: "Presets", glyph: "󰆓" },
     { id: "about", label: "About", glyph: "󰋼" }
   ]
 
+  // ---------------------------------------------------------- settings search
+  // Hits rebuild as the query changes (DockModel.searchSettings). Rows
+  // register themselves under their search key; a picked hit switches to the
+  // row's page and flashes it.
+  property var searchHits: []
+  property var rowByKey: ({})
+  property string flashKey: ""
+
+  Timer {
+    id: flashTimer
+    interval: 2200
+    onTriggered: panel.flashKey = ""
+  }
+
+  function gotoSetting(key) {
+    var hit = null
+    for (var i = 0; i < panel.searchHits.length; i++)
+      if (panel.searchHits[i].key === key) {
+        hit = panel.searchHits[i]
+        break
+      }
+    if (!hit) return
+    root.settingsPanelPage = hit.page
+    searchField.text = ""
+    panel.flashKey = key
+    flashTimer.restart()
+    pageFlick.contentY = 0
+    panel.scrollKey = key
+    scrollTimer.restart()
+  }
+
+  // The scroll waits a frame so the target page's Column has laid out;
+  // measuring in the same event loop turn reads stale positions.
+  property string scrollKey: ""
+  Timer {
+    id: scrollTimer
+    interval: 50
+    onTriggered: {
+      var row = panel.rowByKey[panel.scrollKey]
+      if (!row) return
+      var top = row.mapToItem(pageColumn, 0, 0).y
+      pageFlick.contentY = Math.max(0, Math.min(Math.max(0, pageFlick.contentHeight - pageFlick.height), top - Style.space(24)))
+    }
+  }
+
+
+  function pageLabelOf(id) {
+    for (var i = 0; i < panel.pages.length; i++)
+      if (panel.pages[i].id === id) return panel.pages[i].label
+    return ""
+  }
 
   function close() {
     if (root) root.closeSettingsPanel()
@@ -75,6 +129,21 @@ PanelWindow {
   // ------------------------------------------------------------ building blocks
 
   component SectionLabel: Text {
+    id: sectionLabel
+    // Search key, as on SettingRow: lets a whole section ("Folder color",
+    // "Presets") be a search target even though it has no control row.
+    property string key: ""
+    Component.onCompleted: if (key !== "") panel.rowByKey[key] = sectionLabel
+
+    Rectangle {
+      anchors.fill: parent
+      radius: Style.space(8)
+      color: (sectionLabel.key !== "" && panel.flashKey === sectionLabel.key) ? Util.alpha(Color.accent, 0.14) : "transparent"
+      Behavior on color {
+        ColorAnimation { duration: 350 }
+      }
+    }
+
     width: parent ? parent.width : implicitWidth
     topPadding: Style.spacing.xxl
     bottomPadding: Style.spacing.sm
@@ -92,7 +161,21 @@ PanelWindow {
     id: settingRow
     property string label: ""
     property string hint: ""
+    // Search key: the SETTINGS_SEARCH entry whose hit jumps here. Rows
+    // without one are not reachable from the search box.
+    property string key: ""
     default property alias control: slot.data
+
+    Component.onCompleted: if (key !== "") panel.rowByKey[key] = settingRow
+
+    Rectangle {
+      anchors.fill: parent
+      radius: Style.space(8)
+      color: (settingRow.key !== "" && panel.flashKey === settingRow.key) ? Util.alpha(Color.accent, 0.14) : "transparent"
+      Behavior on color {
+        ColorAnimation { duration: 350 }
+      }
+    }
 
     width: parent ? parent.width : Style.space(420)
     implicitHeight: Math.max(Style.space(44), texts.implicitHeight + Style.spacing.lg * 2, slot.childrenRect.height + Style.spacing.md * 2)
@@ -395,12 +478,83 @@ PanelWindow {
           bottomPadding: Style.spacing.xxl
         }
 
+        TextField {
+          id: searchField
+          width: parent.width
+          placeholderText: "Search settings"
+          foreground: Color.menu.text
+          onTextChanged: panel.searchHits = text.trim() === "" ? [] : DockModel.searchSettings(text)
+        }
+
+        Column {
+          id: searchResults
+          width: parent.width
+          visible: searchField.text.trim() !== ""
+          spacing: Style.spacing.xxs
+
+          Repeater {
+            model: panel.searchHits
+            delegate: Rectangle {
+              id: hitRow
+              required property var modelData
+              width: searchResults.width
+              height: Style.space(32)
+              radius: Style.cornerRadius > 0 ? Style.space(6) : 0
+              color: hitMouse.containsMouse ? Util.alpha(Color.menu.text, 0.07) : "transparent"
+
+              Text {
+                anchors.left: parent.left
+                anchors.leftMargin: Style.spacing.md
+                anchors.right: hitWhere.left
+                anchors.rightMargin: Style.spacing.sm
+                anchors.verticalCenter: parent.verticalCenter
+                text: hitRow.modelData.label
+                textFormat: Text.PlainText
+                elide: Text.ElideRight
+                color: Color.menu.text
+                font.family: Style.font.family
+                font.pixelSize: Style.font.caption
+              }
+              Text {
+                id: hitWhere
+                anchors.right: parent.right
+                anchors.rightMargin: Style.spacing.md
+                anchors.verticalCenter: parent.verticalCenter
+                text: panel.pageLabelOf(hitRow.modelData.page)
+                textFormat: Text.PlainText
+                color: Util.alpha(Color.menu.text, 0.55)
+                font.family: Style.font.family
+                font.pixelSize: Style.font.caption
+              }
+              MouseArea {
+                id: hitMouse
+                anchors.fill: parent
+                hoverEnabled: true
+                cursorShape: Qt.PointingHandCursor
+                onClicked: panel.gotoSetting(hitRow.modelData.key)
+              }
+            }
+          }
+
+          Text {
+            visible: panel.searchHits.length === 0
+            topPadding: Style.spacing.sm
+            bottomPadding: Style.spacing.sm
+            text: "No matches"
+            textFormat: Text.PlainText
+            color: Util.alpha(Color.menu.text, 0.55)
+            font.family: Style.font.family
+            font.pixelSize: Style.font.caption
+          }
+        }
+
         Repeater {
           model: panel.pages
           delegate: Rectangle {
             id: navItem
             required property var modelData
             readonly property bool current: panel.page === modelData.id
+            visible: searchField.text.trim() === ""
 
             width: parent.width
             height: Style.space(34)
@@ -474,11 +628,7 @@ PanelWindow {
 
       Text {
         anchors.verticalCenter: parent.verticalCenter
-        text: {
-          for (var i = 0; i < panel.pages.length; i++)
-            if (panel.pages[i].id === panel.page) return panel.pages[i].label
-          return ""
-        }
+        text: panel.pageLabelOf(panel.page)
         textFormat: Text.PlainText
         color: Color.menu.text
         font.family: Style.font.family
@@ -546,6 +696,7 @@ PanelWindow {
             SectionLabel { text: "Background" }
 
             SwitchRow {
+              key: "showBackground"
               label: "Background"
               hint: "Fill behind the icons. Off leaves the icons floating."
               checked: root ? root.showBackground : true
@@ -557,6 +708,7 @@ PanelWindow {
               visible: root ? root.showBackground : true
 
               ChoiceRow {
+                key: "bgFill"
                 label: "Fill"
                 hint: "A solid colour, or colours melting into each other like Zen / Arc themes."
                 options: [
@@ -572,6 +724,7 @@ PanelWindow {
                 visible: root ? root.bgFill !== "gradient" : true
 
                 SettingRow {
+                  key: "bgColor"
                   label: "Color"
                   hint: "Theme, none, or a fixed preset."
 
@@ -621,6 +774,7 @@ PanelWindow {
                 visible: root ? root.bgFill === "gradient" : false
 
                 SettingRow {
+                  key: "gradientPalette"
                   label: "Palette"
                   hint: "Theme builds one from the Omarchy theme's accent and palette."
                 }
@@ -673,6 +827,7 @@ PanelWindow {
                 }
 
                 SliderRow {
+                  key: "gradientStrength"
                   label: "Strength"
                   hint: "How strongly the colours show over the theme background."
                   minimum: 0
@@ -686,12 +841,14 @@ PanelWindow {
               }
 
               SwitchRow {
+                key: "opacityTheme"
                 label: "Opacity from theme"
                 hint: "Follow the bar opacity of the current Omarchy theme."
                 checked: root ? root.dockOpacity < 0 : true
                 onToggled: root.setDockOpacity(root.dockOpacity < 0 ? 1.0 : -1.0)
               }
               SliderRow {
+                key: "opacity"
                 label: "Opacity"
                 visible: root ? root.dockOpacity >= 0 : false
                 minimum: 0
@@ -703,74 +860,20 @@ PanelWindow {
                 onCommitted: function(v) { root.setDockOpacity(Math.round(v * 100) / 100) }
               }
 
-              SwitchRow {
-                label: "Blur from system"
-                hint: "Leave blur behind the dock to your Hyprland layer rules."
-                checked: root ? root.blurMode === "system" : true
-                onToggled: root.setBlurMode(root.blurMode === "system" ? "on" : "system")
-              }
-              SwitchRow {
-                label: "Blur"
-                hint: panel.systemBlurEnabled
-                  ? "Frosted glass behind the dock."
-                  : "Hyprland blur is off (decoration:blur:enabled), so this has no visible effect."
-                visible: root ? root.blurMode !== "system" : false
-                checked: root ? root.blurMode === "on" : false
-                onToggled: root.setBlurMode(root.blurMode === "on" ? "off" : "on")
-              }
-              SliderRow {
-                label: "Blur strength"
-                hint: "Hyprland has one blur size for everything, so this also changes it for windows and other panels. Back to your own value when blur leaves this mode."
-                visible: root ? root.blurMode === "on" : false
-                minimum: 1
-                maximum: 20
-                step: 1
-                value: root ? (root.blurSize > 0 ? root.blurSize : (panel.currentBlurSize > 0 ? panel.currentBlurSize : 6)) : 6
-                onCommitted: function(v) { root.setBlurSize(v, panel.currentBlurSize) }
-              }
-              SliderRow {
-                label: "Grain"
-                hint: "Film grain over the background. Works on solid, translucent and blurred backgrounds alike."
-                minimum: 0
-                maximum: 1
-                step: 0.05
-                displayScale: 100
-                suffix: "%"
-                value: root ? root.grain : 0
-                onCommitted: function(v) { root.setOption("grain", Math.round(v * 100) / 100) }
-              }
 
-            }
-
-            SectionLabel { text: "Shadow" }
-
-            SwitchRow {
-              label: "Shadow"
-              hint: "Under the dock; with the background off, under each icon."
-              checked: root ? root.showShadow : true
-              onToggled: root.setOption("showShadow", !root.showShadow)
-            }
-            SliderRow {
-              label: "Strength"
-              visible: root ? root.showShadow : true
-              minimum: 0
-              maximum: 1
-              step: 0.05
-              displayScale: 100
-              suffix: "%"
-              value: root ? root.shadowStrength : 0.4
-              onCommitted: function(v) { root.setOption("shadowStrength", Math.round(v * 100) / 100) }
             }
 
             SectionLabel { text: "Border" }
 
             SwitchRow {
+              key: "border"
               label: "Border"
               hint: "Thin rim around the dock."
               checked: root ? root.showBorder : true
               onToggled: root.setShowBorder(!root.showBorder)
             }
             SliderRow {
+              key: "borderWidth"
               label: "Border width"
               visible: root ? root.showBorder : true
               minimum: 1
@@ -782,6 +885,7 @@ PanelWindow {
               onCommitted: function(v) { root.setOption("borderWidth", Math.round(v * 2) / 2) }
             }
             SwitchRow {
+              key: "borderOpacityTheme"
               label: "Border opacity from theme"
               hint: "Derive the rim opacity from the dock's opacity, as themes expect. Turn off to set it by hand."
               checked: root ? root.borderOpacity < 0 : true
@@ -789,6 +893,7 @@ PanelWindow {
               onToggled: root.setBorderOpacity(root.borderOpacity < 0 ? 1.0 : -1.0)
             }
             SliderRow {
+              key: "borderOpacity"
               label: "Border opacity"
               visible: root ? (root.showBorder && root.borderOpacity >= 0) : false
               minimum: 0
@@ -800,6 +905,7 @@ PanelWindow {
               onCommitted: function(v) { root.setBorderOpacity(Math.round(v * 100) / 100) }
             }
             ChoiceRow {
+              key: "dividerLength"
               label: "Divider length style"
               hint: "Classic preserves the original icon-height lines. Long uses an adjustable share of the dock height."
               visible: root ? !root.splitSections : true
@@ -808,6 +914,7 @@ PanelWindow {
               onPicked: function(v) { root.setOption("dividerGeometry", v) }
             }
             ChoiceRow {
+              key: "dividerStyle"
               label: "Divider style"
               hint: "Theme draws the lines like the border, in its colour, opacity and width. Custom sets the width and opacity by hand."
               visible: root ? !root.splitSections : true
@@ -818,6 +925,7 @@ PanelWindow {
               onPicked: function(v) { root.setDividerStyle(v) }
             }
             SliderRow {
+              key: "dividerWidth"
               label: "Divider width"
               visible: root ? (!root.splitSections && root.dividerStyle === "custom") : false
               minimum: 1
@@ -829,6 +937,7 @@ PanelWindow {
               onCommitted: function(v) { root.setOption("dividerWidth", Math.round(v * 2) / 2) }
             }
             SliderRow {
+              key: "dividerOpacity"
               label: "Divider opacity"
               visible: root ? (!root.splitSections && root.dividerStyle === "custom") : false
               minimum: 0
@@ -839,10 +948,23 @@ PanelWindow {
               value: root ? root.dividerOpacity : 0.4
               onCommitted: function(v) { root.setOption("dividerOpacity", Math.round(v * 100) / 100) }
             }
+            SliderRow {
+              key: "dividerHeight"
+              label: "Divider height"
+              hint: "Length of the lines between sections, as a share of the dock's height."
+              visible: root ? (!root.splitSections && root.dividerGeometry === "long") : false
+              minimum: 20
+              maximum: 100
+              step: 5
+              suffix: "%"
+              value: root ? root.dividerHeight : 70
+              onCommitted: function(v) { root.setOption("dividerHeight", Math.round(v)) }
+            }
 
             SectionLabel { text: "Shape" }
 
             ChoiceRow {
+              key: "corners"
               label: "Corners"
               options: [
                 { value: "theme", label: "Theme" },
@@ -860,6 +982,7 @@ PanelWindow {
               onPicked: function(v) { root.setDockShape(v) }
             }
             SliderRow {
+              key: "cornerRadius"
               label: "Corner radius"
               visible: root ? root.dockShape === "rounded" : false
               minimum: 2
@@ -870,12 +993,26 @@ PanelWindow {
               onCommitted: function(v) { root.setOption("cornerRadius", Math.round(v)) }
             }
             SwitchRow {
+              key: "splitSections"
               label: "Split sections"
               hint: "Each part between the dividers becomes its own panel, with a gap in place of the divider."
               checked: root ? root.splitSections : false
               onToggled: root.setOption("splitSections", !root.splitSections)
             }
+            SliderRow {
+              key: "panelSpacing"
+              label: "Panel spacing"
+              hint: "Gap between the panels when sections are split."
+              visible: root ? root.splitSections : false
+              minimum: 0
+              maximum: 48
+              step: 1
+              suffix: " px"
+              value: root ? root.sectionSpacing : 18
+              onCommitted: function(v) { root.setOption("sectionSpacing", Math.round(v)) }
+            }
             ChoiceRow {
+              key: "indicators"
               label: "Indicators"
               hint: "The dots and bars under icons. Theme follows the corners above."
               options: [
@@ -890,12 +1027,14 @@ PanelWindow {
             SectionLabel { text: "Dock Items" }
 
             SwitchRow {
+              key: "appsButton"
               label: "Omarchy button"
               hint: "The launcher at the start of the dock. Without it, right-click the dock background to reach these settings."
               checked: root ? root.showAppsButton : true
               onToggled: root.setOption("showAppsButton", !root.showAppsButton)
             }
             SwitchRow {
+              key: "removableDrives"
               label: "Removable drives"
               hint: "Show mounted USB drives at the end of the dock."
               checked: root ? root.showRemovableDrives : true
@@ -914,6 +1053,7 @@ PanelWindow {
             SectionLabel { text: "Position" }
 
             ChoiceRow {
+              key: "alignment"
               label: "Alignment"
               options: [
                 { value: "left", label: "Left" },
@@ -927,12 +1067,14 @@ PanelWindow {
             SectionLabel { text: "Monitors" }
 
             SwitchRow {
+              key: "multiMonitor"
               label: "Show on all monitors"
               hint: "One dock per connected monitor."
               checked: root ? root.multiMonitor : false
               onToggled: root.setOption("multiMonitor", !root.multiMonitor)
             }
             SwitchRow {
+              key: "perMonitorApps"
               label: "Only this monitor's apps"
               hint: "Each dock lists the windows on its own monitor; pinned apps show everywhere."
               visible: root ? root.multiMonitor : false
@@ -940,6 +1082,7 @@ PanelWindow {
               onToggled: root.setOption("perMonitorApps", !root.perMonitorApps)
             }
             SettingRow {
+              key: "monitorSelect"
               label: root && root.multiMonitor ? "Primary monitor" : "Monitor"
               hint: root && root.multiMonitor
                 ? "Plays the alert sounds."
@@ -971,6 +1114,7 @@ PanelWindow {
             SectionLabel { text: "Visibility" }
 
             ChoiceRow {
+              key: "autohide"
               label: "Autohide"
               hint: "Intelligent hides only when a window overlaps the dock."
               options: [
@@ -982,6 +1126,7 @@ PanelWindow {
               onPicked: function(v) { root.setAutohideMode(v) }
             }
             SliderRow {
+              key: "revealDelay"
               label: "Reveal delay"
               hint: "How long the pointer rests on the edge before the dock slides in."
               enabled: root ? root.autohide : false
@@ -997,6 +1142,7 @@ PanelWindow {
             SectionLabel { text: "Clicking an app" }
 
             ChoiceRow {
+              key: "minimizeMode"
               label: "Minimize on click"
               hint: "Clicking the focused app's icon parks its windows."
               options: [
@@ -1008,12 +1154,14 @@ PanelWindow {
               onPicked: function(v) { root.setOption("minimizeMode", v) }
             }
             SwitchRow {
+              key: "keepPointer"
               label: "Keep pointer in place"
               hint: "Don't move the mouse pointer onto the window a click brings up."
               checked: root ? root.keepPointer : true
               onToggled: root.setOption("keepPointer", !root.keepPointer)
             }
             SliderRow {
+              key: "wheelStepDelay"
               label: "Wheel step delay"
               hint: "Scrolling over an app flips through its windows; this paces the steps."
               minimum: 0
@@ -1027,24 +1175,28 @@ PanelWindow {
             SectionLabel { text: "Attention" }
 
             SwitchRow {
+              key: "badges"
               label: "Notification badges"
               hint: "Count active notification popups on pinned apps; clears on dismissal or expiry."
               checked: root ? root.showNotificationBadges : true
               onToggled: root.setOption("showNotificationBadges", !root.showNotificationBadges)
             }
             SwitchRow {
+              key: "urgentHint"
               label: "Urgent highlights"
               hint: "Mark apps whose windows ask for attention."
               checked: root ? root.showUrgentHint : true
               onToggled: root.setOption("showUrgentHint", !root.showUrgentHint)
             }
             SwitchRow {
+              key: "urgentOnNotification"
               label: "Urgent on notification"
               hint: "A notification from an app marks its icon."
               checked: root ? root.urgentOnNotification : true
               onToggled: root.setOption("urgentOnNotification", !root.urgentOnNotification)
             }
             SettingRow {
+              key: "urgentSound"
               label: "Urgent sound"
 
               Dropdown {
@@ -1068,11 +1220,13 @@ PanelWindow {
             SectionLabel { text: "Previews & Tooltips" }
 
             SwitchRow {
+              key: "tooltips"
               label: "Tooltips"
               checked: root ? root.showTooltips : true
               onToggled: root.setOption("showTooltips", !root.showTooltips)
             }
             SliderRow {
+              key: "tooltipDelay"
               label: "Tooltip delay"
               enabled: root ? root.showTooltips : true
               opacity: enabled ? 1 : 0.45
@@ -1084,12 +1238,14 @@ PanelWindow {
               onCommitted: function(v) { root.setOption("tooltipDelay", Math.round(v)) }
             }
             SwitchRow {
+              key: "windowPreviews"
               label: "Window previews"
               hint: "Thumbnails of an app's windows in its tooltip; scroll over the icon to flip through them."
               checked: root ? root.advancedTooltips : true
               onToggled: root.setOption("advancedTooltips", !root.advancedTooltips)
             }
             SwitchRow {
+              key: "minimizedTiles"
               label: "Minimized window tiles"
               hint: "Show parked windows as preview tiles in the dock."
               checked: root ? root.showMinimizedTiles : true
@@ -1097,14 +1253,15 @@ PanelWindow {
             }
           }
 
-          // ================================================= Effects
+          // ================================================= Icons
           Column {
             width: parent.width
-            visible: panel.page === "effects"
+            visible: panel.page === "icons"
 
             SectionLabel { text: "Icons" }
 
             ChoiceRow {
+              key: "iconStyle"
               label: "Icon style"
               hint: "Monochrome and dot matrix take one colour from the theme."
               options: [
@@ -1117,6 +1274,7 @@ PanelWindow {
               onPicked: function(v) { root.setOption("iconStyle", v) }
             }
             ChoiceRow {
+              key: "iconTint"
               label: "Icon colour"
               visible: root ? (root.iconStyle === "mono" || root.iconStyle === "dots") : false
               options: [
@@ -1128,6 +1286,7 @@ PanelWindow {
               onPicked: function(v) { root.setOption("iconTint", v) }
             }
             SliderRow {
+              key: "iconGrid"
               label: root && root.iconStyle === "dots" ? "Dots across" : "Pixels across"
               hint: "Fewer is chunkier."
               visible: root ? (root.iconStyle === "pixel" || root.iconStyle === "dots") : false
@@ -1138,6 +1297,7 @@ PanelWindow {
               onCommitted: function(v) { root.setOption("iconGrid", Math.round(v)) }
             }
             SliderRow {
+              key: "iconContrast"
               label: "Contrast"
               hint: "Separates the symbol from its backdrop; high values flatten icons to a simple, poster-like shape."
               visible: root ? (root.iconStyle === "mono" || root.iconStyle === "dots") : false
@@ -1150,6 +1310,7 @@ PanelWindow {
               onCommitted: function(v) { root.setOption("iconContrast", Math.round(v * 100) / 100) }
             }
             SliderRow {
+              key: "iconStrength"
               label: "Strength"
               hint: "How much of the effect covers the original icon."
               visible: root ? (root.iconStyle === "mono" || root.iconStyle === "dots") : false
@@ -1162,6 +1323,7 @@ PanelWindow {
               onCommitted: function(v) { root.setOption("iconStrength", Math.round(v * 100) / 100) }
             }
             SwitchRow {
+              key: "iconHoverOriginal"
               label: "Show original on hover"
               hint: "The icon under the pointer drops the style and shows as shipped. Icons in an opened group follow this too."
               visible: root ? root.iconStyle !== "original" : false
@@ -1169,6 +1331,7 @@ PanelWindow {
               onToggled: root.setOption("iconHoverOriginal", !root.iconHoverOriginal)
             }
             SwitchRow {
+              key: "iconHoverReveal"
               label: "Dithered reveal"
               hint: "The original icon appears cell by cell, rising from the bottom, instead of all at once."
               visible: root ? (root.iconHoverOriginal && (root.iconStyle === "mono" || root.iconStyle === "dots")) : false
@@ -1176,9 +1339,40 @@ PanelWindow {
               onToggled: root.setOption("iconHoverReveal", !root.iconHoverReveal)
             }
 
+            SectionLabel { text: "Size & Spacing" }
+
+            SliderRow {
+              key: "iconSize"
+              label: "Icon size"
+              minimum: 24
+              maximum: 64
+              step: 2
+              suffix: " px"
+              value: root ? root.iconSize : 36
+              onCommitted: function(v) { root.setIconSize(Math.round(v)) }
+            }
+            SliderRow {
+              key: "itemSpacing"
+              label: "Spacing"
+              hint: "Gap between icons."
+              minimum: 0
+              maximum: 16
+              step: 1
+              suffix: " px"
+              value: root ? root.itemSpacing : 4
+              onCommitted: function(v) { root.setItemSpacing(Math.round(v)) }
+            }
+          }
+
+          // ================================================= Motion & Effects
+          Column {
+            width: parent.width
+            visible: panel.page === "motion"
+
             SectionLabel { text: "Motion" }
 
             ChoiceRow {
+              key: "hoverEffect"
               label: "Hover effect"
               options: [
                 { value: "zoom", label: "Zoom" },
@@ -1192,60 +1386,83 @@ PanelWindow {
               onPicked: function(v) { root.setHoverEffect(v) }
             }
             SwitchRow {
+              key: "launchBounce"
               label: "Launch bounce"
               hint: "Bounce the icon while an app is starting."
               checked: root ? root.launchBounce : true
               onToggled: root.setOption("launchBounce", !root.launchBounce)
             }
-          }
 
-          // ================================================= Size & spacing
-          Column {
-            width: parent.width
-            visible: panel.page === "size"
+            SectionLabel { text: "Shadow" }
 
-            SectionLabel { text: "Icons" }
-
-            SliderRow {
-              label: "Icon size"
-              minimum: 24
-              maximum: 64
-              step: 2
-              suffix: " px"
-              value: root ? root.iconSize : 36
-              onCommitted: function(v) { root.setIconSize(Math.round(v)) }
+            SwitchRow {
+              key: "showShadow"
+              label: "Shadow"
+              hint: "Under the dock; with the background off, under each icon."
+              checked: root ? root.showShadow : true
+              onToggled: root.setOption("showShadow", !root.showShadow)
             }
             SliderRow {
-              label: "Spacing"
-              hint: "Gap between icons."
+              key: "shadowStrength"
+              label: "Strength"
+              visible: root ? root.showShadow : true
               minimum: 0
-              maximum: 16
-              step: 1
-              suffix: " px"
-              value: root ? root.itemSpacing : 4
-              onCommitted: function(v) { root.setItemSpacing(Math.round(v)) }
-            }
-            SliderRow {
-              label: "Panel spacing"
-              hint: "Gap between the panels when sections are split."
-              visible: root ? root.splitSections : false
-              minimum: 0
-              maximum: 48
-              step: 1
-              suffix: " px"
-              value: root ? root.sectionSpacing : 18
-              onCommitted: function(v) { root.setOption("sectionSpacing", Math.round(v)) }
-            }
-            SliderRow {
-              label: "Divider height"
-              hint: "Length of the lines between sections, as a share of the dock's height."
-              visible: root ? (!root.splitSections && root.dividerGeometry === "long") : false
-              minimum: 20
-              maximum: 100
-              step: 5
+              maximum: 1
+              step: 0.05
+              displayScale: 100
               suffix: "%"
-              value: root ? root.dividerHeight : 70
-              onCommitted: function(v) { root.setOption("dividerHeight", Math.round(v)) }
+              value: root ? root.shadowStrength : 0.4
+              onCommitted: function(v) { root.setOption("shadowStrength", Math.round(v * 100) / 100) }
+            }
+
+            // Blur and grain paint on the background card, so the rows keep
+            // the old gating and show only while the background is on.
+            Column {
+              width: parent.width
+              visible: root ? root.showBackground : true
+
+              SectionLabel { text: "Blur & Grain" }
+
+              SwitchRow {
+                key: "blurSystem"
+                label: "Blur from system"
+                hint: "Leave blur behind the dock to your Hyprland layer rules."
+                checked: root ? root.blurMode === "system" : true
+                onToggled: root.setBlurMode(root.blurMode === "system" ? "on" : "system")
+              }
+              SwitchRow {
+                key: "blur"
+                label: "Blur"
+                hint: panel.systemBlurEnabled
+                  ? "Frosted glass behind the dock."
+                  : "Hyprland blur is off (decoration:blur:enabled), so this has no visible effect."
+                visible: root ? root.blurMode !== "system" : false
+                checked: root ? root.blurMode === "on" : false
+                onToggled: root.setBlurMode(root.blurMode === "on" ? "off" : "on")
+              }
+              SliderRow {
+                key: "blurSize"
+                label: "Blur strength"
+                hint: "Hyprland has one blur size for everything, so this also changes it for windows and other panels. Back to your own value when blur leaves this mode."
+                visible: root ? root.blurMode === "on" : false
+                minimum: 1
+                maximum: 20
+                step: 1
+                value: root ? (root.blurSize > 0 ? root.blurSize : (panel.currentBlurSize > 0 ? panel.currentBlurSize : 6)) : 6
+                onCommitted: function(v) { root.setBlurSize(v, panel.currentBlurSize) }
+              }
+              SliderRow {
+                key: "grain"
+                label: "Grain"
+                hint: "Film grain over the background. Works on solid, translucent and blurred backgrounds alike."
+                minimum: 0
+                maximum: 1
+                step: 0.05
+                displayScale: 100
+                suffix: "%"
+                value: root ? root.grain : 0
+                onCommitted: function(v) { root.setOption("grain", Math.round(v * 100) / 100) }
+              }
             }
           }
 
@@ -1256,7 +1473,10 @@ PanelWindow {
 
             Row {
               width: parent.width
-              SectionLabel { text: "Presets" }
+              SectionLabel {
+                key: "presets"
+                text: "Presets"
+              }
             }
 
             Text {
@@ -1416,6 +1636,12 @@ PanelWindow {
 
                   Button {
                     visible: !presetRow.confirming
+                    text: "Apply"
+                    foreground: Color.accent
+                    onClicked: { panel.endPresetEdit(); root.applyPreset(presetRow.modelData.id) }
+                  }
+                  Button {
+                    visible: !presetRow.confirming
                     text: "Update"
                     foreground: Color.menu.text
                     onClicked: { panel.endPresetEdit(); root.updatePreset(presetRow.modelData.id) }
@@ -1520,6 +1746,7 @@ PanelWindow {
             }
 
             SettingRow {
+              key: "customFolder"
               label: "Custom folder"
               hint: "Pick any directory to pin as a stack."
 
@@ -1534,7 +1761,10 @@ PanelWindow {
               }
             }
 
-            SectionLabel { text: "Folder color" }
+            SectionLabel {
+              key: "folderColor"
+              text: "Folder color"
+            }
 
             Flow {
               width: parent.width
@@ -1592,6 +1822,7 @@ PanelWindow {
             SectionLabel { text: "Look" }
 
             ChoiceRow {
+              key: "groupStyle"
               label: "Tile style"
               hint: "Frame drawn around a group's icons in the dock."
               options: [
@@ -1603,8 +1834,9 @@ PanelWindow {
               onPicked: function(v) { root.setOption("groupStyle", v) }
             }
             ChoiceRow {
+              key: "groupIconEffects"
               label: "Icon style"
-              hint: "Theme applies the style from Effects to the icons of an opened group."
+              hint: "Theme applies the style from the Icons page to the icons of an opened group."
               options: [
                 { value: "theme", label: "Theme" },
                 { value: "none", label: "None" }
@@ -1797,6 +2029,7 @@ PanelWindow {
 
             SectionLabel { text: "Updates" }
             ChoiceRow {
+              key: "updateChannel"
               label: "Update channel"
               hint: "Stable receives verified releases; Experimental gets features early. Switching reloads the shell immediately."
               options: [{ value: "stable", label: "Stable" }, { value: "experiment", label: "Experimental" }]

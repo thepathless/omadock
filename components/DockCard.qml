@@ -302,8 +302,13 @@ Item {
   width: dockCard.width
   height: dockCard.height
 
+  // With shadows on, the card lifts by the room the drop shadow needs below
+  // it (the gapsOut margin the layout already models); without one it sits
+  // where it always has. The window's height and the reserved screen space
+  // do not change — the shadow only overlaps what is underneath.
+  readonly property real shadowRoom: (root && root.showShadow && root.showBackground && root.shadowStrength > 0) ? Style.space(5) : 0
   anchors.bottom: parent ? parent.bottom : undefined
-  anchors.bottomMargin: (root && root.dockVisible) ? Style.gapsOut : -(dockCard.height + Style.gapsOut + 10)
+  anchors.bottomMargin: (root && root.dockVisible) ? Style.gapsOut + cardWrapper.shadowRoom : -(dockCard.height + Style.gapsOut + cardWrapper.shadowRoom + 10)
 
   x: {
     if (!parent) return 0
@@ -436,20 +441,30 @@ Item {
   // all panels, so one panel's shadow never darkens its neighbour.
   // The model is a count, not the segment list: the list is rebuilt whenever
   // a separator moves, and delegates should follow it, not be recreated.
+  //
+  // Room for the halo is asymmetric on purpose. A blur only fades out inside
+  // its own texture, so the padding wants to exceed the blur radius or the
+  // halo ends in a hard edge; above and beside the card there is room (the
+  // window's headroom and its full width), and below it the card carries its
+  // own shadowRoom margin. The body therefore drops into that room and its
+  // texture stops at the window edge exactly: the shadow fills the margin
+  // instead of being sliced off mid-blur.
   Repeater {
     model: cardWrapper.segments.length
     delegate: Item {
       id: cardShadow
       readonly property var segment: cardWrapper.segments[index] || { x: 0, width: 0 }
-      readonly property real spread: Style.space(12)
+      readonly property real pad: Style.space(30)
+      readonly property real drop: Style.space(2)
+      readonly property real padBottom: Math.max(0, Style.gapsOut + cardWrapper.shadowRoom - cardShadow.drop)
       visible: root ? (root.showShadow && root.showBackground && root.shadowStrength > 0) : true
       // Follows the card out of view; a blur left behind would hang on screen
       // after the dock has gone.
       opacity: cardWrapper.opacity
-      x: dockCard.x + segment.x - spread
-      y: dockCard.y - spread + Style.space(3)
-      width: segment.width + spread * 2
-      height: dockCard.height + spread * 2
+      x: dockCard.x + segment.x - cardShadow.pad
+      y: dockCard.y + cardShadow.drop - cardShadow.pad
+      width: segment.width + cardShadow.pad * 2
+      height: dockCard.height + cardShadow.pad + cardShadow.padBottom
       z: 0
       // No offscreen texture while the shadow is off.
       layer.enabled: cardShadow.visible
@@ -461,7 +476,8 @@ Item {
 
       Rectangle {
         anchors.fill: parent
-        anchors.margins: cardShadow.spread
+        anchors.margins: cardShadow.pad
+        anchors.bottomMargin: cardShadow.padBottom
         radius: dockCard.radius
         color: Qt.rgba(0, 0, 0, root ? root.shadowStrength : 0.4)
       }

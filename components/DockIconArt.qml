@@ -44,6 +44,9 @@ Item {
   property color tint: Color.bar.text
   // Cells across the icon for the pixel and dots styles.
   property int grid: 16
+  // The output's device-pixel grid (see Dock.outputScale), which the pixel
+  // style snaps its cells to.
+  property real outputScale: 1
   // mono / dots: adaptive contrast 0..1, and how much of the effect covers
   // the original icon (1 = effect only, 0 = original).
   property real contrast: 0
@@ -61,6 +64,20 @@ Item {
   // leaves them a sparse dotted outline that barely differs from the glyph,
   // so such content is capped at a coarser grid.
   readonly property int cells: Math.max(6, Math.min(art.hasCustom ? 14 : 48, art.grid))
+
+  // Pixel style on whole, even device pixels: a cell that is a fraction of
+  // one can never land on the output's pixel grid, so the resampled grid
+  // smears it (a 30px icon on a 16 grid gives 1.875px cells). The cell grows
+  // to the next whole even device pixel and the grid coarsens with it, so
+  // every block is a hard, uniform square.
+  readonly property real artDpr: art.outputScale > 0 ? art.outputScale : 1
+  readonly property int pixelCellDev: {
+    var dev = Math.max(1, Math.round(art.width * art.artDpr))
+    var c = Math.max(1, Math.ceil(dev / Math.max(1, art.cells)))
+    return c + (c % 2)
+  }
+  readonly property int pixelCells: Math.max(1, Math.floor(Math.round(art.width * art.artDpr) / art.pixelCellDev))
+  readonly property real pixelInset: Math.round((Math.round(art.width * art.artDpr) - art.pixelCells * art.pixelCellDev) / 2) / art.artDpr
   readonly property int status: img.status
 
   default property alias content: custom.data
@@ -82,7 +99,9 @@ Item {
     anchors.fill: parent
 
     layer.enabled: art.dropShadow
-    layer.smooth: true
+    // Nearest-neighbour for the pixel grid: smoothing re-filters the hard
+    // cells into mush whenever this layer renders (the drop shadow).
+    layer.smooth: art.shownStyle !== "pixel"
     layer.effect: MultiEffect {
       shadowEnabled: true
       shadowColor: "#000000"
@@ -134,13 +153,16 @@ Item {
     // hideSource, instead of leaning on the source's own visible flag to
     // keep it off screen.
     ShaderEffectSource {
-      anchors.fill: parent
+      x: art.pixelInset
+      y: art.pixelInset
+      width: art.pixelCells * art.pixelCellDev / art.artDpr
+      height: width
       visible: art.shownStyle === "pixel"
       sourceItem: art.iconStyle === "pixel" ? art.styleSource : null
       // Only while the grid is the thing on screen: hovering back to the
       // original must not leave the image hidden behind an invisible grid.
       hideSource: art.shownStyle === "pixel"
-      textureSize: Qt.size(art.cells, art.cells)
+      textureSize: Qt.size(art.pixelCells, art.pixelCells)
       smooth: false
       live: true
     }
