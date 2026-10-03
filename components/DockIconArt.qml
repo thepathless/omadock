@@ -64,6 +64,10 @@ Item {
   readonly property int status: img.status
 
   default property alias content: custom.data
+  // Drawn over the icon, inside the hover effects but outside the icon
+  // styles and the icon shadow (a notification badge): it rises, glows and
+  // glitches with the icon yet stays as drawn.
+  property alias overlay: overlayLayer.data
   readonly property bool hasCustom: custom.children.length > 0
   // The item the grid styles read from.
   readonly property Item styleSource: art.hasCustom ? custom : img
@@ -196,5 +200,12 @@ Item {
         }
       }
     }
+  }
+
+  Item {
+    id: overlayLayer
+    parent: fxHost.contentItem
+    anchors.fill: parent
+    z: 10
   }
 }
