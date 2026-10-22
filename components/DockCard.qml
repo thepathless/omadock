@@ -165,6 +165,7 @@ Item {
   readonly property real shadowRoom: (root && !root.placement.panel && root.showShadow && root.showBackground && root.shadowStrength > 0) ? Style.space(5) : 0
   anchors.bottom: parent ? parent.bottom : undefined
   anchors.bottomMargin: (root && root.dockVisible) ? root.edgeGap + cardWrapper.shadowRoom : -(dockCard.height + (root ? root.edgeGap : 0) + cardWrapper.shadowRoom + 10)
+  transformOrigin: Item.Bottom
 
   x: {
     if (!parent) return 0
@@ -366,6 +367,8 @@ Item {
 
   BorderSurface {
     id: dockCard
+    transformOrigin: Item.Bottom
+    anchors.bottom: parent ? parent.bottom : undefined
     // The element a drag in the dock holds (DockLift), for the row's slots
     // and drop gaps.
     readonly property var liftRef: dockLift

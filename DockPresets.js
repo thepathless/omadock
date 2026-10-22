@@ -40,11 +40,13 @@
 //   Silkscreen              the same names in the Silkscreen pixel font the
 //                          labels ship with, small on a pill, drawn with the
 //                          outline that reads on any fill (#47, @priard)
-//   macOS                  the modern Apple macOS dock (Liquid Glass aesthetic):
-//                          floating squircle shelf with 0.35 frosted glass blur,
-//                          specular rim highlight, soft ambient shadow, fisheye
-//                          wave magnification, launch hop bounce, circular dots,
-//                          classic 50% divider, and floating pill hover tooltips
+//   macOS Sequoia          the modern Apple macOS Sequoia dock:
+//                          floating 24px squircle shelf with #ffffff neutral
+//                          frosted glass (0.22 opacity, blur on), 0.5px white
+//                          specular rim highlight, deep ambient shadow (0.55),
+//                          bottom-anchored fisheye wave magnification, launch hop
+//                          bounce, 4px circular dots, 1px hairline divider, and
+//                          floating pill hover tooltips
 //
 // Deliberately not shipped as presets, and why:
 //   - panel layout (#49) is not a look key -- `LOOK_KEYS` has no `layout`, so a
@@ -118,15 +120,16 @@ var SHIPPED = [
     }
   },
   {
-    id: "builtin_macos",
-    name: "macOS",
+    id: "builtin_macos_sequoia",
+    name: "macOS Sequoia",
     look: {
-      showBackground: true, bgFill: "solid", opacity: 0.35, blur: "on",
-      showBorder: true, borderWidth: 1.5, borderOpacity: 0.45,
-      showShadow: true, shadowStrength: 0.5, shape: "rounded", cornerRadius: 22,
+      showBackground: true, bgColor: "#ffffff", opacity: 0.22, bgFill: "solid", blur: "on",
+      showShadow: true, shadowStrength: 0.55,
+      showBorder: true, borderWidth: 0.5, borderOpacity: 0.35,
+      shape: "rounded", cornerRadius: 24,
       hoverEffect: "wave", launchBounce: true, indicatorShape: "rounded",
-      itemSpacing: 6, sectionSpacing: 16,
-      dividerGeometry: "classic", dividerStyle: "custom", dividerWidth: 1.5, dividerHeight: 50, dividerOpacity: 0.25,
+      iconSize: 52, itemSpacing: 8, sectionSpacing: 16,
+      dividerGeometry: "classic", dividerStyle: "custom", dividerWidth: 1.0, dividerHeight: 55, dividerOpacity: 0.20,
       iconStyle: "original", iconContrast: 0, iconStrength: 1,
       labelMode: "hover", labelBackground: "pill", labelShape: "pill", labelFont: "theme",
       labelSize: "medium", labelWeight: "medium", labelReveal: "slide", labelColor: "auto"

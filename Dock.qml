@@ -789,7 +789,7 @@ Item {
     // Manual override from Settings → Appearance → Border opacity.
     return root.borderOpacity < 0 ? autoAlpha : Math.max(0.0, Math.min(1.0, root.borderOpacity))
   }
-  readonly property color rimColor: Util.alpha(root.dockForeground, root.rimAlpha)
+  readonly property color rimColor: Util.alpha(root.dockBgColor === "#ffffff" ? Qt.color("#ffffff") : root.dockForeground, root.rimAlpha)
 
   // Divider lines: "simple" is a thin line in dividerColor, "theme" is drawn
   // like the rim, in its colour, opacity and width, and "custom" in the

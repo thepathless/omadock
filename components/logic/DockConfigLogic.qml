@@ -70,7 +70,7 @@ QtObject {
     root.showBorder = parsed ? parsed.showBorder !== false : true
     root.indicatorShape = (parsed && (parsed.indicatorShape === "rounded" || parsed.indicatorShape === "square")) ? parsed.indicatorShape : "theme"
     root.borderWidth = parsed && typeof parsed.borderWidth === "number"
-      ? Math.max(1, Math.min(6, parsed.borderWidth))
+      ? Math.max(0.5, Math.min(6, parsed.borderWidth))
       : 1.5
     // Anything else, including the retired "theme" style, falls back to rounded.
     root.groupStyle = (parsed && ["square", "none"].indexOf(parsed.groupStyle) >= 0) ? parsed.groupStyle : "rounded"
