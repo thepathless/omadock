@@ -40,6 +40,11 @@
 //   Silkscreen              the same names in the Silkscreen pixel font the
 //                          labels ship with, small on a pill, drawn with the
 //                          outline that reads on any fill (#47, @priard)
+//   macOS                  the modern Apple macOS dock (Liquid Glass aesthetic):
+//                          floating squircle shelf with 0.35 frosted glass blur,
+//                          specular rim highlight, soft ambient shadow, fisheye
+//                          wave magnification, launch hop bounce, circular dots,
+//                          classic 50% divider, and floating pill hover tooltips
 //
 // Deliberately not shipped as presets, and why:
 //   - panel layout (#49) is not a look key -- `LOOK_KEYS` has no `layout`, so a
@@ -48,7 +53,6 @@
 //   - #13's "Zen / Arc-style gradient" has no matching gradient: `Dock.qml`'s
 //     `gradientPresets` are the fixed palette (aurora, sunset, ocean, forest,
 //     rose, lavender, ember, citrus, mono) plus the theme.
-//   - Wave magnification and launch bounce (#2) are motion, not a look.
 // The label keys are a look's: `DockModel.LOOK_KEYS` carries all thirteen and
 // `DockConfigLogic.applyLook` applies them through `DockLabels.pickLabelLook`,
 // so names are exactly as shippable as a gradient is.
@@ -111,6 +115,21 @@ var SHIPPED = [
       labelMode: "always", labelKind: "all", labelBackground: "pill", labelFont: "pixel",
       labelSize: "small", labelWeight: "bold", labelColor: "auto", labelEffect: "outline",
       labelReveal: "slide"
+    }
+  },
+  {
+    id: "builtin_macos",
+    name: "macOS",
+    look: {
+      showBackground: true, bgFill: "solid", opacity: 0.35, blur: "on",
+      showBorder: true, borderWidth: 1.5, borderOpacity: 0.45,
+      showShadow: true, shadowStrength: 0.5, shape: "rounded", cornerRadius: 22,
+      hoverEffect: "wave", launchBounce: true, indicatorShape: "rounded",
+      itemSpacing: 6, sectionSpacing: 16,
+      dividerGeometry: "classic", dividerStyle: "custom", dividerWidth: 1.5, dividerHeight: 50, dividerOpacity: 0.25,
+      iconStyle: "original", iconContrast: 0, iconStrength: 1,
+      labelMode: "hover", labelBackground: "pill", labelShape: "pill", labelFont: "theme",
+      labelSize: "medium", labelWeight: "medium", labelReveal: "slide", labelColor: "auto"
     }
   }
 ]
