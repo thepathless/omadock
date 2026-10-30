@@ -127,6 +127,29 @@ QtObject {
     return Qt.hsla(h, sat, Math.max(0, Math.min(1, l)), 1)
   }
 
+  // The material of an OmaDock popup: it belongs to the dock it drops from,
+  // not to the theme's menu. FolderPopup, AppGroupPopup and the live popup
+  // check all read this one answer - the look's own fill at full stability
+  // (the same body the hover name uses), moved away from the dock's ink until
+  // the pair reads; explicit monochrome folder glyphs still win.
+  function popupSurface(root) {
+    if (!root) return { ink: Color.menu.text,
+      surface: Color.menu.background, glyph: "#ffffff" }
+    var name = String(root.dockBgColor || "")
+    var fill
+    if (name === "none") fill = Qt.rgba(0, 0, 0, 0.25)
+    else if (name === "theme" || name.length === 0) fill = Color.bar.background
+    else {
+      try { fill = Qt.color(name) } catch (e) { fill = Color.bar.background }
+    }
+    var ink = root.dockForeground
+    var surface = floatingBody(root, fill, root.effectiveDockOpacity, ink)
+    var mode = String(root.folderColor || "")
+    var glyph = (mode === "white" || mode === "black" || mode === "bw")
+      ? symbolicColorOn(root, surface) : ink
+    return { ink: ink, surface: surface, glyph: glyph }
+  }
+
   // The card as it renders at one end of the backdrop's range: the body over
   // black (dark) or over white (light). A translucent surface is a band, not a
   // colour, and the two ends are all an ink choice needs to know.

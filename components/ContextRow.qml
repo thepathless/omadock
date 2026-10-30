@@ -9,6 +9,7 @@ Item {
   property string glyph: ""
   property bool checked: false
   property color textColor: Color.menu.text
+  property color selectionColor: Color.menu.selectedBackground
   property bool danger: false
   property bool isHeader: false
   property bool isWindowRow: false
@@ -41,7 +42,7 @@ Item {
     visible: !crow.isHeader
     radius: Style.cornerRadius
     color: area.containsMouse
-      ? (crow.danger ? Util.alpha(Color.urgent, 0.16) : Color.menu.selectedBackground)
+      ? (crow.danger ? Util.alpha(Color.urgent, 0.16) : crow.selectionColor)
       : (crow.checked ? Util.alpha(Color.accent, 0.12) : "transparent")
   }
 
@@ -71,10 +72,10 @@ Item {
         anchors.centerIn: parent
         color: crow.winFocused
           ? Color.accent
-          : (crow.winParked ? "transparent" : (crow.checked ? Color.accent : Util.alpha(Color.menu.text, 0.45)))
+          : (crow.winParked ? "transparent" : (crow.checked ? Color.accent : Util.alpha(crow.textColor, 0.45)))
         border.color: crow.winFocused
           ? Color.accent
-          : (crow.winParked ? Util.alpha(Color.menu.text, 0.4) : (crow.checked ? Color.accent : "transparent"))
+          : (crow.winParked ? Util.alpha(crow.textColor, 0.4) : (crow.checked ? Color.accent : "transparent"))
         border.width: 1
       }
 
@@ -89,7 +90,7 @@ Item {
         text: crow.glyph !== "" ? crow.glyph : "\ue92b"
         font.family: "omarchy"
         font.pixelSize: Style.font.caption
-        color: crow.checked ? Color.accent : (crow.isHeader ? Util.alpha(Color.menu.text, 0.5) : crow.textColor)
+        color: crow.checked ? Color.accent : (crow.isHeader ? Util.alpha(crow.textColor, 0.5) : crow.textColor)
       }
     }
 
@@ -100,11 +101,11 @@ Item {
       text: (crow.checked && crow.isWindowRow ? "› " : "") + crow.text
       textFormat: Text.PlainText
       color: crow.isHeader
-        ? Util.alpha(Color.menu.text, 0.5)
+        ? Util.alpha(crow.textColor, 0.5)
         : (crow.checked || crow.winFocused
             ? Color.accent
             : (crow.winParked
-                ? Util.alpha(Color.menu.text, 0.50)
+                ? Util.alpha(crow.textColor, 0.50)
                 : (area.containsMouse && crow.danger ? Color.urgent : crow.textColor)))
       font.family: Style.font.family
       font.pixelSize: crow.isHeader ? Style.font.caption : Style.font.body

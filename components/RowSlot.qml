@@ -102,9 +102,16 @@ Item {
   // without a change signal), so the slot waits one turn, drawn as nothing,
   // and then knows whether it is fresh.
   property bool _settled: false
-  Component.onCompleted: {
-    slot._start(0)
-    Qt.callLater(function() {
+  // Deferred through a child Timer, not Qt.callLater: a queued callLater
+  // still runs after the slot is torn down (a delegate being destroyed as
+  // the dock rebuilds a row), and its context is invalid there - the fault
+  // logged at this line in the wild ("Property '_start' ... is not a
+  // function", during delayed function evaluation). The Timer dies with the
+  // slot, so nothing is left queued.
+  Timer {
+    id: settleLater
+    interval: 0
+    onTriggered: {
       var h = slot._handIn
       if (h && slot.fresh && slot.wanted) {
         slot._base = slot.lift.handBase(slot.liftKey)
@@ -119,7 +126,11 @@ Item {
       slot._settled = true
       if (!slot.fresh || slot.landing) slot._start(slot.wanted ? 1 : 0)
       else slot.appear = slot.wanted ? 1 : 0
-    })
+    }
+  }
+  Component.onCompleted: {
+    slot._start(0)
+    settleLater.start()
   }
   // A row that hides or shows itself while the dock starts (its data still
   // arriving) does so at once.

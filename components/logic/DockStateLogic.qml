@@ -105,6 +105,26 @@ QtObject {
     root.setDockAlignment(pos)
   }
 
+  // A "no overlap" answer can be a snapshot taken mid-move (a scrolling layout
+  // changes its viewport without a Hyprland window event), so it is confirmed
+  // once more after the motion has settled. The confirming run is marked by
+  // the timer's `fired` flag and never schedules another (#75).
+  function settleOverlap(root, overlap) {
+    var confirming = root.overlapConfirmTimer ? root.overlapConfirmTimer.fired === true : false
+    root.windowsOverlapDock = overlap
+    // Cancel after the assignment: the sync it may trigger must still see the
+    // armed flag, or a confirming run that flips true -> false would arm one
+    // more confirmation from inside its own decision.
+    if (root.overlapConfirmTimer) root.overlapConfirmTimer.cancel()
+    if (!confirming && !overlap) ensureOverlapConfirmation(root)
+  }
+
+  function ensureOverlapConfirmation(root) {
+    if (!root.overlapConfirmTimer || root.overlapConfirmTimer.armed) return
+    if (!root.autohide || !root.intelligentAutohide || !root.dockVisible || root.windowsOverlapDock) return
+    root.overlapConfirmTimer.arm()
+  }
+
   function syncVisibility(root) {
     // Omarchy's own dock has this floating workspace (FloatingDockWatch).
     if (root.floatingWatch && root.floatingWatch.yieldDock) {
@@ -138,6 +158,7 @@ QtObject {
     if (root.intelligentAutohide && !root.windowsOverlapDock) {
       root.hideTimerRef.stop()
       root.dockVisible = true
+      ensureOverlapConfirmation(root)
       return
     }
 

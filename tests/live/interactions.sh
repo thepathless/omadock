@@ -18,10 +18,12 @@
 #     paths through the very functions the tiles' click handlers call, and
 #     reports each surface's own resolved colours. Every step refuses to open
 #     anything unless the dock is on the headless output (PROBE_SCREEN).
-#   * each surface is checked twice: the values it draws with, against the
-#     shell's own palette read through a qualified import; and the rendered
-#     pixels, cropped from `grim -o <output>` before and after - the colours
-#     have to be on the output, not just in the properties.
+#   * each surface is checked twice: the values it draws with (the menus and
+#     the settings panel against the shell's own palette read through a
+#     qualified import; the group popup against the dock's material it now
+#     borrows); and the rendered pixels, cropped from `grim -o <output>`
+#     before and after - the colours have to be on the output, not just in
+#     the properties.
 #
 # The dock's log must stay clean through all of it (no TypeError /
 # ReferenceError / is not a function / is not defined / Cannot read property /
@@ -340,16 +342,19 @@ echo "-- an app group's popup (its tiles, its name row)"
 MARK=$(errs_now)
 capture before-group.ppm
 popup=$(step group-popup) || fail "the group popup step did not answer"
+GROUP_PANEL="$MENU_BG"
 if [ "$(jval "$popup" ok)" != "true" ]; then
   fail "the group popup did not open ($(jval "$popup" why))"
 else
   expect_eq "the popup on screen is not the group that was clicked" "$popup" active "$(jval "$popup" id)"
   expect_at_least "the group has no apps in its popup" "$popup" apps 1
-  note "group $(jval "$popup" active), apps $(jval "$popup" apps)"
+  GROUP_PANEL=$(jstr "$popup" panel)
+  [ -n "$GROUP_PANEL" ] || fail "the group popup step named no panel colour"
+  note "group $(jval "$popup" active), apps $(jval "$popup" apps), panel $GROUP_PANEL (the dock's material)"
 fi
 sleep 0.5
 capture after-group.ppm
-pixels before-group.ppm after-group.ppm "$MENU_BG" 8000 3000 "the group popup"
+pixels before-group.ppm after-group.ppm "$GROUP_PANEL" 8000 3000 "the group popup"
 log_since "$MARK" "the group popup"
 step close >/dev/null
 sleep 0.4

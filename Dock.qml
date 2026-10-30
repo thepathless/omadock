@@ -364,6 +364,7 @@ Item {
 
   function magnifyAt(homeCenter) { return styleLogic.magnifyAt(root, homeCenter) }
   function floatingBody(fill, opacity, ink) { return styleLogic.floatingBody(root, fill, opacity, ink) }
+  function popupSurface() { return styleLogic.popupSurface(root) }
   function magnifyScaleAt(homeCenter) { return styleLogic.magnifyScaleAt(root, homeCenter) }
   function waveOffsetAt(homeCenter) { return styleLogic.waveOffsetAt(root, homeCenter) }
 
@@ -930,6 +931,7 @@ Item {
   readonly property int revealHeight: 6
 
   property bool windowsOverlapDock: false
+  property OverlapConfirmation overlapConfirmTimer: OverlapConfirmation { dock: root }
 
   Timer {
     id: hideTimer
@@ -1112,7 +1114,7 @@ Item {
           }
         }
 
-        root.windowsOverlapDock = overlap
+        stateLogic.settleOverlap(root, overlap)
       }
     }
   }
