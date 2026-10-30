@@ -306,7 +306,7 @@
         var gtc = centreOf(gt)
         d.openAppGroup(data, gtc.x, gtc.y)
         return JSON.stringify({ ok: true, id: gt.id, active: d.activeAppGroupId,
-          apps: data.apps ? data.apps.length : 0 })
+          apps: data.apps ? data.apps.length : 0, panel: String(d.popupSurface().surface) })
       }
 
       if (step === "settings-open") {

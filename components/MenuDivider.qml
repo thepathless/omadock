@@ -5,6 +5,7 @@ import qs.Ui
 Item {
   id: mdiv
 
+  property color ink: Color.menu.border
   property real menuRowWidth: {
     var p = parent
     while (p) {
@@ -26,6 +27,6 @@ Item {
     anchors.rightMargin: Style.space(6)
     anchors.verticalCenter: parent.verticalCenter
     height: 1
-    color: Util.alpha(Color.menu.border, 0.45)
+    color: Util.alpha(mdiv.ink, 0.45)
   }
 }

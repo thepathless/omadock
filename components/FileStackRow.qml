@@ -50,11 +50,13 @@ Item {
   readonly property bool isIconSymbolic: resolvedIconSource.indexOf("-symbolic.svg") >= 0 || resolvedIconSource.indexOf("symbolic") >= 0
   // Set by the popup, which knows the backdrop the row sits on.
   property color symbolicColor: "#ffffff"
+  property color textColor: Color.menu.text
+  property color selectionColor: Color.menu.selectedBackground
 
   Rectangle {
     anchors.fill: parent
     radius: Style.cornerRadius
-    color: area.containsMouse ? Color.menu.selectedBackground : "transparent"
+    color: area.containsMouse ? frow.selectionColor : "transparent"
   }
 
   Item {
@@ -120,7 +122,7 @@ Item {
       anchors.verticalCenter: parent.verticalCenter
       text: frow.subtext
       textFormat: Text.PlainText
-      color: Util.alpha(Color.menu.text, 0.45)
+      color: Util.alpha(frow.textColor, 0.45)
       font.family: Style.font.family
       font.pixelSize: Style.font.caption
     }
@@ -134,7 +136,7 @@ Item {
       anchors.verticalCenter: parent.verticalCenter
       text: frow.name
       textFormat: Text.PlainText
-      color: Color.menu.text
+      color: frow.textColor
       font.family: Style.font.family
       font.pixelSize: Style.font.body
       elide: Text.ElideMiddle

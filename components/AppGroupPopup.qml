@@ -20,9 +20,18 @@ BorderSurface {
   visible: root ? (root.activeAppGroupId !== "" && root.dockVisible) : false
 
   z: 100
-  color: Color.menu.background
-  borderSpec: Border.surfaceSpec("menu", "border", Color.menu.border, 1)
-  radius: (root && root.shape === "rounded" && root.dockRadius > 0) ? Math.min(16, root.dockRadius) : Style.cornerRadius
+
+  // The popup belongs to the dock it drops from, not to the theme's menu; the
+  // rule (fill, ink, body) is DockStyleLogic.popupSurface. The card's own
+  // corner radius (0 for a square look) is set below.
+  readonly property var material: root ? root.popupSurface() : null
+  readonly property color ink: material ? material.ink : Color.menu.text
+  readonly property color surfaceColor: material ? material.surface : Color.menu.background
+
+  color: surfaceColor
+  borderSpec: root ? Border.flat(Util.alpha(ink, 0.14), 1)
+                   : Border.surfaceSpec("menu", "border", Color.menu.border, 1)
+  radius: root ? root.effectiveCardRadius : Style.cornerRadius
   padding: Style.space(6)
 
   property bool isEditingName: false
@@ -102,7 +111,7 @@ BorderSurface {
           id: titleLabel
           text: (appGroupPopup.activeGroup && appGroupPopup.activeGroup.name) ? appGroupPopup.activeGroup.name : Tr.t("common.folder", "Folder")
           textFormat: Text.PlainText
-          color: Color.menu.text
+          color: appGroupPopup.ink
           font.family: Style.font.family
           font.pixelSize: Style.font.body
           font.bold: true
@@ -113,7 +122,7 @@ BorderSurface {
         Text {
           text: "(" + appGroupPopup.appList.length + ")"
           textFormat: Text.PlainText
-          color: Util.alpha(Color.menu.text, 0.45)
+          color: Util.alpha(appGroupPopup.ink, 0.45)
           font.family: Style.font.family
           font.pixelSize: Style.font.caption
           anchors.verticalCenter: parent.verticalCenter
@@ -137,7 +146,7 @@ BorderSurface {
         anchors.verticalCenter: parent.verticalCenter
         height: Style.space(24)
         radius: Style.cornerRadius
-        color: Util.alpha(Color.menu.background, 0.5)
+        color: Util.alpha(appGroupPopup.ink, 0.10)
         border.color: Color.accent
         border.width: 1
 
@@ -155,7 +164,7 @@ BorderSurface {
           }
           sourceComponent: Component {
             TextInput {
-              color: Color.menu.text
+              color: appGroupPopup.ink
               font.family: Style.font.family
               font.pixelSize: Style.font.body
               verticalAlignment: TextInput.AlignVCenter
@@ -224,7 +233,7 @@ BorderSurface {
             id: cellBg
             anchors.fill: parent
             radius: Style.cornerRadius
-            color: cellHover.hovered ? Util.alpha(Color.menu.text, 0.08) : "transparent"
+            color: cellHover.hovered ? Util.alpha(appGroupPopup.ink, 0.08) : "transparent"
             Behavior on color { ColorAnimation { duration: (appGroupPopup.motion ? appGroupPopup.motion.fast : 0) } }
             Behavior on opacity { NumberAnimation { duration: (appGroupPopup.motion ? appGroupPopup.motion.fast : 0) } }
 
@@ -246,8 +255,8 @@ BorderSurface {
                   source: cellItem.appIconSrc
                   renderSize: Style.space(36)
                   iconStyle: root && root.groupIconEffects !== "none" ? root.iconStyle : "original"
-                  // The popup sits on the menu surface, not the dock card.
-                  tint: root ? root.tintFor(root.iconTint, Color.menu.text, Color.menu.background) : Color.menu.text
+                  // The popup sits on the dock's own surface, not the theme menu.
+                  tint: root ? root.tintFor(root.iconTint, appGroupPopup.ink, appGroupPopup.surfaceColor) : Color.menu.text
                   grid: root ? root.iconGrid : 16
                   outputScale: root ? root.outputScale : 1
                   contrast: root ? root.iconContrast : 0
@@ -263,7 +272,7 @@ BorderSurface {
                       rootRef: cellItem.root
                       anchorRef: parent
                       count: cellItem.notificationCount
-                      rim: Color.menu.background
+                      rim: appGroupPopup.surfaceColor
                     }
                   ]
                 }
@@ -273,7 +282,7 @@ BorderSurface {
                 width: parent.width
                 text: cellItem.appName
                 textFormat: Text.PlainText
-                color: Color.menu.text
+                color: appGroupPopup.ink
                 font.family: Style.font.family
                 font.pixelSize: Math.max(9, Style.font.caption - 1)
                 horizontalAlignment: Text.AlignHCenter

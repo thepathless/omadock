@@ -23,9 +23,19 @@ BorderSurface {
   visible: isOpen
 
   z: 100
-  color: Color.menu.background
-  borderSpec: Border.surfaceSpec("menu", "border", Color.menu.border, 1)
-  radius: (root && root.shape === "rounded" && root.dockRadius > 0) ? Math.min(16, root.dockRadius) : Style.cornerRadius
+
+  // The popup belongs to the dock it drops from, not to the theme's menu; the
+  // rule (fill, ink, body, glyph) is DockStyleLogic.popupSurface. The card's
+  // own corner radius and shape (0 for a square look) are set below.
+  readonly property var material: root ? root.popupSurface() : null
+  readonly property color ink: material ? material.ink : Color.menu.text
+  readonly property color surfaceColor: material ? material.surface : Color.menu.background
+  readonly property color glyphColor: material ? material.glyph : "#ffffff"
+
+  color: surfaceColor
+  borderSpec: root ? Border.flat(Util.alpha(ink, 0.14), 1)
+                   : Border.surfaceSpec("menu", "border", Color.menu.border, 1)
+  radius: root ? root.effectiveCardRadius : Style.cornerRadius
   padding: Style.space(4)
 
   readonly property real maxAllowedHeight: root ? root.popupMaxHeight : 500
@@ -103,7 +113,7 @@ BorderSurface {
         width: visible ? height : 0
         height: parent.height - Style.space(4)
         radius: Style.cornerRadius
-        color: backArea.containsMouse ? Color.menu.selectedBackground : "transparent"
+        color: backArea.containsMouse ? Util.alpha(folderStackPopover.ink, 0.10) : "transparent"
 
         Text {
           anchors.centerIn: parent
@@ -133,7 +143,7 @@ BorderSurface {
         text: ((root ? root.activeStackName : "") || Tr.t("common.folder", "Folder"))
           + ((root && root.activeStackTotalCount > 0) ? "  (" + DockLabels.stackCountLabel(root.activeStackTotalCount, root.activeStackTruncated) + ")" : "")
         textFormat: Text.PlainText
-        color: Util.alpha(Color.menu.text, 0.7)
+        color: Util.alpha(folderStackPopover.ink, 0.7)
         font.family: Style.font.family
         font.pixelSize: Style.font.caption
         font.bold: true
@@ -189,7 +199,7 @@ BorderSurface {
       horizontalAlignment: Text.AlignHCenter
       text: (root && root.activeStackFailed) ? Tr.t("folder.unreadable", "Folder could not be read") : Tr.t("folder.empty", "Folder is empty")
       textFormat: Text.PlainText
-      color: Util.alpha(Color.menu.text, 0.45)
+      color: Util.alpha(folderStackPopover.ink, 0.45)
       font.family: Style.font.family
       font.pixelSize: Style.font.body
       padding: Style.space(8)
@@ -212,7 +222,9 @@ BorderSurface {
         themeVersion: root ? root.themeVersion : 0
         currentIconThemeName: root ? root.currentIconThemeName : "Yaru"
         folderColor: root ? root.folderColor : "theme"
-        symbolicColor: root ? root.symbolicColorOn(Color.menu.background) : "#ffffff"
+        symbolicColor: folderStackPopover.glyphColor
+        textColor: folderStackPopover.ink
+        selectionColor: Util.alpha(folderStackPopover.ink, 0.10)
         appLibrary: root ? root.appLibrary : null
         onTriggered: folderStackPopover.activate(modelData)
         onDragStarted: folderStackPopover.dragStart()
@@ -240,7 +252,9 @@ BorderSurface {
         themeVersion: root ? root.themeVersion : 0
         currentIconThemeName: root ? root.currentIconThemeName : "Yaru"
         folderColor: root ? root.folderColor : "theme"
-        symbolicColor: root ? root.symbolicColorOn(Color.menu.background) : "#ffffff"
+        symbolicColor: folderStackPopover.glyphColor
+        textColor: folderStackPopover.ink
+        selectionColor: Util.alpha(folderStackPopover.ink, 0.10)
         appLibrary: root ? root.appLibrary : null
         onTriggered: folderStackPopover.activate(modelData)
         onDragStarted: folderStackPopover.dragStart()
@@ -258,13 +272,15 @@ BorderSurface {
     width: folderStackPopover.rowWidth
     spacing: Style.space(2)
 
-    MenuDivider {}
+    MenuDivider { ink: folderStackPopover.ink }
 
     // The listing is capped (scripts/list-folder.py); say so instead of
     // silently truncating.
     ContextRow {
       readonly property int moreCount: root ? Math.max(0, root.activeStackTotalCount - root.activeStackEntries.length) : 0
       visible: moreCount > 0
+      textColor: folderStackPopover.ink
+      selectionColor: Util.alpha(folderStackPopover.ink, 0.10)
       text: Tr.t("folder.moreOpen", "+ %1 more — open in File Manager").arg(DockLabels.stackCountLabel(moreCount, root ? root.activeStackTruncated : false))
       onTriggered: {
         if (!root) return
@@ -274,6 +290,8 @@ BorderSurface {
     }
 
     ContextRow {
+      textColor: folderStackPopover.ink
+      selectionColor: Util.alpha(folderStackPopover.ink, 0.10)
       text: Tr.t("menu.openFileManager", "Open in File Manager")
       onTriggered: {
         if (!root) return

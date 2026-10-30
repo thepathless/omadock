@@ -21,6 +21,8 @@ Item {
   property string folderColor: "theme"
   // Set by the popup, which knows the backdrop the tile sits on.
   property color symbolicColor: "#ffffff"
+  property color textColor: Color.menu.text
+  property color selectionColor: Color.menu.selectedBackground
   property var appLibrary: null
 
   signal triggered()
@@ -41,7 +43,7 @@ Item {
   Rectangle {
     anchors.fill: parent
     radius: Style.cornerRadius
-    color: area.containsMouse ? Color.menu.selectedBackground : "transparent"
+    color: area.containsMouse ? tile.selectionColor : "transparent"
   }
 
   Item {
@@ -69,7 +71,7 @@ Item {
       visible: tile.hasPreview
       color: "transparent"
       radius: Math.min(Style.cornerRadius, Style.space(6))
-      border.color: Util.alpha(Color.menu.text, 0.15)
+      border.color: Util.alpha(tile.textColor, 0.15)
       border.width: 1
     }
 
@@ -104,7 +106,7 @@ Item {
     horizontalAlignment: Text.AlignHCenter
     text: tile.name
     textFormat: Text.PlainText
-    color: Color.menu.text
+    color: tile.textColor
     font.family: Style.font.family
     font.pixelSize: Style.font.caption
     wrapMode: Text.WrapAnywhere
