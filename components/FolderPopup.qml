@@ -220,7 +220,7 @@ BorderSurface {
         icon: modelData.icon
         subtext: modelData.isDir ? "›" : modelData.size
         themeVersion: root ? root.themeVersion : 0
-        currentIconThemeName: root ? root.currentIconThemeName : "Yaru"
+        currentIconThemeName: root ? root.iconThemeRef.iconTheme : "Yaru"
         folderColor: root ? root.folderColor : "theme"
         symbolicColor: folderStackPopover.glyphColor
         textColor: folderStackPopover.ink
@@ -250,7 +250,7 @@ BorderSurface {
         thumb: modelData.thumb || ""
         isDir: modelData.isDir
         themeVersion: root ? root.themeVersion : 0
-        currentIconThemeName: root ? root.currentIconThemeName : "Yaru"
+        currentIconThemeName: root ? root.iconThemeRef.iconTheme : "Yaru"
         folderColor: root ? root.folderColor : "theme"
         symbolicColor: folderStackPopover.glyphColor
         textColor: folderStackPopover.ink

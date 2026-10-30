@@ -10,7 +10,13 @@ SettingRow {
   signal toggled()
 
   ToggleSwitch {
+    objectName: "settings-switch-" + switchRow.key
     checked: switchRow.checked
+    activeFocusOnTab: true
+    hasCursor: activeFocus
+    Keys.onSpacePressed: switchRow.toggled()
+    Keys.onReturnPressed: switchRow.toggled()
+    onActiveFocusChanged: if (activeFocus && switchRow.settingsPanel) switchRow.settingsPanel.keepFocusVisible(switchRow)
     foreground: Color.menu.text
     onToggled: switchRow.toggled()
   }

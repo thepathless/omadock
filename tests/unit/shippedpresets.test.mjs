@@ -54,8 +54,7 @@ test("the Windows look is the taskbar, and carries the setup it needs", () => {
   assert.ok(w, "the taskbar look ships")
   assert.deepEqual(plain(w.setup), {
     layout: "panel", alignment: "taskbar", autohide: false, intelligentAutohide: false,
-    showMinimizedTiles: false, minimizeMode: "active", showAppsButton: true,
-    showTooltips: true, advancedTooltips: true
+    showMinimizedTiles: false, minimizeMode: "active", showAppsButton: true
   })
   assert.equal(w.look.shape, "square")
   assert.equal(w.look.cornerRadius, 0)
@@ -75,8 +74,9 @@ test("only a shipped look carries setup; a saved preset never does", () => {
   assert.deepEqual(plain(windows.setup), plain(SHIPPED.find((p) => p.name === "Windows").setup),
     "merge keeps the shipped setup")
   for (const p of merged([])) {
-    if (p.name === "Windows") continue
-    assert.equal(p.setup, undefined, `${p.name} leaves the user's placement alone`)
+    assert.ok(p.setup, `${p.name} establishes its own layout and behavior`)
+    assert.equal(p.setup.showTooltips, undefined, "tooltips remain a user preference")
+    assert.equal(p.setup.advancedTooltips, undefined, "preview preferences are not preset requirements")
   }
   // boundPresets is what a saved preset is read back through, and it keeps
   // only id/name/look, so a setup in a hand-edited config is dropped rather
@@ -211,8 +211,8 @@ test("a key-for-key tie goes to the saved preset, not the shipped row", () => {
   // A look only a shipped preset matches still marks that one, whether or not
   // anything was saved.
   const win = merged([]).find((p) => p.name === "Windows")
-  assert.equal(ctx.activeId(list, plain(win.look), ctx.lookIncludes), win.id)
-  assert.equal(ctx.activeId(merged([]), plain(win.look), ctx.lookIncludes), win.id)
+  assert.equal(ctx.activeId(list, plain(win.look), ctx.lookIncludes, win.setup), win.id)
+  assert.equal(ctx.activeId(merged([]), plain(win.look), ctx.lookIncludes, win.setup), win.id)
   // Nothing matches: no row is marked, and an empty list answers "".
   assert.equal(ctx.activeId(list, plain(ctx.pickLook({ grain: 0.9 })), ctx.lookIncludes), "")
   assert.equal(ctx.activeId([], plain(ctx.pickLook({})), ctx.lookIncludes), "")

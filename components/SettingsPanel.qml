@@ -17,7 +17,11 @@ PanelWindow {
   property var rootRef: null
   readonly property var root: rootRef
 
-  property string page: root ? root.settingsPanelPage : "appearance"
+  readonly property string page: SettingsSearch.category(root ? root.settingsPanelPage : "presets")
+  property string targetKey: ""
+  property alias searchInput: searchField
+  readonly property alias pageContent: pageColumn
+  readonly property alias pageScroller: pageFlick
 
   // Id of the app group whose name is being edited; Esc then cancels the
   // edit instead of closing the panel.
@@ -48,15 +52,11 @@ PanelWindow {
   // Categories in sidebar order. Page ids are also the IPC names
   // (openSettingsPage), so "presets" and "about" keep their ids.
   readonly property var pages: [
-    { id: "appearance", label: "Appearance", glyph: "󰏘" },
-    { id: "labels", label: "Labels", glyph: "󰓹" },
-    { id: "icons", label: "Icons", glyph: "󰩨" },
-    { id: "motion", label: "Motion & Effects", glyph: "󰨙" },
-    { id: "behavior", label: "Behavior", glyph: "󰒓" },
-    { id: "placement", label: "Placement", glyph: "󰍹" },
-    { id: "folders", label: "Folders", glyph: "󰉋" },
-    { id: "groups", label: "App Groups", glyph: "󰀻" },
     { id: "presets", label: "Presets", glyph: "󰆓" },
+    { id: "appearance", label: "Look", glyph: "󰏘" },
+    { id: "placement", label: "Position & visibility", glyph: "󰍹" },
+    { id: "behavior", label: "Apps & windows", glyph: "󰒓" },
+    { id: "folders", label: "Organize dock", glyph: "󰉋" },
     { id: "about", label: "About", glyph: "󰋼" }
   ]
 
@@ -65,6 +65,7 @@ PanelWindow {
   // carrying a key is registered under it in registerRows(); a picked hit
   // switches to the row's page and flashes it.
   property var searchHits: []
+  property int searchCursor: 0
   property var rowByKey: ({})
   property string flashKey: ""
 
@@ -75,7 +76,10 @@ PanelWindow {
     while (stack.length > 0) {
       var kids = stack.pop().children
       for (var i = 0; i < kids.length; i++) {
-        if (kids[i].key) panel.rowByKey[kids[i].key] = kids[i]
+        if (kids[i].key) {
+          panel.rowByKey[kids[i].key] = kids[i]
+          if (kids[i].settingsPanel !== undefined) kids[i].settingsPanel = panel
+        }
         stack.push(kids[i])
       }
     }
@@ -102,15 +106,25 @@ PanelWindow {
     onTriggered: panel.setFlash("")
   }
 
+  function navigate(id) {
+    panel.targetKey = ""
+    panel.setFlash("")
+    if (root) root.settingsPanelPage = SettingsSearch.category(id)
+    pageFlick.contentY = 0
+  }
+
+  function revealGroup(keys) { return keys.indexOf(panel.targetKey) >= 0 }
+
+  function dependencyFor(key) { return SettingsSearch.dependency(key, panel.root) }
+
   function gotoSetting(key) {
-    var hit = null
-    for (var i = 0; i < panel.searchHits.length; i++)
-      if (panel.searchHits[i].key === key) {
-        hit = panel.searchHits[i]
-        break
-      }
-    if (!hit) return
+    var hit = SettingsSearch.entryFor(key)
+    var row = panel.rowByKey[key]
+    if (!hit || !row) return
     root.settingsPanelPage = hit.page
+    panel.targetKey = key
+    for (var p = row.parent; p && p !== pageColumn; p = p.parent)
+      if (p.expanded !== undefined) p.expanded = true
     searchField.text = ""
     panel.setFlash(key)
     flashTimer.restart()
@@ -130,9 +144,38 @@ PanelWindow {
       if (!row) return
       var top = row.mapToItem(pageColumn, 0, 0).y
       pageFlick.contentY = Math.max(0, Math.min(Math.max(0, pageFlick.contentHeight - pageFlick.height), top - Style.space(24)))
+      panel.focusControl(row)
     }
   }
 
+
+  function focusControl(row) {
+    if (!row) return
+    var stack = [row]
+    while (stack.length) {
+      var item = stack.shift()
+      if (item.visible && item.enabled && item.activeFocusOnTab) { item.forceActiveFocus(); return }
+      var kids = item.children || []
+      for (var i = 0; i < kids.length; i++) stack.push(kids[i])
+    }
+    row.forceActiveFocus()
+  }
+
+  function keepFocusVisible(item) {
+    if (!item) return
+    var ancestor = item.parent
+    while (ancestor && ancestor !== pageColumn) ancestor = ancestor.parent
+    if (ancestor !== pageColumn) return
+    var y = item.mapToItem(pageColumn, 0, 0).y
+    if (y < pageFlick.contentY) pageFlick.contentY = y
+    else if (y + item.height > pageFlick.contentY + pageFlick.height)
+      pageFlick.contentY = Math.min(Math.max(0, pageFlick.contentHeight - pageFlick.height), y + item.height - pageFlick.height)
+  }
+
+  Connections {
+    target: pageColumn.Window.window
+    function onActiveFocusItemChanged() { panel.keepFocusVisible(pageColumn.Window.window.activeFocusItem) }
+  }
 
   function pageLabelOf(id) {
     for (var i = 0; i < panel.pages.length; i++)
@@ -146,6 +189,21 @@ PanelWindow {
   function searchLabel(entry) {
     var section = String(entry.label).toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "")
     return Tr.t("search." + entry.key, Tr.t("setting." + entry.key + ".label", Tr.t("section." + section, entry.label)))
+  }
+
+  Shortcut {
+    sequence: "Ctrl+F"
+    onActivated: searchField.forceActiveFocus()
+  }
+  Shortcut {
+    sequence: "PgDown"
+    enabled: panel.editingGroupId === "" && panel.editingPresetId === "" && !searchField.activeFocus
+    onActivated: pageFlick.contentY = Math.min(Math.max(0, pageFlick.contentHeight - pageFlick.height), pageFlick.contentY + pageFlick.height * 0.8)
+  }
+  Shortcut {
+    sequence: "PgUp"
+    enabled: panel.editingGroupId === "" && panel.editingPresetId === "" && !searchField.activeFocus
+    onActivated: pageFlick.contentY = Math.max(0, pageFlick.contentY - pageFlick.height * 0.8)
   }
 
   function close() {
@@ -278,7 +336,7 @@ PanelWindow {
       id: sidebar
       x: card.contentLeftInset
       y: card.contentTopInset
-      width: Style.space(200)
+      width: Style.space(230)
       height: card.height - card.contentTopInset - card.contentBottomInset
       color: Util.alpha(Color.menu.text, 0.035)
       radius: Math.max(0, Style.cornerRadius - 1)
@@ -310,7 +368,12 @@ PanelWindow {
           width: parent.width
           placeholderText: Tr.t("panel.search", "Search settings")
           foreground: Color.menu.text
-          onTextChanged: panel.searchHits = text.trim() === "" ? [] : SettingsSearch.searchSettings(text, null, null, panel.searchLabel)
+          objectName: "settings-search"
+          onTextChanged: { panel.searchCursor = 0; panel.searchHits = text.trim() === "" ? [] : SettingsSearch.searchSettings(text, null, null, panel.searchLabel) }
+          Keys.onDownPressed: panel.searchCursor = Math.min(panel.searchHits.length - 1, panel.searchCursor + 1)
+          Keys.onUpPressed: panel.searchCursor = Math.max(0, panel.searchCursor - 1)
+          Keys.onReturnPressed: if (panel.searchHits[panel.searchCursor]) panel.gotoSetting(panel.searchHits[panel.searchCursor].key)
+          Keys.onEnterPressed: if (panel.searchHits[panel.searchCursor]) panel.gotoSetting(panel.searchHits[panel.searchCursor].key)
         }
 
         Column {
@@ -324,6 +387,12 @@ PanelWindow {
             delegate: Rectangle {
               id: hitRow
               required property var modelData
+              required property int index
+              activeFocusOnTab: true
+              Keys.onReturnPressed: panel.gotoSetting(hitRow.modelData.key)
+              Keys.onSpacePressed: panel.gotoSetting(hitRow.modelData.key)
+              border.width: activeFocus || panel.searchCursor === index ? 1 : 0
+              border.color: Color.accent
               width: searchResults.width
               height: Style.space(32)
               radius: Style.cornerRadius > 0 ? Style.space(6) : 0
@@ -376,11 +445,21 @@ PanelWindow {
         }
 
         Repeater {
+          id: navRepeater
           model: panel.pages
           delegate: Rectangle {
             id: navItem
             required property var modelData
+            required property int index
+            objectName: "settings-category-" + modelData.id
+            activeFocusOnTab: true
             readonly property bool current: panel.page === modelData.id
+            border.width: activeFocus ? 1 : 0
+            border.color: Color.accent
+            Keys.onReturnPressed: panel.navigate(modelData.id)
+            Keys.onSpacePressed: panel.navigate(modelData.id)
+            Keys.onDownPressed: { var next = navRepeater.itemAt((index + 1) % panel.pages.length); next.forceActiveFocus(); panel.navigate(next.modelData.id) }
+            Keys.onUpPressed: { var prev = navRepeater.itemAt((index + panel.pages.length - 1) % panel.pages.length); prev.forceActiveFocus(); panel.navigate(prev.modelData.id) }
             visible: searchField.text.trim() === ""
 
             width: parent.width
@@ -434,8 +513,8 @@ PanelWindow {
               hoverEnabled: true
               cursorShape: Qt.PointingHandCursor
               onClicked: {
-                if (root) root.settingsPanelPage = navItem.modelData.id
-                pageFlick.contentY = 0
+                panel.navigate(navItem.modelData.id)
+                navItem.forceActiveFocus()
               }
             }
           }
@@ -465,6 +544,7 @@ PanelWindow {
       Button {
         anchors.right: parent.right
         anchors.verticalCenter: parent.verticalCenter
+        focusable: true
         iconText: "󰅖"
         foreground: Color.menu.text
         tooltipText: Tr.t("panel.close", "Close (Esc)")
@@ -527,19 +607,19 @@ PanelWindow {
           SettingsLabels {
             root: panel.root
             panel: panel
-            visible: panel.page === "labels"
+            visible: panel.page === "appearance"
           }
 
           SettingsIcons {
             root: panel.root
             panel: panel
-            visible: panel.page === "icons"
+            visible: panel.page === "appearance"
           }
 
           SettingsMotion {
             root: panel.root
             panel: panel
-            visible: panel.page === "motion"
+            visible: panel.page === "appearance"
           }
 
           SettingsBehavior {
@@ -563,7 +643,7 @@ PanelWindow {
           SettingsGroups {
             root: panel.root
             panel: panel
-            visible: panel.page === "groups"
+            visible: panel.page === "folders"
           }
 
           SettingsPresets {

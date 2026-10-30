@@ -25,7 +25,7 @@ Column {
 
   Column {
     width: parent.width
-    visible: root ? root.showBackground : true
+    visible: (root ? root.showBackground : true) || panel.revealGroup(["bgFill", "bgColor", "gradientPalette", "gradientStrength", "opacityTheme", "opacity"])
 
     ChoiceRow {
       key: "bgFill"
@@ -41,7 +41,7 @@ Column {
 
     Column {
       width: parent.width
-      visible: root ? root.bgFill !== "gradient" : true
+      visible: (root ? root.bgFill !== "gradient" : true) || panel.revealGroup(["bgColor"])
 
       SettingRow {
         key: "bgColor"
@@ -52,6 +52,7 @@ Column {
           spacing: Style.spacing.sm
 
           Button {
+            focusable: true
             text: Tr.t("setting.gradient.theme", "Theme")
             foreground: Color.menu.text
             bordered: true
@@ -59,6 +60,7 @@ Column {
             onClicked: root.setDockBgColor("theme")
           }
           Button {
+            focusable: true
             text: Tr.t("setting.gradient.none", "None")
             foreground: Color.menu.text
             bordered: true
@@ -69,6 +71,8 @@ Column {
       }
 
       Flow {
+        enabled: !!root && root.showBackground && root.bgFill !== "gradient"
+        opacity: enabled ? 1 : 0.45
         width: parent.width
         spacing: Style.spacing.md
         topPadding: Style.spacing.lg
@@ -91,7 +95,7 @@ Column {
 
     Column {
       width: parent.width
-      visible: root ? root.bgFill === "gradient" : false
+      visible: (root ? root.bgFill === "gradient" : false) || panel.revealGroup(["gradientPalette", "gradientStrength"])
 
       SettingRow {
         key: "gradientPalette"
@@ -100,6 +104,8 @@ Column {
       }
 
       Flow {
+        enabled: !!root && root.showBackground && root.bgFill === "gradient"
+        opacity: enabled ? 1 : 0.45
         width: parent.width
         spacing: Style.spacing.md
         topPadding: Style.spacing.sm
@@ -111,14 +117,17 @@ Column {
             id: paletteTile
             required property var modelData
             readonly property bool current: root ? root.gradientPreset === modelData.id : false
+            activeFocusOnTab: true
+            Keys.onReturnPressed: root.setOption("gradientPreset", modelData.id)
+            Keys.onSpacePressed: root.setOption("gradientPreset", modelData.id)
             spacing: Style.spacing.xs
 
             Rectangle {
               width: Style.space(64)
               height: Style.space(30)
               radius: Math.min(Style.space(6), Style.cornerRadius > 0 ? Style.space(6) : 0)
-              border.width: paletteTile.current ? 2 : 1
-              border.color: paletteTile.current ? Color.accent : Util.alpha(Color.menu.text, 0.3)
+              border.width: paletteTile.current || paletteTile.activeFocus ? 2 : 1
+              border.color: paletteTile.current || paletteTile.activeFocus ? Color.accent : Util.alpha(Color.menu.text, 0.3)
               gradient: Gradient {
                 orientation: Gradient.Horizontal
                 GradientStop { position: 0.0; color: paletteTile.modelData.colors[0] }
@@ -170,7 +179,7 @@ Column {
     SliderRow {
       key: "opacity"
       label: "Opacity"
-      visible: root ? root.dockOpacity >= 0 : false
+      available: root ? root.dockOpacity >= 0 : false
       minimum: 0
       maximum: 1
       step: 0.05
@@ -183,6 +192,8 @@ Column {
 
   }
 
+  SettingsSection {
+    title: Tr.t("settings.surfaceTuning", "Advanced surface, border & dividers")
   SectionLabel { title: "Border" }
 
   SwitchRow {
@@ -195,7 +206,7 @@ Column {
   SliderRow {
     key: "borderWidth"
     label: "Border width"
-    visible: root ? root.showBorder : true
+    available: root ? root.showBorder : true
     minimum: 1
     maximum: 6
     step: 0.5
@@ -209,13 +220,13 @@ Column {
     label: "Border opacity from theme"
     hint: "Derive the rim opacity from the dock's opacity, as themes expect. Turn off to set it by hand."
     checked: root ? root.borderOpacity < 0 : true
-    visible: root ? root.showBorder : true
+    available: root ? root.showBorder : true
     onToggled: root.setBorderOpacity(root.borderOpacity < 0 ? 1.0 : -1.0)
   }
   SliderRow {
     key: "borderOpacity"
     label: "Border opacity"
-    visible: root ? (root.showBorder && root.borderOpacity >= 0) : false
+    available: root ? (root.showBorder && root.borderOpacity >= 0) : false
     minimum: 0
     maximum: 1
     step: 0.05
@@ -228,7 +239,7 @@ Column {
     key: "dividerLength"
     label: "Divider length style"
     hint: "Classic preserves the original icon-height lines. Long uses an adjustable share of the dock height."
-    visible: root ? (!root.placement.split && root.dividerStyle !== "none") : true
+    available: root ? (!root.placement.split && root.dividerStyle !== "none") : true
     options: [{ value: "classic", label: "Classic" }, { value: "long", label: "Long" }]
     value: root ? root.dividerGeometry : "classic"
     onPicked: function(v) { root.setOption("dividerGeometry", v) }
@@ -237,7 +248,7 @@ Column {
     key: "dividerStyle"
     label: "Divider style"
     hint: "Theme draws the lines like the border, in its colour, opacity and width. Custom sets the width and opacity by hand. Hidden drops the lines and the room around them, for docks whose plates already show the sections."
-    visible: root ? !root.placement.split : true
+    available: root ? !root.placement.split : true
     options: (root && !root.showBorder)
       ? [{ value: "simple", label: "Simple" }, { value: "custom", label: "Custom" }, { value: "none", label: "Hidden" }]
       : [{ value: "simple", label: "Simple" }, { value: "theme", label: "Theme" }, { value: "custom", label: "Custom" }, { value: "none", label: "Hidden" }]
@@ -247,7 +258,7 @@ Column {
   SliderRow {
     key: "dividerWidth"
     label: "Divider width"
-    visible: root ? (!root.placement.split && root.dividerStyle === "custom") : false
+    available: root ? (!root.placement.split && root.dividerStyle === "custom") : false
     minimum: 1
     maximum: 6
     step: 0.5
@@ -259,7 +270,7 @@ Column {
   SliderRow {
     key: "dividerOpacity"
     label: "Divider opacity"
-    visible: root ? (!root.placement.split && root.dividerStyle === "custom") : false
+    available: root ? (!root.placement.split && root.dividerStyle === "custom") : false
     minimum: 0
     maximum: 1
     step: 0.05
@@ -272,7 +283,7 @@ Column {
     key: "dividerHeight"
     label: "Divider height"
     hint: "Length of the lines between sections, as a share of the dock's height."
-    visible: root ? (!root.placement.split && root.dividerGeometry === "long" && root.dividerStyle !== "none") : false
+    available: root ? (!root.placement.split && root.dividerGeometry === "long" && root.dividerStyle !== "none") : false
     minimum: 20
     maximum: 100
     step: 5
@@ -286,7 +297,7 @@ Column {
   ChoiceRow {
     key: "corners"
     label: "Corners"
-    visible: root ? !root.placement.panel : true
+    available: root ? !root.placement.panel : true
     options: [
       { value: "theme", label: "Theme" },
       { value: "rounded", label: "Rounded" },
@@ -305,7 +316,7 @@ Column {
   SliderRow {
     key: "cornerRadius"
     label: "Corner radius"
-    visible: root ? (!root.placement.panel && root.dockShape === "rounded") : false
+    available: root ? (!root.placement.panel && root.dockShape === "rounded") : false
     minimum: 2
     maximum: root ? root.maxRoundedRadius : 24
     step: 1
@@ -316,7 +327,7 @@ Column {
   SwitchRow {
     key: "splitSections"
     label: "Split sections"
-    visible: root ? !root.placement.panel : true
+    available: root ? !root.placement.panel : true
     hint: "Each part between the dividers becomes its own panel, with a gap in place of the divider."
     checked: root ? root.splitSections : false
     onToggled: root.setOption("splitSections", !root.splitSections)
@@ -325,7 +336,7 @@ Column {
     key: "panelSpacing"
     label: "Panel spacing"
     hint: "Gap between the panels when sections are split."
-    visible: root ? root.placement.split : false
+    available: root ? root.placement.split : false
     minimum: 0
     maximum: 48
     step: 1
@@ -346,44 +357,6 @@ Column {
     onPicked: function(v) { root.setOption("indicatorShape", v) }
   }
 
-  SectionLabel { title: "Dock Items" }
+  }
 
-  SwitchRow {
-    key: "appsButton"
-    label: "Omarchy button"
-    hint: "The launcher at the start of the dock. Without it, right-click the dock background to reach these settings."
-    checked: root ? root.showAppsButton : true
-    onToggled: root.setOption("showAppsButton", !root.showAppsButton)
-  }
-  // Omarchy 4.5+ only: the grid is Omarchy's own (AppGridHost).
-  ChoiceRow {
-    key: "appsButtonAction"
-    label: "Omarchy button opens"
-    hint: "The app grid searches every app and lets you drag one onto the dock to pin it."
-    visible: !!root && root.showAppsButton && !!root.sharedState && root.sharedState.appGrid.available
-    options: [
-      { value: "menu", label: "Omarchy menu" },
-      { value: "grid", label: "App grid" }
-    ]
-    value: root && root.sharedState ? root.sharedState.appGrid.mode : "menu"
-    onPicked: function(v) { root.sharedState.appGrid.mode = v; root.saveConfig() }
-  }
-  SwitchRow {
-    key: "removableDrives"
-    label: "Removable drives"
-    hint: "Show mounted USB drives at the end of the dock."
-    checked: root ? root.showRemovableDrives : true
-    onToggled: {
-      root.setOption("showRemovableDrives", !root.showRemovableDrives)
-      root.scanRemovableDrives()
-    }
-  }
-  SwitchRow {
-    key: "warnUnsafeRemoval"
-    label: "Warn on unsafe removal"
-    hint: "Notify when a drive is pulled out while still mounted."
-    visible: root ? root.showRemovableDrives : true
-    checked: root ? root.warnUnsafeRemoval : true
-    onToggled: root.setOption("warnUnsafeRemoval", !root.warnUnsafeRemoval)
-  }
 }

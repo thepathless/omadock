@@ -50,6 +50,8 @@ Column {
     onToggled: root.setOption("launchBounce", !root.launchBounce)
   }
 
+  SettingsSection {
+    title: Tr.t("settings.effectsTuning", "Advanced shadow, blur & grain")
   SectionLabel { title: "Shadow" }
 
   SwitchRow {
@@ -62,7 +64,7 @@ Column {
   SliderRow {
     key: "shadowStrength"
     label: "Strength"
-    visible: root ? root.showShadow : true
+    available: root ? root.showShadow : true
     minimum: 0
     maximum: 1
     step: 0.05
@@ -76,7 +78,7 @@ Column {
   // the old gating and show only while the background is on.
   Column {
     width: parent.width
-    visible: root ? root.showBackground : true
+    visible: (root ? root.showBackground : true) || panel.revealGroup(["blurSystem", "blur", "blurSize", "grain"])
 
     SectionLabel { title: "Blur & Grain" }
 
@@ -93,7 +95,7 @@ Column {
       hint: panel.systemBlurEnabled
         ? Tr.t("setting.blur.hintOn", "Frosted glass behind the dock.")
         : Tr.t("setting.blur.hintOff", "Hyprland blur is off (decoration:blur:enabled), so this has no visible effect.")
-      visible: root ? root.blurMode !== "system" : false
+      available: root ? root.blurMode !== "system" : false
       checked: root ? root.blurMode === "on" : false
       onToggled: root.setBlurMode(root.blurMode === "on" ? "off" : "on")
     }
@@ -101,7 +103,7 @@ Column {
       key: "blurSize"
       label: "Blur strength"
       hint: "Hyprland has one blur size for everything, so this also changes it for windows and other panels. Back to your own value when blur leaves this mode."
-      visible: root ? root.blurMode === "on" : false
+      available: root ? root.blurMode === "on" : false
       minimum: 1
       maximum: 20
       step: 1
@@ -120,5 +122,6 @@ Column {
       value: root ? root.grain : 0
       onCommitted: function(v) { root.setOption("grain", Math.round(v * 100) / 100) }
     }
+  }
   }
 }

@@ -16,10 +16,21 @@ Item {
   property string key: ""
   // Set by SettingsPanel while this row is the picked search target.
   property bool highlighted: false
+  property var settingsPanel: null
+  property bool available: true
+  readonly property bool targeted: !!settingsPanel && settingsPanel.targetKey === key
+  readonly property var dependency: settingsPanel ? settingsPanel.dependencyFor(key) : null
+  visible: available || targeted
+  Accessible.role: Accessible.Grouping
+  Accessible.name: shownLabel
+  Accessible.description: shownHint
   // A row with a key translates its own texts ("setting.<key>.label" and
   // ".hint"); a page passes a row whose text changes already translated.
   readonly property string shownLabel: settingRow.key !== "" ? Tr.t("setting." + settingRow.key + ".label", settingRow.label) : settingRow.label
-  readonly property string shownHint: settingRow.key !== "" && settingRow.hint !== "" ? Tr.t("setting." + settingRow.key + ".hint", settingRow.hint) : settingRow.hint
+  readonly property string shownHint: {
+    var ordinary = settingRow.key !== "" && settingRow.hint !== "" ? Tr.t("setting." + settingRow.key + ".hint", settingRow.hint) : settingRow.hint
+    return ordinary + (settingRow.dependency ? (ordinary ? "\n" : "") + Tr.t("dependency." + settingRow.key, settingRow.dependency.text) : "")
+  }
   default property alias control: slot.data
 
   Rectangle {
@@ -55,7 +66,7 @@ Item {
     }
     Text {
       width: parent.width
-      visible: settingRow.hint !== ""
+      visible: settingRow.shownHint !== ""
       text: settingRow.shownHint
       textFormat: Text.PlainText
       color: Util.alpha(Color.menu.text, 0.55)
@@ -63,10 +74,21 @@ Item {
       font.pixelSize: Style.font.caption
       wrapMode: Text.WordWrap
     }
+    Button {
+      objectName: "settings-prerequisite-" + settingRow.key
+      visible: !!settingRow.dependency && settingRow.dependency.key !== ""
+      text: Tr.t("settings.prerequisite", "Go to prerequisite")
+      foreground: Color.menu.text
+      focusable: true
+      bordered: true
+      onClicked: settingRow.settingsPanel.gotoSetting(settingRow.dependency.key)
+    }
   }
 
   Item {
     id: slot
+    enabled: settingRow.available && !settingRow.dependency
+    opacity: enabled ? 1 : 0.45
     anchors.right: parent.right
     anchors.verticalCenter: parent.verticalCenter
     width: childrenRect.width

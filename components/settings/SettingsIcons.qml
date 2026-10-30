@@ -8,10 +8,14 @@ import "../strings"
 // values and setters) and panel (page/edit state).
 
 Column {
+  id: iconsPage
   property var root: null
   property var panel: null
   width: parent.width
 
+
+  SectionLabel { key: "iconTheme"; title: "Icon theme" }
+  IconThemePicker { root: iconsPage.root; panel: iconsPage.panel }
 
   SectionLabel { title: "Icons" }
 
@@ -28,10 +32,12 @@ Column {
     value: root ? root.iconStyle : "original"
     onPicked: function(v) { root.setOption("iconStyle", v) }
   }
+  SettingsSection {
+    title: Tr.t("settings.iconTuning", "Advanced icon effects")
   ChoiceRow {
     key: "iconTint"
     label: "Icon colour"
-    visible: root ? (root.iconStyle === "mono" || root.iconStyle === "dots") : false
+    available: root ? (root.iconStyle === "mono" || root.iconStyle === "dots") : false
     options: [
       { value: "text", label: "Text" },
       { value: "accent", label: "Accent" },
@@ -44,7 +50,7 @@ Column {
     key: "iconGrid"
     label: root && root.iconStyle === "dots" ? Tr.t("setting.iconGrid.labelDots", "Dots across") : Tr.t("setting.iconGrid.labelPixels", "Pixels across")
     hint: "Fewer is chunkier."
-    visible: root ? (root.iconStyle === "pixel" || root.iconStyle === "dots") : false
+    available: root ? (root.iconStyle === "pixel" || root.iconStyle === "dots") : false
     minimum: 8
     maximum: 32
     step: 1
@@ -55,7 +61,7 @@ Column {
     key: "iconContrast"
     label: "Contrast"
     hint: "Separates the symbol from its backdrop; high values flatten icons to a simple, poster-like shape."
-    visible: root ? (root.iconStyle === "mono" || root.iconStyle === "dots") : false
+    available: root ? (root.iconStyle === "mono" || root.iconStyle === "dots") : false
     minimum: 0
     maximum: 1
     step: 0.05
@@ -68,7 +74,7 @@ Column {
     key: "iconStrength"
     label: "Strength"
     hint: "How much of the effect covers the original icon."
-    visible: root ? (root.iconStyle === "mono" || root.iconStyle === "dots") : false
+    available: root ? (root.iconStyle === "mono" || root.iconStyle === "dots") : false
     minimum: 0
     maximum: 1
     step: 0.05
@@ -81,7 +87,7 @@ Column {
     key: "iconHoverOriginal"
     label: "Show original on hover"
     hint: "The icon under the pointer drops the style and shows as shipped. Icons in an opened group follow this too."
-    visible: root ? root.iconStyle !== "original" : false
+    available: root ? root.iconStyle !== "original" : false
     checked: root ? root.iconHoverOriginal : false
     onToggled: root.setOption("iconHoverOriginal", !root.iconHoverOriginal)
   }
@@ -89,11 +95,12 @@ Column {
     key: "iconHoverReveal"
     label: "Dithered reveal"
     hint: "The original icon appears cell by cell, rising from the bottom, instead of all at once."
-    visible: root ? (root.iconHoverOriginal && (root.iconStyle === "mono" || root.iconStyle === "dots")) : false
+    available: root ? (root.iconHoverOriginal && (root.iconStyle === "mono" || root.iconStyle === "dots")) : false
     checked: root ? root.iconHoverReveal : false
     onToggled: root.setOption("iconHoverReveal", !root.iconHoverReveal)
   }
 
+  }
   SectionLabel { title: "Size & Spacing" }
 
   SliderRow {

@@ -20,7 +20,9 @@ SettingRow {
     value: choiceRow.value
     foreground: Color.menu.text
     background: Color.menu.background
-    focusable: false
+    focusable: true
+    objectName: "settings-choice-" + choiceRow.key
+    onActiveFocusChanged: if (activeFocus && choiceRow.settingsPanel) choiceRow.settingsPanel.keepFocusVisible(choiceRow)
     onChanged: function(v) { choiceRow.picked(v) }
   }
 }

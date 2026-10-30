@@ -13,48 +13,6 @@ Column {
   width: parent.width
 
 
-  SectionLabel { title: "Visibility" }
-
-  ChoiceRow {
-    key: "autohide"
-    label: "Autohide"
-    hint: "Intelligent hides only when a window overlaps the dock."
-    options: [
-      { value: "always", label: "Always show" },
-      { value: "intelligent", label: "Intelligent" },
-      { value: "autohide", label: "Autohide" }
-    ]
-    value: root ? (!root.autohide ? "always" : (root.intelligentAutohide ? "intelligent" : "autohide")) : "always"
-    onPicked: function(v) { root.setAutohideMode(v) }
-  }
-  SliderRow {
-    key: "revealDelay"
-    label: "Reveal delay"
-    hint: "How long the pointer rests on the edge before the dock slides in."
-    enabled: root ? root.autohide : false
-    opacity: enabled ? 1 : 0.45
-    minimum: 0
-    maximum: 1000
-    step: 10
-    suffix: " ms"
-    value: root ? root.revealDelay : 160
-    onCommitted: function(v) { root.setOption("revealDelay", Math.round(v)) }
-  }
-  // Omarchy 4.5+ only: its own dock is what this chooses against.
-  ChoiceRow {
-    key: "floatingDock"
-    label: "Floating workspaces"
-    hint: "Omarchy shows its own dock on floating workspaces. Hiding it runs omarchy plugin disable omarchy.dock; after removing omadock, bring it back with omarchy plugin enable omarchy.dock."
-    visible: root ? root.floatingWatch.available : false
-    options: [
-      { value: "hide-omarchy", label: "Hide Omarchy dock" },
-      { value: "hide-omadock", label: "Hide OmaDock" },
-      { value: "both", label: "Show both" }
-    ]
-    value: root ? root.floatingWatch.choice : "hide-omarchy"
-    onPicked: function(v) { root.floatingWatch.choice = v; root.saveConfig() }
-  }
-
   SectionLabel { title: "Clicking an app" }
 
   ChoiceRow {
@@ -69,6 +27,8 @@ Column {
     value: root ? root.minimizeMode : "active"
     onPicked: function(v) { root.setOption("minimizeMode", v) }
   }
+  SettingsSection {
+    title: Tr.t("settings.windowTuning", "Advanced window behavior")
   SwitchRow {
     key: "keepPointer"
     label: "Keep pointer in place"
@@ -106,6 +66,8 @@ Column {
     onCommitted: function(v) { root.setOption("wheelStepDelay", Math.round(v)) }
   }
 
+  }
+
   SectionLabel { title: "Attention" }
 
   SwitchRow {
@@ -115,6 +77,8 @@ Column {
     checked: root ? root.showNotificationBadges : true
     onToggled: root.setOption("showNotificationBadges", !root.showNotificationBadges)
   }
+  SettingsSection {
+    title: Tr.t("settings.badgeTuning", "Advanced badge styling")
   ChoiceRow {
     key: "badgeStyle"
     label: "Badge style"
@@ -124,8 +88,6 @@ Column {
       { value: "dot", label: "Dot" }
     ]
     value: root ? root.badgeStyle : "count"
-    enabled: root ? root.showNotificationBadges : false
-    opacity: enabled ? 1 : 0.45
     onPicked: function(v) { root.setOption("badgeStyle", v) }
   }
   ChoiceRow {
@@ -139,8 +101,6 @@ Column {
       { value: "bottom-left", label: "Bottom left" }
     ]
     value: root ? root.badgePosition : "top-right"
-    enabled: root ? root.showNotificationBadges : false
-    opacity: enabled ? 1 : 0.45
     onPicked: function(v) { root.setOption("badgePosition", v) }
   }
   ChoiceRow {
@@ -153,9 +113,8 @@ Column {
       { value: "neutral", label: "Neutral" }
     ]
     value: root ? root.badgeColor : "accent"
-    enabled: root ? root.showNotificationBadges : false
-    opacity: enabled ? 1 : 0.45
     onPicked: function(v) { root.setOption("badgeColor", v) }
+  }
   }
   SwitchRow {
     key: "urgentHint"
@@ -171,6 +130,8 @@ Column {
     checked: root ? root.urgentOnNotification : true
     onToggled: root.setOption("urgentOnNotification", !root.urgentOnNotification)
   }
+  SettingsSection {
+    title: Tr.t("settings.soundTuning", "Alert sound")
   SettingRow {
     key: "urgentSound"
     label: "Urgent sound"
@@ -193,6 +154,8 @@ Column {
     }
   }
 
+  }
+
   SectionLabel { title: "Previews & Tooltips" }
 
   SwitchRow {
@@ -201,17 +164,18 @@ Column {
     checked: root ? root.showTooltips : true
     onToggled: root.setOption("showTooltips", !root.showTooltips)
   }
+  SettingsSection {
+    title: Tr.t("settings.tooltipTuning", "Advanced tooltip timing")
   SliderRow {
     key: "tooltipDelay"
     label: "Tooltip delay"
-    enabled: root ? root.showTooltips : true
-    opacity: enabled ? 1 : 0.45
     minimum: 0
     maximum: 2000
     step: 50
     suffix: " ms"
     value: root ? root.tooltipDelay : 450
     onCommitted: function(v) { root.setOption("tooltipDelay", Math.round(v)) }
+  }
   }
   SwitchRow {
     key: "windowPreviews"

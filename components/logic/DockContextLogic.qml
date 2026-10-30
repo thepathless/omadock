@@ -28,13 +28,11 @@ QtObject {
     root.themeChangeTimerRef.restart()
   }
 
+  // The icon theme is the desktop's (gsettings), so a theme switch re-reads
+  // it instead of trusting the theme's icons.theme metadata - the probe falls
+  // back to that file only when gsettings cannot answer.
   function applyThemeChange(root) {
-    try {
-      var t = DockModel.readCapped(root.themeIconsFileRef.text, DockModel.MAX_ICONS_THEME_BYTES).trim()
-      if (t) root.currentIconThemeName = t
-    } catch (e) {
-      console.warn("[omadock] Failed reading icon theme:", e)
-    }
+    if (root.iconThemeRef) root.iconThemeRef.probeTheme()
     root.themeVersion++
     if (root.appLibrary) {
       try {

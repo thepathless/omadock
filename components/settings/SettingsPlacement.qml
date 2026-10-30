@@ -36,7 +36,7 @@ Column {
     readonly property bool panelOk: root ? DockLayout.normalizeLayout(root.layout) === "panel" : false
     hint: root && root.alignment === "taskbar"
       ? (panelOk
-        ? Tr.t("setting.alignment.hintTaskbar", "Start at the left edge, app icons centred and the clock on the right.")
+        ? Tr.t("setting.alignment.hintTaskbar", "Start and app icons centred together, with the clock on the right.")
         : Tr.t("setting.alignment.hintTaskbarNeedsPanel", "Taskbar needs the Panel layout; centred until then."))
       : !spreadOk
         ? (root && root.alignment === "spread"
@@ -58,6 +58,47 @@ Column {
     onPicked: function(v) { root.setDockAlignment(v) }
   }
 
+  SectionLabel { title: "Visibility" }
+  ChoiceRow {
+    key: "autohide"
+    label: "Autohide"
+    hint: "Intelligent hides only when a window overlaps the dock."
+    options: [
+      { value: "always", label: "Always show" },
+      { value: "intelligent", label: "Intelligent" },
+      { value: "autohide", label: "Autohide" }
+    ]
+    value: root ? (!root.autohide ? "always" : (root.intelligentAutohide ? "intelligent" : "autohide")) : "always"
+    onPicked: function(v) { root.setAutohideMode(v) }
+  }
+  SettingsSection {
+    title: Tr.t("settings.visibilityTuning", "Advanced visibility")
+    SliderRow {
+      key: "revealDelay"
+      label: "Reveal delay"
+      hint: "How long the pointer rests on the edge before the dock slides in."
+      minimum: 0
+      maximum: 1000
+      step: 10
+      suffix: " ms"
+      value: root ? root.revealDelay : 160
+      onCommitted: function(v) { root.setOption("revealDelay", Math.round(v)) }
+    }
+    ChoiceRow {
+      key: "floatingDock"
+      label: "Floating workspaces"
+      hint: "Omarchy shows its own dock on floating workspaces. Hiding it runs omarchy plugin disable omarchy.dock; after removing omadock, bring it back with omarchy plugin enable omarchy.dock."
+      available: root ? root.floatingWatch.available : false
+      options: [
+        { value: "hide-omarchy", label: "Hide Omarchy dock" },
+        { value: "hide-omadock", label: "Hide OmaDock" },
+        { value: "both", label: "Show both" }
+      ]
+      value: root ? root.floatingWatch.choice : "hide-omarchy"
+      onPicked: function(v) { root.floatingWatch.choice = v; root.saveConfig() }
+    }
+  }
+
   SectionLabel { title: "Monitors" }
 
   SwitchRow {
@@ -67,13 +108,16 @@ Column {
     checked: root ? root.multiMonitor : false
     onToggled: root.setOption("multiMonitor", !root.multiMonitor)
   }
+  SettingsSection {
+    title: Tr.t("settings.monitorTuning", "Advanced monitor behavior")
   SwitchRow {
     key: "perMonitorApps"
     label: "Only this monitor's apps"
     hint: "Each dock lists the windows on its own monitor; pinned apps show everywhere."
-    visible: root ? root.multiMonitor : false
+    available: root ? root.multiMonitor : false
     checked: root ? root.perMonitorApps : true
     onToggled: root.setOption("perMonitorApps", !root.perMonitorApps)
+  }
   }
   SettingRow {
     key: "monitorSelect"

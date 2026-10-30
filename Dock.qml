@@ -204,10 +204,9 @@ Item {
 
   // Fallback standalone application library for host capability gates (e.g. Omarchy 4.x scoped plugins)
 
-  LocalAppLibrary {
-    id: localAppLibrary
-    rootRef: root
-  }
+  LocalAppLibrary { id: localAppLibrary; rootRef: root }
+  // The desktop icon theme, its installed list and the apply live in the library.
+  readonly property var iconThemeRef: localAppLibrary
 
   // Launch wrapper: one-shot, event-driven (a failed gtk-launch probe exits
   // in milliseconds), so this adds zero idle CPU. A non-zero exit means the
@@ -847,7 +846,7 @@ Item {
   property bool settingsPanelOpen: false
   property string settingsPanelPage: "appearance"
   property int themeVersion: 0
-  property string currentIconThemeName: "Yaru"
+
   property string folderColor: "theme"
   // Colour for symbolic folder and drive icons in the original icon style,
   // on the dock's own backdrop.
@@ -1342,6 +1341,8 @@ Item {
     onLoaded: root.handleThemeChanged()
     onFileChanged: themeIconsFile.reload()
   }
+
+
 
   CappedFileView {
     id: themeColorsFile

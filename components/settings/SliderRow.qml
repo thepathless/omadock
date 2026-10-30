@@ -32,6 +32,25 @@ SettingRow {
 
     PanelSlider {
       id: slider
+      objectName: "settings-slider-" + sliderRow.key
+      activeFocusOnTab: true
+      Keys.onPressed: function(event) {
+        var direction = event.key === Qt.Key_Right || event.key === Qt.Key_Up ? 1
+          : event.key === Qt.Key_Left || event.key === Qt.Key_Down ? -1 : 0
+        if (direction === 0) return
+        sliderRow.committed(Math.max(sliderRow.minimum, Math.min(sliderRow.maximum, sliderRow.value + direction * sliderRow.step)))
+        event.accepted = true
+      }
+      onActiveFocusChanged: if (activeFocus && sliderRow.settingsPanel) sliderRow.settingsPanel.keepFocusVisible(sliderRow)
+      Rectangle {
+        anchors.fill: parent
+        anchors.margins: -Style.space(3)
+        visible: slider.activeFocus
+        color: "transparent"
+        border.color: Color.accent
+        border.width: 1
+        radius: Style.cornerRadius
+      }
       anchors.verticalCenter: parent.verticalCenter
       width: Style.space(180)
       bar: sliderPalette

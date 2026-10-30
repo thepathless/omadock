@@ -4,6 +4,7 @@ import Quickshell.Io
 import qs.Commons
 import "../DockModel.js" as DockModel
 import "../DockIcons.js" as DockIcons
+import "../DockIconTheme.js" as DockIconTheme
 
 // Fallback standalone application library for host capability gates (e.g.
 // Omarchy 4.x scoped plugins) plus the absolute-path icon index (see
@@ -19,6 +20,97 @@ import "../DockIcons.js" as DockIcons
     height: 0
 
     signal appsChanged()
+
+    // The desktop's icon theme and the themes installed beside it. The theme
+    // belongs to the system (gsettings' icon-theme plus the GTK/KDE files
+    // scripts/icon-theme.sh writes), never to omadock.json: every app shares
+    // it, so this component reads it, applies it and scans through it. The
+    // index below is theme-first, so the dock draws the same artwork as every
+    // other app; the rest of the themes stay as a fallback so a theme that is
+    // named but not installed still renders.
+    property string iconTheme: ""
+    property var themes: []
+    property string themeError: ""
+    // True while the WhiteSur download runs, so the button can say so.
+    readonly property bool themeInstalling: iconThemeInstall.running
+    // A theme that lands while a scan is walking the old chain queues exactly
+    // one more pass: the first scan starts at load, before gsettings answers,
+    // and would otherwise leave fallback artwork in the index for good.
+    property bool rescanPending: false
+    // The staged Omarchy theme's icons.theme, for a host without gsettings.
+    readonly property string stagedTheme: (rootRef && rootRef.themeIconsFileRef)
+      ? String(rootRef.themeIconsFileRef.text || "").trim() : ""
+
+    function probeTheme() { if (!iconThemeProbe.running) iconThemeProbe.running = true }
+
+    function setIconTheme(id) {
+      if (!DockIconTheme.safeId(id) || id === localAppLibrary.iconTheme) return
+      if (iconThemeApply.running) return
+      localAppLibrary.themeError = ""
+      iconThemeApply.pending = id
+      iconThemeApply.command = ["bash", localAppLibrary.helperPath("icon-theme.sh"), "apply", id]
+      iconThemeApply.running = true
+    }
+
+    // The one theme the dock can fetch for you: WhiteSur (the macOS look).
+    // scripts/icon-theme.sh installs it into ~/.local/share/icons and applies
+    // it, so both the picker and the setting land in one click. A host without
+    // network leaves themeError set and nothing else changes.
+    function installWhiteSur() {
+      if (iconThemeInstall.running) return
+      localAppLibrary.themeError = ""
+      iconThemeInstall.running = true
+    }
+
+    Process {
+      id: iconThemeProbe
+      running: false
+      command: ["gsettings", "get", "org.gnome.desktop.interface", "icon-theme"]
+      stdout: StdioCollector { id: iconThemeProbeOut; waitForEnd: true }
+      onExited: function(code) {
+        var value = String(iconThemeProbeOut.text || "").trim().replace(/^["']|["']$/g, "")
+        if (code === 0 && DockIconTheme.safeId(value)) localAppLibrary.iconTheme = value
+        else localAppLibrary.useStagedIconTheme()
+      }
+    }
+
+    function useStagedIconTheme() {
+      var t = String(localAppLibrary.stagedTheme || "").trim()
+      if (t && DockIconTheme.safeId(t)) localAppLibrary.iconTheme = t
+    }
+
+    Process {
+      id: iconThemeApply
+      property string pending: ""
+      running: false
+      stderr: StdioCollector { id: iconThemeApplyErr; waitForEnd: true }
+      onExited: function(code) {
+        if (code !== 0) {
+          localAppLibrary.themeError = String(iconThemeApplyErr.text || "").trim() || "Could not apply the icon theme."
+          return
+        }
+        localAppLibrary.iconTheme = iconThemeApply.pending
+        localAppLibrary.refreshIcons()
+      }
+    }
+
+    Process {
+      id: iconThemeInstall
+      running: false
+      command: ["bash", localAppLibrary.helperPath("icon-theme.sh"), "install"]
+      stdout: StdioCollector { id: iconThemeInstallOut; waitForEnd: true }
+      stderr: StdioCollector { id: iconThemeInstallErr; waitForEnd: true }
+      onExited: function(code) {
+        var applied = String(iconThemeInstallOut.text || "").trim()
+        if (code !== 0 || !DockIconTheme.safeId(applied)) {
+          localAppLibrary.themeError = String(iconThemeInstallErr.text || "").trim() || "Could not install WhiteSur."
+          return
+        }
+        localAppLibrary.iconTheme = applied
+        localAppLibrary.refreshIcons()
+        localAppLibrary.refreshThemes()
+      }
+    }
 
     // Absolute-path icon index, mirroring the host AppLibrary. Qt's themed
     // lookup resolves against the *configured* icon theme, so a theme that is
@@ -82,21 +174,61 @@ import "../DockIcons.js" as DockIcons
     }
 
     function refreshIcons() {
-      if (!iconIndexScan.running) iconIndexScan.running = true
+      if (iconIndexScan.running) {
+        localAppLibrary.rescanPending = true
+        return
+      }
+      iconIndexScan.running = true
     }
 
-    // SVGs before PNGs so the first hit per name is the scalable one; awk
-    // keeps only that first hit, so QML parses ~2 300 lines instead of ~23 600.
+    function refreshThemes() {
+      if (!iconThemeScan.running) iconThemeScan.running = true
+    }
+
+    function helperPath(name) {
+      return decodeURIComponent(Qt.resolvedUrl("../scripts/" + name).toString().replace(/^file:\/\//, ""))
+    }
+
+    // The active theme and the themes it inherits from, as directory names.
+    // DockIconTheme.chain has already rejected anything that is not a plain id,
+    // so these can name directories in the scan below.
+    function themeChain() { return DockIconTheme.chain(localAppLibrary.iconTheme, localAppLibrary.themes) }
+
+    // The active theme's directories are searched for BOTH formats before any
+    // other theme is consulted, so a theme's PNG beats another theme's SVG;
+    // within each group SVGs come first, which keeps the first hit per name
+    // scalable. awk keeps only that first hit (QML would otherwise parse
+    // ~23 600 lines instead of ~2 300).
     function iconIndexScanCommand() {
+      var first = []
+      var chain = localAppLibrary.themeChain()
+      for (var i = 0; i < chain.length; i++) {
+        first.push("$HOME/.icons/" + chain[i])
+        first.push("$HOME/.local/share/icons/" + chain[i])
+        // System themes ship here; XDG_DATA_DIRS' extra roots are reached by
+        // the generic pass below.
+        first.push("/usr/share/icons/" + chain[i])
+        first.push("/usr/local/share/icons/" + chain[i])
+      }
+      var all = first.slice()
+      all.push("$HOME/.icons", "$HOME/.local/share/icons")
       return [
-        'dirs="$HOME/.icons $HOME/.local/share/icons";',
+        'first="' + first.join(" ") + '";',
+        'dirs="' + all.join(" ") + '";',
         'IFS=":"; for d in ${XDG_DATA_DIRS:-/usr/local/share:/usr/share}; do dirs="$dirs $d/icons"; done; unset IFS;',
-        '{ for ext in svg png; do',
-        '  for base in $dirs; do',
-        '    [[ -d $base ]] && find "$base" \\( -path "*/apps/*" -o -path "*/devices/*" -o -path "*/places/*" -o -path "*/mimetypes/*" \\) -name "*.$ext" 2>/dev/null;',
+        '{ for base in $first; do',
+        '  [[ -d $base ]] || continue;',
+        '  for ext in svg png; do',
+        '    find "$base" \\( -path "*/apps/*" -o -path "*/devices/*" -o -path "*/places/*" -o -path "*/mimetypes/*" \\) -name "*.$ext" 2>/dev/null;',
         '  done;',
-        '  find /usr/share/pixmaps -maxdepth 1 -name "*.$ext" 2>/dev/null;',
-        'done; } | awk -F/ \'{ n = $NF; sub(/\\.[^.]*$/, "", n); if (!(n in seen)) { seen[n] = 1; print } }\''
+        'done;',
+        'for base in $dirs; do',
+        '  [[ -d $base ]] || continue;',
+        '  for ext in svg png; do',
+        '    find "$base" \\( -path "*/apps/*" -o -path "*/devices/*" -o -path "*/places/*" -o -path "*/mimetypes/*" \\) -name "*.$ext" 2>/dev/null;',
+        '  done;',
+        'done;',
+        'for ext in svg png; do find /usr/share/pixmaps -maxdepth 1 -name "*.$ext" 2>/dev/null; done; } | awk -F/ \'{ n = $NF; sub(/\\.[^.]*$/, "", n); if (!(n in seen)) { seen[n] = 1; print } }\''
       ].join(' ')
     }
 
@@ -144,8 +276,28 @@ import "../DockIcons.js" as DockIcons
       onExited: {
         localAppLibrary.iconIndex = DockIcons.parseIconIndex(iconIndexOut.text)
         localAppLibrary.appsChanged()
+        if (localAppLibrary.rescanPending) {
+          localAppLibrary.rescanPending = false
+          localAppLibrary.refreshIcons()
+        }
       }
     }
+
+    // Installed themes, read once and again whenever the panel asks. The
+    // script is the same one that applies a theme, so listing and applying
+    // cannot drift apart.
+    Process {
+      id: iconThemeScan
+      running: false
+      command: ["bash", localAppLibrary.helperPath("icon-theme.sh"), "list"]
+      stdout: StdioCollector { id: iconThemeScanOut; waitForEnd: true }
+      onExited: function(code) {
+        if (code === 0) localAppLibrary.themes = DockIconTheme.parseList(iconThemeScanOut.text)
+      }
+    }
+
+    onIconThemeChanged: localAppLibrary.refreshIcons()
+    Component.onCompleted: localAppLibrary.refreshThemes()
 
     // Coalesces bursts of app-list changes (one package install touches many
     // entries) into a single rescan.

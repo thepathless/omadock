@@ -13,6 +13,8 @@ Column {
   width: parent.width
 
 
+  SettingsSection {
+    title: Tr.t("settings.groupTuning", "App group styling")
   SectionLabel { title: "Look" }
 
   ChoiceRow {
@@ -39,6 +41,7 @@ Column {
     onPicked: function(v) { root.setOption("groupIconEffects", v) }
   }
 
+  }
   SectionLabel { title: "Groups" }
 
   Text {
@@ -92,6 +95,10 @@ Column {
         spacing: Style.spacing.xxs
 
         Item {
+          objectName: "settings-group-name-" + groupRow.modelData.id
+          activeFocusOnTab: !groupRow.editing
+          Keys.onReturnPressed: groupRow.startEdit()
+          Keys.onSpacePressed: groupRow.startEdit()
           width: parent.width
           height: Math.max(nameLabel.implicitHeight, groupRow.editing ? nameField.implicitHeight : 0)
 
@@ -104,7 +111,7 @@ Column {
             Text {
               text: groupRow.modelData.name || Tr.t("groups.defaultName", "Group")
               textFormat: Text.PlainText
-              color: nameMouse.containsMouse ? Color.accent : Color.menu.text
+              color: nameMouse.containsMouse || nameLabel.parent.activeFocus ? Color.accent : Color.menu.text
               font.family: Style.font.family
               font.pixelSize: Style.font.subtitle
             }
@@ -164,6 +171,7 @@ Column {
       }
 
       Button {
+        focusable: true
         id: removeButton
         anchors.right: parent.right
         anchors.verticalCenter: parent.verticalCenter
@@ -185,6 +193,7 @@ Column {
   Item { width: 1; height: Style.spacing.xxl }
 
   Button {
+    focusable: true
     text: Tr.t("groups.createFromRunning", "Create group from running apps")
     foreground: Color.menu.text
     bordered: true

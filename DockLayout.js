@@ -8,7 +8,7 @@ function normalizeLayout(v) {
 }
 
 // "spread" (Both sides) puts folders and drives at the right edge; "taskbar"
-// is Windows 11's three zones (Start left, apps centred, tray right).
+// centres Start and apps together, with the tray on the right.
 function normalizeAlignment(v) {
   var a = String(v === undefined || v === null ? "" : v).toLowerCase()
   return (a === "left" || a === "right" || a === "spread" || a === "taskbar") ? a : "center"
@@ -78,8 +78,8 @@ function spreadHomeShift(innerWidth, restWidth) {
   return Math.max(0, innerWidth - restWidth)
 }
 
-// Windows 11's taskbar: Start at the left edge, the app section centred on
-// the screen, the tray (the clock) at the right edge. The clock's room is
+// Windows 11's taskbar: Start and apps centred together on the screen,
+// the tray (the clock) at the right edge. The clock's room is
 // reserved in style units so the fit planner and the clock agree on it.
 var TASKBAR_CLOCK_WIDTH = 74
 
@@ -93,12 +93,13 @@ function taskbarAppWidth(iconSlot, appSlots, tileCount, tileWidth, separators, s
   return appSlots * iconSlot + tileCount * tileWidth + separators * separatorWidth + (elements - 1) * gap
 }
 
-// The free room between Start and the apps: enough to centre the app section
-// on the screen, clamped so a bar packed to its edges never overflows.
+// The free room BEFORE Start (or apps when Start is hidden): centre the
+// whole Start + app group, clamped so a packed bar never overflows.
 // `packedWidth` is the whole row at rest (Dock.baseRowWidth), without the
-// clock; adding the start gap and the clock costs one row spacing each.
+// clock; adding the leading gap and the clock costs one row spacing each.
 function taskbarStartGap(innerWidth, appsWidth, buttonWidth, packedWidth, clockWidth, spacing, hasButton) {
-  var ideal = (innerWidth - appsWidth) / 2 - (hasButton ? buttonWidth + 2 * spacing : spacing)
+  var groupWidth = appsWidth + (hasButton ? buttonWidth + (appsWidth > 0 ? spacing : 0) : 0)
+  var ideal = (innerWidth - groupWidth) / 2 - spacing
   var slack = innerWidth - packedWidth - clockWidth - 2 * spacing
   return Math.max(0, Math.min(ideal, slack))
 }
