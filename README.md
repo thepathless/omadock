@@ -771,6 +771,18 @@ The pixel label font is [Silkscreen](https://fonts.google.com/specimen/Silkscree
 
 Full release notes, historical changelogs, and upgrade guides across all versions are available on [**GitHub Releases**](https://github.com/thepathless/omadock/releases).
 
+### v4.9.1 — 2026-10-30
+
+Five corrections to what v4.9.0 shipped, plus one owner for the popup material.
+
+- **Autohide no longer latches a stale "no overlap"** ([#75](https://github.com/thepathless/omadock/issues/75)) — a scrolling workspace layout moves its columns without a Hyprland window event, so the 60 ms snapshot could be taken mid-move and keep the dock visible until a shell restart. A no-overlap answer now arms one 1.2 s re-measure, whose run cannot arm another; the normal debounce is untouched, and idle still costs nothing.
+- **Distinct apps from one vendor stay distinct** ([#76](https://github.com/thepathless/omadock/issues/76)) — app matching accepted any shared candidate token, so `ai.storyteller.wordcraft`, `ai.storyteller.gridcraft` and `ai.storyteller.pdfcraft` collapsed into one pin with three windows. Names under the same vendor with different final tokens no longer match; `com.mitchellh.ghostty` ↔ `ghostty-gui` still does, and the notification path keeps its coverage.
+- **Popups wear the dock's material, from one owner** — the folder and app-group popups borrowed the theme menu's surface while the dock card uses the look's own fill, so a custom background opened onto a foreign plate with dark text. `DockStyleLogic.popupSurface()` now derives fill, ink and glyph once; both popups and the live interaction check read that answer instead of reimplementing it, and a square look gives its popups a 0 radius.
+- **A captured window keeps its own shape** — `ScreencopyView` has no implicit size, so previews fell back to the card frame and a square window came out wide. The capture now fits its source inside the frame and keeps the window's aspect, letterboxed over the card, and near-square windows are no longer clamped to 1.2.
+- **A square preset's 0 radius survives a reload** — `applyLook` clamped every stored `cornerRadius` to at least 2, so the Windows look never matched its own preset key for key and its row could not read active. A stored 0 is kept; the 2 px floor stays on the drawn rounded radius.
+- **The row-slot settle dies with its slot** — a `Qt.callLater` could run after a rebuilding row destroyed its delegate, logging `Property '_start' … is not a function`; the one turn now belongs to a child Timer that is destroyed with the slot.
+- **Verification**: 270 Node + 118 Python unit tests, `qmllint` 0 errors, structure-check PASSED, security-grep clean, plugin validate and manifest-check clean, smoke PASSED, and the `interactions`, `presets`, `autohide` and `teardown` live suites green.
+
 ### v4.9.0 — 2026-10-30
 
 Authentic macOS & Windows 11 presets, aspect-ratio preserved window previews, auto-clearing notification badges on window close, and contributor performance & lifecycle fixes.
