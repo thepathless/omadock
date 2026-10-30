@@ -32,6 +32,7 @@ Column {
     label: Tr.t("about.project", "Project & feedback")
     hint: Tr.t("about.projectHint", "Report bugs, follow development, or contribute.")
     Button {
+      focusable: true
       text: "GitHub"
       foreground: Color.menu.text
       bordered: true
@@ -52,6 +53,8 @@ Column {
     }
   }
 
+  SettingsSection {
+    title: Tr.t("settings.credits", "Credits & acknowledgments")
   SectionLabel { title: "Supporters & acknowledgments" }
 
   Text {
@@ -71,6 +74,7 @@ Column {
     hint: Tr.t("about.makerHint", "The maker. Its first and forever supporter.")
 
     Button {
+      focusable: true
       text: Tr.t("about.support", "Support ❤")
       foreground: Color.menu.text
       bordered: true
@@ -83,6 +87,7 @@ Column {
     hint: Tr.t("about.wallHint", "Everyone who has supported omadock, honored in the repository.")
 
     Button {
+      focusable: true
       text: Tr.t("about.viewWall", "View wall")
       foreground: Color.menu.text
       bordered: true
@@ -97,6 +102,7 @@ Column {
     hint: "macOS folder stacks, icon shaders, gradients, grain, drop-to-open"
 
     Button {
+      focusable: true
       text: "GitHub ↗"
       foreground: Color.menu.text
       bordered: true
@@ -109,6 +115,7 @@ Column {
     hint: "Multi-monitor docks & per-output instance management"
 
     Button {
+      focusable: true
       text: "GitHub ↗"
       foreground: Color.menu.text
       bordered: true
@@ -121,6 +128,7 @@ Column {
     hint: "Removable media drives & safe eject, smart app matching, jump lists"
 
     Button {
+      focusable: true
       text: "GitHub ↗"
       foreground: Color.menu.text
       bordered: true
@@ -133,6 +141,7 @@ Column {
     hint: "Window focus dispatch & Hyprland layout awareness"
 
     Button {
+      focusable: true
       text: "GitHub ↗"
       foreground: Color.menu.text
       bordered: true
@@ -145,6 +154,7 @@ Column {
     hint: "Desktop entry launch suffix validation fix for pinned apps"
 
     Button {
+      focusable: true
       text: "GitHub ↗"
       foreground: Color.menu.text
       bordered: true
@@ -157,6 +167,7 @@ Column {
     hint: "Application matching restoration"
 
     Button {
+      focusable: true
       text: "GitHub ↗"
       foreground: Color.menu.text
       bordered: true
@@ -171,6 +182,7 @@ Column {
     hint: "Suspend/resume screen null recovery diagnostics"
 
     Button {
+      focusable: true
       text: "GitHub ↗"
       foreground: Color.menu.text
       bordered: true
@@ -183,6 +195,7 @@ Column {
     hint: "GTK icon resolving, launcher matching, and theme accent"
 
     Button {
+      focusable: true
       text: "GitHub ↗"
       foreground: Color.menu.text
       bordered: true
@@ -195,6 +208,7 @@ Column {
     hint: "Webapp Exec-URL .execString desktop entry investigation"
 
     Button {
+      focusable: true
       text: "GitHub ↗"
       foreground: Color.menu.text
       bordered: true
@@ -207,10 +221,12 @@ Column {
     hint: "Omarchy 4.x overlay plugin appLibrary diagnostic"
 
     Button {
+      focusable: true
       text: "GitHub ↗"
       foreground: Color.menu.text
       bordered: true
       onClicked: Util.execDetached("uwsm-app -- xdg-open " + Util.shellQuote("https://github.com/herman6888"))
     }
+  }
   }
 }

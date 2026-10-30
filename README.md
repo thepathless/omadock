@@ -84,7 +84,7 @@ omarchy plugin update omadock --yes
 omarchy plugin remove omadock --yes
 ```
 
-On Omarchy 4.5+ OmaDock switches Omarchy's own dock off by default (Settings → Behavior → Floating workspaces). Bring it back after removing OmaDock:
+On Omarchy 4.5+ OmaDock switches Omarchy's own dock off by default (Settings → Position & visibility → Advanced visibility → Floating workspaces). Bring it back after removing OmaDock:
 
 ```bash
 omarchy plugin enable omarchy.dock
@@ -122,7 +122,7 @@ When a window is parked on `special:minimized`, omadock generates a live visual 
 **Window previews in tooltips.** Hovering an app shows thumbnails of its
 windows, including ones minimized to the dock's hidden workspace. They are
 captured into GPU memory only while the tooltip is open and are never
-written to disk. Turn them off in Settings → Behavior → Window previews.
+written to disk. Turn them off in Settings → Apps & windows → Window previews.
 An app group's tooltip shows its member windows the same way, with the
 focused member's window in front.
 
@@ -195,14 +195,14 @@ Zero-CPU hardware integration for removable media and USB storage:
 
 Flexible screen placement tailored to your workflow:
 
-- **`"center"`, `"left"`, `"right"`, `"spread"`, `"taskbar"`** along the bottom edge, with smooth cubic transitions. `"spread"` (Both sides) keeps the apps at the left edge and puts folders and drives at the right; it needs the panel layout or Split sections. `"taskbar"` is the Windows 11 arrangement: Start at the far left, the application row centred on the screen, and the tray (the clock and your folders) at the right; it needs the panel layout.
+- **`"center"`, `"left"`, `"right"`, `"spread"`, `"taskbar"`** along the bottom edge, with smooth cubic transitions. `"spread"` (Both sides) keeps the apps at the left edge and puts folders and drives at the right; it needs the panel layout or Split sections. `"taskbar"` centres Start together with the application row on the screen, with the tray (the clock and your folders) at the right; it needs the panel layout.
 - **Panel layout** (`"layout": "panel"`): a full-width bar on the bottom edge with square corners; alignment moves the icons inside it.
 - **Popovers, tooltips, and menus** self-reposition so nothing clips at screen edges.
 - **Always fits the screen**: a dock that would be wider than its monitor makes room on its own, in this order: shorter labels, labels folded to their icons (closed pinned apps first), tighter spacing, smaller icons (down to half their size). Only then do items at the end of the row move into a **»** tile, which opens them in a popup (click and right click work as on the dock).
 
 #### Multi-Monitor Docks
 
-Enable **Settings → Placement & Alignment → Show on All Monitors** (or `"multiMonitor": true`) to run a dock on every connected monitor:
+Enable **Settings → Position & visibility → Show on all monitors** (or `"multiMonitor": true`) to run a dock on every connected monitor:
 
 - **Per-monitor apps** — each dock lists its own monitor's windows (pinned apps everywhere); `"perMonitorApps": false` mirrors everything.
 - **Minimized tiles follow their origin** monitor, whichever dock parked them.
@@ -254,42 +254,53 @@ Right-click the Omarchy logo or empty dock space to access deep customization.
 
 ### Settings Panel
 
-Right-clicking either one opens the full settings panel directly: a sidebar with *Appearance*, *Icons*, *Motion & Effects*, *Behavior*, *Placement*, *Folders*, *App Groups*, *Presets* and *About*, with switches, sliders and dropdowns for every option. A fuzzy search box at the top of the sidebar finds any setting by name or synonym (typos included — `pixl` reaches the pixel icon style) and picking a hit jumps to and highlights that setting's row. Changes apply live, so the dock underneath previews them. Close it with <kbd>Esc</kbd>, the close button, or a click outside. The panel can also be opened from a keybind: `omarchy-shell omadock openSettings`.
+Right-clicking either one opens six task-oriented categories, with the existing Omarchy themed switches, sliders, buttons and dropdowns:
+
+| Category | Everyday tasks | Disclosure sections |
+|:--|:--|:--|
+| **Presets** | Apply, save and manage looks | Shipped and saved looks stay separate |
+| **Look** | Background, labels, icons, size, spacing and motion | Surface/border/dividers, label styling, icon effects, shadow/blur/grain |
+| **Position & visibility** | Layout, alignment, autohide and monitor selection | Visibility timing, floating workspaces and per-monitor filtering |
+| **Apps & windows** | Click-to-minimize, attention, tooltips and previews | Restore behavior, badge styling, alert sound and tooltip timing |
+| **Organize dock** | Launcher, removable drives, pinned folders and app groups | Removal warnings, folder colors and group styling |
+| **About** | Version, update channel and project links | Credits and acknowledgments |
+
+**Icon theme** is the first row under *Look*: search the icon themes installed on the machine and apply one with a click. It is the desktop's theme, not a dock option — OmaDock writes the same places the rest of the system reads (`gsettings`, both GTK settings files, `~/.icons/default`, and the KDE/Qt files when they exist), then draws its own icons through it, so the whole desktop changes at once. The chips list every theme on disk, and a set you install later appears there without a restart. **Install WhiteSur** fetches the macOS Big Sur icon set for you (upstream's GPL project, pinned to the release verified in October 2026, installed into `~/.local/share/icons` with no privilege asked for) and applies it; once installed it is just another chip. The WhiteSur *look* preset pairs it with the matching glass shelf.
+
+Advanced sections start collapsed and remember expansion only until the panel closes. Fuzzy search finds every existing indexed setting by name or synonym (typos included — `pixl` reaches the pixel icon style). Picking a hit opens its category and disclosure, scrolls to the row, highlights it and moves keyboard focus there. A setting with unmet prerequisites remains readable with an explanation and a **Go to prerequisite** link; searching never enables features or changes saved values. In particular, searching for blur strength does not alter Hyprland's global blur size.
+
+Use <kbd>Tab</kbd>/<kbd>Shift+Tab</kbd> to move between controls, arrows then <kbd>Enter</kbd>/<kbd>Space</kbd> for choices, <kbd>Space</kbd> for toggles, and arrows for sliders. Category arrows change category; <kbd>Ctrl+F</kbd> focuses search and <kbd>Enter</kbd> opens its selected result. Changes apply live. Close with <kbd>Esc</kbd>, the close button, or a click outside. The panel also opens through `omarchy-shell omadock openSettings`. No configuration migration is needed; existing values and legacy page entry points are preserved.
 
 The settings at a glance:
 
 <div align="center">
   <table>
     <tr>
-      <th align="center" width="25%">Appearance</th>
-      <th align="center" width="25%">Icons</th>
-      <th align="center" width="25%">Motion & Effects</th>
-      <th align="center" width="25%">Behavior</th>
+      <th align="center" width="33%">Presets</th>
+      <th align="center" width="33%">Look</th>
+      <th align="center" width="33%">Position & visibility</th>
     </tr>
     <tr>
-      <td align="center" valign="top"><img src="assets/preview-settings-1.png" width="200" alt="Appearance settings page" /></td>
-      <td align="center" valign="top"><img src="assets/preview-settings-2.png" width="200" alt="Icons settings page" /></td>
-      <td align="center" valign="top"><img src="assets/preview-settings-3.png" width="200" alt="Motion & Effects settings page" /></td>
-      <td align="center" valign="top"><img src="assets/preview-settings-4.png" width="200" alt="Behavior settings page" /></td>
+      <td align="center" valign="top"><img src="assets/preview-settings-1.png" width="240" alt="Presets page: shipped and saved looks, with apply, save and manage" /></td>
+      <td align="center" valign="top"><img src="assets/preview-settings-2.png" width="240" alt="Look page: icon theme picker, icon style, labels, size and spacing" /></td>
+      <td align="center" valign="top"><img src="assets/preview-settings-3.png" width="240" alt="Position and visibility page: layout, alignment, autohide and monitors" /></td>
     </tr>
     <tr>
-      <th align="center" width="25%">Placement</th>
-      <th align="center" width="25%">Folders</th>
-      <th align="center" width="25%">App Groups</th>
-      <th align="center" width="25%">Presets</th>
+      <th align="center" width="33%">Apps & windows</th>
+      <th align="center" width="33%">Organize dock</th>
+      <th align="center" width="33%">About</th>
     </tr>
     <tr>
-      <td align="center" valign="top"><img src="assets/preview-settings-5.png" width="200" alt="Placement settings page" /></td>
-      <td align="center" valign="top"><img src="assets/preview-settings-6.png" width="200" alt="Folders settings page" /></td>
-      <td align="center" valign="top"><img src="assets/preview-settings-7.png" width="200" alt="App Groups settings page" /></td>
-      <td align="center" valign="top"><img src="assets/preview-settings-8.png" width="200" alt="Presets settings page" /></td>
+      <td align="center" valign="top"><img src="assets/preview-settings-4.png" width="240" alt="Apps and windows page: click to minimize, restore, badges, tooltips and previews" /></td>
+      <td align="center" valign="top"><img src="assets/preview-settings-5.png" width="240" alt="Organize dock page: Omarchy button, removable drives, pinned folders and app groups" /></td>
+      <td align="center" valign="top"><img src="assets/preview-settings-6.png" width="240" alt="About page: version, update channel, project links and credits" /></td>
     </tr>
   </table>
 </div>
 
 - **Shapes**: `Auto (Theme)`, `Rounded`, `Round (Pill)`, `Square`.
 - **Opacity**: `Auto (Theme)`, `100%`, `80%`, `65%`, `35%`, `0% (Transparent Specular)`.
-- **Placement & Alignment**: `Dock` or `Panel` layout; `Left`, `Center (Default)`, `Right`, `Both sides` and `Taskbar` along the screen edge. `Taskbar` gives the Windows 11 zones — Start far left, apps centred, the clock and folders at the right — and adds the two-line taskbar clock. Applying the shipped **Windows** look sets the panel, the taskbar alignment and always visible for you — the taskbar's shape is part of that preset.
+- **Placement & Alignment**: `Dock` or `Panel` layout; `Left`, `Center (Default)`, `Right`, `Both sides` and `Taskbar` along the screen edge. `Taskbar` centres Start and apps together, with the clock and folders at the right — and adds the two-line taskbar clock. Applying the shipped **Windows** look sets the panel, the taskbar alignment and always visible for you — the taskbar's shape is part of that preset.
 - **Color Presets**: Theme Auto, Pure Black, Mocha, Deep Slate, Midnight Blue, Dark Navy, Emerald Forest, Velvet Ruby.
 - **Icon Sizing**: Small (28px), Medium (36px), Large (44px), Extra Large (52px).
 - **Icon Styles**: `Original`, `Mono`, `Pixel` (coarse grid) and `Dots` (dithered dot matrix), with grid size, tint, contrast and hover-reveal controls.
@@ -303,7 +314,7 @@ The settings at a glance:
 
 ### Name Labels
 
-*Settings → Labels* puts each item's name to the right of its icon (to the left on a right-aligned dock). **Always** keeps every name out; **On hover** slides a name out over the neighbouring icons after a short rest on the icon, on an opaque pill, so the dock never moves under the pointer. Moving along the dock switches names at once.
+*Settings → Look → Labels* puts each item's name to the right of its icon (to the left on a right-aligned dock). **Always** keeps every name out; **On hover** slides a name out over the neighbouring icons after a short rest on the icon, on an opaque pill, so the dock never moves under the pointer. Moving along the dock switches names at once.
 
 <div align="center">
   <img src="assets/preview-labels.png" width="760" alt="Name labels beside the icons on rounded plates that join icon and name into one button" />
@@ -320,7 +331,7 @@ The settings at a glance:
 With labels on, an item's tooltip shows only when it adds something: window previews, a starting/minimized/workspace hint, or the full name of a shortened label.
 
 <div align="center">
-  <img src="assets/preview-settings-labels.png" width="420" alt="The Labels settings page" />
+  <img src="assets/preview-settings-labels.png" width="420" alt="Label styling under Look: names beside the icons on plates, with the per-app name fields" />
 </div>
 
 ---
@@ -351,13 +362,14 @@ omarchy-shell omadock applyPreset "Night"
 
 ### Shipped looks
 
-Three looks ride with the dock and sit ahead of the presets you save — a fresh install with no `omadock.json` still offers every one of them. A shipped look and a saved preset can never appear as two rows under one name: the list carries a name once, and where they collide the preset you saved keeps it (it is the row you can rename, update or delete), so the shipped look of that name sits that one out rather than the other way round. They are read-only (no Update or Delete, and the name cannot be edited), so removing your own presets never removes them. `DockPresets.js` holds the definitions; the shipped keys are the ones that differ from the defaults, and every other key is filled from `DockModel.DEFAULT_LOOK` when the list is built, so a look key added later cannot leak the value the dock happens to hold. A shipped look may also carry the **setup** its shape needs (layout, alignment, autohide and the taskbar's one-tile-per-app behaviour): only shipped entries can, and a preset you saved is read back with its look alone, so applying one never moves the dock.
+Four looks ride with the dock and sit ahead of the presets you save — a fresh install with no `omadock.json` still offers every one of them. A shipped look and a saved preset can never appear as two rows under one name: the list carries a name once, and where they collide the preset you saved keeps it (it is the row you can rename, update or delete), so the shipped look of that name sits that one out rather than the other way round. They are read-only (no Update or Delete, and the name cannot be edited), so removing your own presets never removes them. `DockPresets.js` holds the definitions; the shipped keys are the ones that differ from the defaults, and every other key is filled from `DockModel.DEFAULT_LOOK` when the list is built, so a look key added later cannot leak the value the dock happens to hold. Each shipped look also carries its required **setup** (layout, alignment, autohide, Start visibility and click/minimized-window behaviour), so switching away from Windows restores a centered floating dock. macOS focuses/cycles on click and shows separate minimized-window tiles; ristretto keeps the classic click-to-minimize behaviour. Setup applies once, not as a lock: all settings remain adjustable, and tooltip/preview preferences are left alone. Only shipped entries carry setup; a preset you saved is still appearance-only and never moves the dock or changes click behaviour.
 
 | Preset | The look | Built from |
 | :--- | :--- | :--- |
 | `thepathless:ristretto` | Dot-matrix icons on a Forest gradient with film grain, long custom dividers, the Glitch hover, and no rim or shadow | The maintainer's own dock |
 | `macOS` | Floating 27px squircle shelf with frosted white glass (#ffffff, blur on, 0.5px specular rim, soft shadow), 53px artwork, wave fisheye hover magnification, hairline dividers, and OmaDock's multi-window marks (accent bar for focused, hollow dot for minimized) | The modern macOS dock |
-| `Windows` | The Windows 11 taskbar: full-width bottom panel, always visible, Start at the far left, the apps centred and the two-line clock and folders at the right, a slim bar (~50px at this UI scale) with 24px artwork and 42px buttons, no magnification and no labels, acrylic fill (#202020, blur through), a rounded hover wash, one pill per app (short and grey running, wider and accent-focused), no separate minimized tiles, and hover tooltips | The Windows 11 taskbar |
+| `WhiteSur` | The WhiteSur Big Sur shelf: near-opaque white glass (#f5f5f7, blur off, hairline rim, soft shadow), 22px corners, 52px artwork, wave hover, no labels and no dividers | [WhiteSur](https://github.com/vinceliuice/WhiteSur-gtk-theme) |
+| `Windows` | The Windows 11 taskbar: full-width bottom panel, always visible, Start and apps centred together with the two-line clock and folders at the right, a slim bar (~50px at this UI scale) with 24px artwork and 42px buttons, no magnification and no labels, acrylic fill (#202020, blur through), a rounded hover wash, one pill per app (short and grey running, wider and accent-focused), no separate minimized tiles, and hover tooltips | The Windows 11 taskbar |
 
 The same list is scriptable end to end — list it, save the look on screen under a chosen name, remove one by id:
 
@@ -367,7 +379,7 @@ omarchy-shell omadock savePreset "Night"           # -> the new preset's id
 omarchy-shell omadock deletePreset <id>             # -> ok | not found
 ```
 
-A name that is already taken — by one of your presets or by a shipped look — falls back to `Preset 1`, `Preset 2` and so on, so the call still returns an id. When you save a copy of a shipped look under a name of your own, the row you saved is the one marked `active`; the shipped row answers only when no preset of yours matches the look on screen.
+A name that is already taken — by one of your presets or by a shipped look — falls back to `Preset 1`, `Preset 2` and so on, so the call still returns an id. When you save a copy of a shipped look under a name of your own, the row you saved is the one marked `active`; the shipped row answers only when no preset of yours matches the look on screen and its required setup also matches. Changing a required setup value clears that shipped row's active mark without undoing your adjustment.
 
 ## Controls Reference
 
@@ -481,14 +493,14 @@ Settings persist in `~/.config/omarchy/omadock.json` and are editable live:
 
 | Key | Type | Default | Description |
 | :--- | :--- | :--- | :--- |
-| `alignment` | `string` | `"center"` | Dock placement along screen edge: `"center"`, `"left"`, `"right"`, `"spread"` (apps left, folders and drives right; panel layout or `splitSections` only), `"taskbar"` (Start far left, apps centred, clock and folders right; panel layout only). |
+| `alignment` | `string` | `"center"` | Dock placement along screen edge: `"center"`, `"left"`, `"right"`, `"spread"` (apps left, folders and drives right; panel layout or `splitSections` only), `"taskbar"` (Start and apps centred together, clock and folders right; panel layout only). |
 | `layout` | `string` | `"dock"` | `"dock"` floats above the edge; `"panel"` spans the full width on the bottom edge. |
 | `screen` | `string` | first monitor | Monitor for the single dock (e.g. `"DP-3"`). With `multiMonitor`, the dock on this monitor plays alert sounds. |
 | `multiMonitor` | `bool` | `false` | Runs one dock on every connected monitor. |
 | `perMonitorApps` | `bool` | `true` | With `multiMonitor`, each dock lists only the windows on its own monitor. |
 | `autohide` | `bool` | `true` | Enables dock autohiding on hover exit. |
 | `intelligentAutohide` | `bool` | `true` | Hides dock only when windows overlap its bounding box (AABB). |
-| `floatingDock` | `string` | `"hide-omarchy"` | Omarchy 4.5+, which shows its own dock on floating workspaces (Super+L): `"hide-omarchy"` switches it off (`omarchy plugin disable omarchy.dock`), `"hide-omadock"` switches it on and hides OmaDock on floating workspaces, `"both"` leaves it alone. Settings → Behavior → Floating workspaces. |
+| `floatingDock` | `string` | `"hide-omarchy"` | Omarchy 4.5+, which shows its own dock on floating workspaces (Super+L): `"hide-omarchy"` switches it off (`omarchy plugin disable omarchy.dock`), `"hide-omadock"` switches it on and hides OmaDock on floating workspaces, `"both"` leaves it alone. Settings → Position & visibility → Advanced visibility → Floating workspaces. |
 | `showRemovableDrives` | `bool` | `true` | Auto-detect and display removable USB thumb drives and storage. |
 | `warnUnsafeRemoval` | `bool` | `true` | Notify when a drive is pulled out while still mounted (it was not ejected first). |
 | `appGroups` | `array` | `[]` | App Folders / Groups configuration (name, custom icon, app ID list). |
@@ -535,8 +547,8 @@ Settings persist in `~/.config/omarchy/omadock.json` and are editable live:
 | `labelMaxWidth` | `int` | `140` | Longest label in px (80–240) before the name is shortened. |
 | `labelNames` | `object` | `{}` | Per-app label text, `{ "appId": "Name" }` (up to 200 entries, 40 characters each). |
 | `keepPointer` | `bool` | `true` | Focusing a window from the dock keeps the pointer where it is instead of warping it to the window centre. |
-| `appsButtonAction` | `string` | `"menu"` | What the Omarchy button opens: `"menu"` (the Omarchy menu) or, on Omarchy 4.5+, `"grid"`: Omarchy's own app grid (search, keyboard, Keep in dock), from which an app dragged onto the dock is pinned where it is dropped. Settings → Appearance → Omarchy button opens. |
-| `animations` | `string` | `"full"` | How the dock moves: `"full"` (items, dividers, popups, marks and the badge ease in and out), `"reduced"` (short fades only: no movement, bounces or label typing) or `"off"` (everything changes at once). Settings → Motion & Effects → Animations. |
+| `appsButtonAction` | `string` | `"menu"` | What the Omarchy button opens: `"menu"` (the Omarchy menu) or, on Omarchy 4.5+, `"grid"`: Omarchy's own app grid (search, keyboard, Keep in dock), from which an app dragged onto the dock is pinned where it is dropped. Settings → Organize dock → Omarchy button opens. |
+| `animations` | `string` | `"full"` | How the dock moves: `"full"` (items, dividers, popups, marks and the badge ease in and out), `"reduced"` (short fades only: no movement, bounces or label typing) or `"off"` (everything changes at once). Settings → Look → Animations. |
 | `folderColor` | `string` | `"theme"` | `"theme"`, `"symbolic"`, `"white"`, `"black"`, `"Yaru-blue"`, etc. |
 | `hoverEffect` | `string` | `"zoom"` | Hover mode: magnification `"zoom"` or `"wave"`; effects `"lift"`, `"glow"`, `"glitch"` (shaders); or `"off"`. |
 | `dividerGeometry` | `string` | `"classic"` | Section divider length: `"classic"` keeps the original short lines; `"long"` uses the adjustable `dividerHeight` share. |
@@ -608,7 +620,7 @@ Additional IPC methods available:
 - `setLayout("dock" | "panel")`: Switch between the floating dock and the full-width panel.
 - `setPosition("bottom" | "top" | "left" | "right")`: Change dock edge position.
 - `openSettings`: Open the settings panel on the focused monitor's dock.
-- `openSettingsPage("appearance" | "icons" | "motion" | "behavior" | "placement" | "folders" | "groups" | "presets" | "about")`: Open the settings panel on a given page.
+- `openSettingsPage("presets" | "appearance" | "placement" | "behavior" | "folders" | "about")`: Open a category. Legacy `"icons"`, `"labels"` and `"motion"` map to Look; `"groups"` maps to Organize dock and `"supporters"` to About.
 - `closeSettings`: Close the settings panel.
 - `applyPreset("<name>")`: Apply a saved appearance preset by name; returns `ok` or `not found`.
 - `presets()`: JSON list of every preset the dock holds — the shipped looks and the saved ones — each with `active` set on the one the look on screen matches, and `builtin: true` on a look that ships with the dock.
@@ -732,14 +744,14 @@ qs -p /usr/share/omarchy/shell ipc call omadock restoreLast
 | `DockHost.qml` | Overlay entry point declared by `manifest.json`. |
 | `DockModel.js` | Pure model logic and every safety bound (parsing caps, identity resolution). |
 | `components/` | QML UI components (dock items, popups, tooltips, shaders) and `SettingsPanel.qml`, the settings shell (sidebar, search, page assembly). |
-| `components/settings/` | The settings module: one file per settings page plus the shared row family (`SettingRow`, `SwitchRow`, `ChoiceRow`, `SliderRow`, `Swatch`, `SectionLabel`). Pages wire `root` (the Dock) into rows; the panel owns search-jump state and registers rows by their `key`. |
+| `components/settings/` | The settings module: concern-based components composed into six categories, plus the shared row family (`SettingRow`, `SwitchRow`, `ChoiceRow`, `SliderRow`, `Swatch`, `SectionLabel`) and `SettingsSection` disclosure. Components wire `root` (the Dock) into rows; the panel owns search-jump state and registers rows by their `key`. |
 | `components/strings/` | `Tr`, the translation singleton (Omarchy 4.5's `Commons.Translations`, created by name). |
 | `i18n/` | Translation catalogs, one JSON file per language code; `en.json` holds every key (see [Translations](#translations)). |
 | `scripts/` | Python helpers (folder/drive scans, notification watcher, keybinding setup) plus `bind-keys.sh`. |
 | `shaders/` | Hover/icon-style fragment shaders with precompiled `.qsb` bundles. |
 | `tests/unit/` | Node and Python unit suites — what CI runs on every PR. |
 | `tests/` | `smoke-test.sh` (live-shell probe) and `manifest-check.sh` (CI manifest gate). |
-| `tests/live/` | Live suites. `probe.sh` is the harness: a second Quickshell instance running this tree's `DockHost.qml` against a byte-copy of the config under a redirected HOME, off screen (autohide, `exclusiveZone: 0`), re-checking the owner's config md5 and shell PID at exit - and `probe_start` returns only once the dock has applied the config copy, so a suite's first read never races the load. Nothing is restarted and nothing is clicked. `presets.sh`, `teardown.sh` (a session leaves no process or directory behind) and `label-metrics.sh` (the shortening search survives its metrics being destroyed, via `PROBE_BODY`) run on it and are the non-intrusive ones; `presets.sh` gets a headless output from `headless.sh` because applying the Windows look switches on an always-visible panel. `ipc-roundtrip.sh`, `layout.sh` and `config-fuzz.sh` are marked INTRUSIVE because they drive the dock on this desktop and write the live config (see the note at the top of each). |
+| `tests/live/` | Live suites. `probe.sh` is the harness: a second Quickshell instance running this tree's `DockHost.qml` against a byte-copy of the config under a redirected HOME, off screen (autohide, `exclusiveZone: 0`), re-checking the owner's config md5 and shell PID at exit - and `probe_start` returns only once the dock has applied the config copy, so a suite's first read never races the load. Nothing is restarted and nothing is clicked. `presets.sh`, `teardown.sh` (a session leaves no process or directory behind) and `label-metrics.sh` (the shortening search survives its metrics being destroyed, via `PROBE_BODY`) run on it and are the non-intrusive ones; `presets.sh` gets a headless output from `headless.sh` because applying the Windows look switches on an always-visible panel. `bash tests/live/preset-contracts.sh` uses that same isolation to smoke-test all shipped transitions, setup-aware active marks, saved-look compatibility, and actual Start/app centering with Start shown or hidden. `bash tests/live/settings-navigation.sh` opens the real settings panel on a headless output without a keyboard grab and sends in-process Qt key events (requires the Qt development toolchain, QtTest and a C++ compiler); it checks six categories, all 87 indexed targets, prerequisite navigation without config writes, keyboard edits and disclosure reset. `ipc-roundtrip.sh`, `layout.sh` and `config-fuzz.sh` are marked INTRUSIVE because they drive the dock on this desktop and write the live config (see the note at the top of each). |
 | `assets/` | README imagery. |
 | `.github/workflows/ci.yml` | CI: test suites, QML syntax gate, manifest schema. |
 
@@ -765,6 +777,15 @@ The pixel label font is [Silkscreen](https://fonts.google.com/specimen/Silkscree
 ## Changelog
 
 Full release notes, historical changelogs, and upgrade guides across all versions are available on [**GitHub Releases**](https://github.com/thepathless/omadock/releases).
+
+### v4.12.0 — 2026-10-30
+
+The settings panel got one row contract, and the desktop's icon theme moved into it.
+
+- **One row, everywhere** — every indexed setting is now reachable from the search box (88 of them), a row whose prerequisite is unmet stays visible with an explanation and a **Go to prerequisite** button instead of vanishing, and the pages say what they do: **Look**, **Apps & windows**, **Organize dock**.
+- **Icon theme** — the first row under *Look* lists every icon theme installed on the machine, searchable, and applies one to the whole desktop with a click: `gsettings`, both GTK settings files, `~/.icons/default` and the KDE/Qt files when they exist. **Install WhiteSur** fetches the macOS Big Sur icon set once into `~/.local/share/icons` and applies it, so the macOS look is one click away.
+- **Theme-first icons** — the dock's icon index now walks the active theme's inheritance chain from its very first scan. Before, the scan that starts at load, before the desktop answers which theme it uses, could leave fallback artwork in the index for the rest of the session.
+- **Verification** — 273 Node + 126 Python unit tests, `qmllint` 0 errors, structure, security, manifest and plugin gates clean; the live settings suite drives all 88 targets, the icon-theme search and the WhiteSur row through the real QML with synthetic Qt keys, and leaves the desktop's config, shell PID and monitor list unchanged.
 
 ### v4.11.0 — 2026-10-30
 
@@ -824,8 +845,8 @@ Authentic macOS & Windows 11 presets, aspect-ratio preserved window previews, au
 
 OmaDock meets Omarchy 4.5: floating workspaces get one dock, the Omarchy button opens the app grid, and the dock speaks your language.
 
-- **Choose which dock floating workspaces get** — contributed by [@priard](https://github.com/priard) ([#72](https://github.com/thepathless/omadock/pull/72)): Omarchy 4.5 brings floating workspaces (Super+L) and its own dock on them. New **Settings → Behavior → Floating workspaces**: *Hide Omarchy dock* (default — OmaDock everywhere), *Hide OmaDock* (Omarchy's dock on floating workspaces instead), or *Show both*. The choice is offered only where Omarchy 4.5's dock exists; on 4.0 nothing changes.
-- **Omarchy's app grid behind the Omarchy button** — contributed by [@priard](https://github.com/priard) ([#73](https://github.com/thepathless/omadock/pull/73)): a new **Settings → Appearance → Omarchy button opens** choice between the Omarchy menu and Omarchy 4.5's searchable app grid. Apps can be dragged out of the grid onto the dock — the drop line shows where they land, and letting go pins or moves them. The grid is Omarchy's own, loaded only on first open; if it cannot load, the button opens the menu as before.
+- **Choose which dock floating workspaces get** — contributed by [@priard](https://github.com/priard) ([#72](https://github.com/thepathless/omadock/pull/72)): Omarchy 4.5 brings floating workspaces (Super+L) and its own dock on them. New **Settings → Position & visibility → Advanced visibility → Floating workspaces**: *Hide Omarchy dock* (default — OmaDock everywhere), *Hide OmaDock* (Omarchy's dock on floating workspaces instead), or *Show both*. The choice is offered only where Omarchy 4.5's dock exists; on 4.0 nothing changes.
+- **Omarchy's app grid behind the Omarchy button** — contributed by [@priard](https://github.com/priard) ([#73](https://github.com/thepathless/omadock/pull/73)): a new **Settings → Organize dock → Omarchy button opens** choice between the Omarchy menu and Omarchy 4.5's searchable app grid. Apps can be dragged out of the grid onto the dock — the drop line shows where they land, and letting go pins or moves them. The grid is Omarchy's own, loaded only on first open; if it cannot load, the button opens the menu as before.
 - **The dock speaks your language** — contributed by [@priard](https://github.com/priard) ([#74](https://github.com/thepathless/omadock/pull/74)): dock strings now follow Omarchy's display language (Setup → Language, 4.5+), with **Polish** shipping as the first translation. Settings rows, menus, tooltips and popups translate themselves; untranslated strings fall back to English. On Omarchy 4.0 the dock stays in English. Adding a language is documented in the new Translations section of the README.
 - **Verification**: 268 Node + 116 Python tests, `qmllint` 0 errors, structure-check PASSED, plugin validate and manifest-check clean, smoke PASSED, live probe suites (presets, label-metrics, tasks, teardown) green.
 

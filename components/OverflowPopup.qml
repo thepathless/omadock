@@ -71,7 +71,7 @@ BorderSurface {
   }
   function folderIcon(name) {
     var dock = pop.root
-    return dock ? DockIcons.resolveThemedFolderIcon(name, dock.currentIconThemeName, dock.folderColor, dock.appLibrary) : ""
+    return dock ? DockIcons.resolveThemedFolderIcon(name, dock.iconThemeRef.iconTheme, dock.folderColor, dock.appLibrary) : ""
   }
 
   // Everything a call needs is read before it runs: opening another popup

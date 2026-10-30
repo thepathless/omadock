@@ -41,7 +41,7 @@ Item {
     var _tv = root ? root.themeVersion : 0
     var iconName = ditem.icon || "drive-removable-media-usb"
     if (iconName.indexOf("/") === 0 || iconName.indexOf("file://") === 0) return iconName
-    var fileUri = DockIcons.resolveDriveIcon(iconName, root ? root.currentIconThemeName : "Yaru", root ? root.appLibrary : null, root ? root.folderColor : "theme")
+    var fileUri = DockIcons.resolveDriveIcon(iconName, root ? root.iconThemeRef.iconTheme : "Yaru", root ? root.appLibrary : null, root ? root.folderColor : "theme")
     if (fileUri && fileUri !== "") return fileUri
     return root && root.appLibrary ? root.appLibrary.iconSource("drive-removable-media-usb") : "file:///usr/share/icons/Yaru/256x256/devices/drive-removable-media-usb.png"
   }

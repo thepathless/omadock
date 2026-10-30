@@ -73,6 +73,17 @@ Column {
       // preset in use, hovering another one offers to apply it.
       Item {
         id: thumbView
+        activeFocusOnTab: true
+        Keys.onReturnPressed: { panel.endPresetEdit(); root.applyPreset(presetRow.modelData.id) }
+        Keys.onSpacePressed: { panel.endPresetEdit(); root.applyPreset(presetRow.modelData.id) }
+        Rectangle {
+          anchors.fill: parent
+          visible: thumbView.activeFocus
+          color: "transparent"
+          border.width: 2
+          border.color: Color.accent
+          radius: Style.cornerRadius
+        }
         readonly property bool active: presetRow.modelData.id === root.activePresetId
         implicitWidth: thumbArt.implicitWidth
         implicitHeight: thumbArt.implicitHeight
@@ -137,6 +148,10 @@ Column {
         spacing: Style.spacing.xxs
 
         Item {
+          objectName: "settings-preset-name-" + presetRow.modelData.id
+          activeFocusOnTab: !presetRow.builtin && !presetRow.editing
+          Keys.onReturnPressed: if (!presetRow.builtin) presetRow.startEdit()
+          Keys.onSpacePressed: if (!presetRow.builtin) presetRow.startEdit()
           width: parent.width
           height: Math.max(presetLabel.implicitHeight, presetRow.editing ? presetName.implicitHeight : 0)
 
@@ -148,7 +163,7 @@ Column {
             text: (presetRow.modelData.id === root.activePresetId ? "✓ " : "") + presetRow.modelData.name
             textFormat: Text.PlainText
             elide: Text.ElideRight
-            color: presetMouse.containsMouse ? Color.accent : Color.menu.text
+            color: presetMouse.containsMouse || parent.activeFocus ? Color.accent : Color.menu.text
             font.family: Style.font.family
             font.pixelSize: Style.font.subtitle
           }
@@ -192,24 +207,28 @@ Column {
         spacing: Style.spacing.md
 
         Button {
+          focusable: true
           visible: !presetRow.confirming
           text: Tr.t("presets.apply", "Apply")
           foreground: Color.accent
           onClicked: { panel.endPresetEdit(); root.applyPreset(presetRow.modelData.id) }
         }
         Button {
+          focusable: true
           visible: !presetRow.confirming && !presetRow.builtin
           text: Tr.t("presets.update", "Update")
           foreground: Color.menu.text
           onClicked: { panel.endPresetEdit(); root.updatePreset(presetRow.modelData.id) }
         }
         Button {
+          focusable: true
           visible: !presetRow.confirming && !presetRow.builtin
           text: Tr.t("presets.delete", "Delete")
           foreground: Color.menu.text
           onClicked: { panel.endPresetEdit(); panel.confirmDeletePresetId = presetRow.modelData.id }
         }
         Button {
+          focusable: true
           visible: presetRow.confirming
           // Button text is not pinned to PlainText: no name here.
           text: Tr.t("presets.deleteConfirm", "Delete?")
@@ -221,6 +240,7 @@ Column {
           }
         }
         Button {
+          focusable: true
           visible: presetRow.confirming
           text: Tr.t("presets.keep", "Keep")
           foreground: Color.menu.text
@@ -240,6 +260,7 @@ Column {
   Item { width: 1; height: Style.spacing.xxl }
 
   Button {
+    focusable: true
     text: root && root.canSavePreset ? Tr.t("presets.save", "Save current look") : Tr.t("presets.full", "6 of 6 — delete one to save a new look")
     foreground: Color.menu.text
     bordered: true

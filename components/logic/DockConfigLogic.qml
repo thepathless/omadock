@@ -361,7 +361,7 @@ QtObject {
   // DockPresets.activeId settles which row that is when a saved preset and a
   // shipped look are key-for-key equal: the row the user saved keeps it.
   function activePresetId(root) {
-    return DockPresets.activeId(root.presets, root.currentLook, DockModel.lookIncludes)
+    return DockPresets.activeId(root.presets, root.currentLook, DockModel.lookIncludes, root)
   }
 
   // The preset with this name, ignoring case; "" when none or the name is
@@ -443,11 +443,9 @@ QtObject {
     if (i < 0) return false
     var preset = root.presets[i]
     applyLook(root, preset.look)
-    // A shipped look may carry the setup its shape needs (the Windows
-    // taskbar's full-width, always-visible panel, and one tile per app). Only
-    // a shipped entry can: a saved preset is read back with id/name/look, so
-    // this never moves the dock for one the user made.
-    var setup = preset.setup
+    // Each shipped look establishes its layout and click/minimized behavior.
+    // Saved presets remain look-only, including legacy or hand-edited rows.
+    var setup = preset.builtin === true ? preset.setup : null
     if (setup && typeof setup === "object") {
       if (setup.layout) root.layout = DockLayout.normalizeLayout(setup.layout)
       if (setup.alignment) root.alignment = DockLayout.normalizeAlignment(setup.alignment)
@@ -458,8 +456,6 @@ QtObject {
       if (typeof setup.showMinimizedTiles === "boolean") root.showMinimizedTiles = setup.showMinimizedTiles
       if (setup.minimizeMode && ["active", "all", "off"].indexOf(setup.minimizeMode) >= 0) root.minimizeMode = setup.minimizeMode
       if (typeof setup.showAppsButton === "boolean") root.showAppsButton = setup.showAppsButton
-      if (typeof setup.showTooltips === "boolean") root.showTooltips = setup.showTooltips
-      if (typeof setup.advancedTooltips === "boolean") root.advancedTooltips = setup.advancedTooltips
       root.syncVisibility()
     }
     root.applyBlurRule(false)

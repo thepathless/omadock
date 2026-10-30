@@ -36,17 +36,24 @@ test("placement: taskbar needs the panel, then draws Start, apps and tray", () =
   assert.equal(L.placement("dock", "taskbar", true, true).taskbar, false)
 })
 
-test("taskbar geometry: the app section centres between Start and the tray", () => {
-  // 10 apps of 44px with 4px gaps, a 44px Start button, a 98px clock.
+test("taskbar geometry: Start stays adjacent to apps in one centred group", () => {
   const apps = L.taskbarAppWidth(44, 10, 0, 0, 0, 0, 4)
   assert.equal(apps, 476)
-  // Apps start at 44 + 4 + 670 + 4 = 722, centre 960.
-  assert.equal(L.taskbarStartGap(1920, apps, 44, 524, 98, 4, true), 670)
-  // Without Start, the gap alone puts them at 718 + 4, still centred.
+  // The gap now precedes Start. One Row spacing follows a nonzero gap.
+  assert.equal(L.taskbarStartGap(1920, apps, 44, 524, 98, 4, true), 694)
   assert.equal(L.taskbarStartGap(1920, apps, 0, 476, 98, 4, false), 718)
-  // A packed bar leaves no free room to open.
   assert.equal(L.taskbarStartGap(600, apps, 44, 590, 98, 4, true), 0)
-  // A hidden divider is a negative slot, counted as Dock.baseRowWidth counts it.
+  for (const button of [true, false]) {
+    for (const [inner, packed, clock] of [[1920, 620, 98], [2560, 900, 150], [1280, 600, 74]]) {
+      const group = apps + (button ? 44 + 4 : 0)
+      const gap = L.taskbarStartGap(inner, apps, 44, packed, clock, 4, button)
+      assert.equal(gap + 4 + group / 2, inner / 2, "Start and apps share a centre")
+      const trayGap = L.spreadGap(inner, gap + 4 + group + 4, 100 + clock, 4)
+      assert.ok(trayGap > 0, "the right group stays separate")
+    }
+  }
+  // A wide tray clamps the group left rather than pushing the row offscreen.
+  assert.equal(L.taskbarStartGap(1000, apps, 44, 800, 150, 4, true), 42)
   assert.equal(L.taskbarAppWidth(40, 3, 0, 0, 1, -4, 4), 128)
   assert.equal(L.TASKBAR_CLOCK_WIDTH, 74)
 })

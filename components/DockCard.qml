@@ -39,8 +39,8 @@ Item {
   readonly property real plateDpr: (root && root.labelPlates) ? root.outputScale : 0
   readonly property bool taskbar: !!(root && root.placement.taskbar)
   readonly property real rowOffset: (root && stretch) ? (cardWrapper.taskbar ? 0 : DockLayout.rowOffset(root.placement.align, innerWidth, row.implicitWidth, plateDpr)) : 0
-  // The width of the app section between Start and the tray, and the free room
-  // that centres it: policy in DockLayout.js, like the rest of the row geometry.
+  // The app section's width and the leading room that centres Start + apps:
+  // policy in DockLayout.js, like the rest of the row geometry.
   readonly property real taskbarAppsWidth: cardWrapper.taskbar
     ? DockLayout.taskbarAppWidth(root.iconSlot, root.pinnedSection.length + root.groupSlots + root.visibleRunningCount,
         root.tileCount, root.tileWidth, (root.hasLeftTileSeparator ? 1 : 0) + (root.hasSeparator ? 1 : 0),
@@ -486,6 +486,14 @@ Item {
       x: dockCard.contentLeftInset + cardWrapper.rowOffset
       y: dockCard.contentTopInset
 
+      // Leading room centres Start together with its apps, never apart.
+      Item {
+        id: taskbarGap
+        visible: cardWrapper.taskbar
+        width: cardWrapper.taskbarStartGap
+        height: 1
+      }
+
       RowSlot {
         rootRef: cardWrapper.rootRef
         shown: root ? (root.showAppsButton && !root.fitHostRef.hidden["button"]) : true
@@ -501,15 +509,6 @@ Item {
             if (root) root.openDockSettingsMenu(cx, cy)
           }
         }
-      }
-
-      // Windows taskbar: the free room that centres the app section between
-      // Start and the tray. A floating dock draws no gap (it is not taskbar).
-      Item {
-        id: taskbarGap
-        visible: cardWrapper.taskbar
-        width: cardWrapper.taskbarStartGap
-        height: 1
       }
 
       // Pinned apps and app groups share one run (root.pinnedRow): each

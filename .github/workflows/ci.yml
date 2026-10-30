@@ -25,7 +25,7 @@ jobs:
           python-version: "3.12"
 
       - name: DockModel syntax
-        run: node --check DockModel.js && node --check DockLabels.js && node --check DockLayout.js && node --check DockMarks.js && node --check DockMarkGeometry.js && node --check DockPresets.js && node --check DockIcons.js && node --check DockOutput.js && node --check DockMotion.js && node --check DockKeys.js && node --check DockFit.js && node --check DockTasks.js && node --check DockFloating.js && node --check DockGridDrop.js && node --check Buttons.js && node --check Plan.js && node --check SettingsSearch.js
+        run: node --check DockModel.js && node --check DockLabels.js && node --check DockLayout.js && node --check DockMarks.js && node --check DockMarkGeometry.js && node --check DockPresets.js && node --check DockIcons.js && node --check DockOutput.js && node --check DockMotion.js && node --check DockKeys.js && node --check DockFit.js && node --check DockTasks.js && node --check DockFloating.js && node --check DockGridDrop.js && node --check Buttons.js && node --check Plan.js && node --check SettingsSearch.js && node --check DockIconTheme.js
 
       - name: Node test suites
         run: node --test tests/unit/*.test.js tests/unit/*.test.mjs

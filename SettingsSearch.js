@@ -51,9 +51,10 @@ var SETTINGS_SEARCH = [
   { key: "splitSections", page: "appearance", label: "Split sections", terms: ["panels", "gap"] },
   { key: "panelSpacing", page: "appearance", label: "Panel spacing", terms: ["gap", "split"] },
   { key: "indicators", page: "appearance", label: "Indicators", terms: ["dots", "bars", "running", "shape"] },
-  { key: "appsButton", page: "appearance", label: "Omarchy button", terms: ["launcher", "start", "menu", "logo"] },
-  { key: "appsButtonAction", page: "appearance", label: "Omarchy button opens", terms: ["launcher", "app grid", "apps", "menu", "drag", "pin"] },
-  { key: "removableDrives", page: "appearance", label: "Removable drives", terms: ["usb", "media", "eject"] },
+  { key: "appsButton", page: "folders", label: "Omarchy button", terms: ["launcher", "start", "menu", "logo"] },
+  { key: "appsButtonAction", page: "folders", label: "Omarchy button opens", terms: ["launcher", "app grid", "apps", "menu", "drag", "pin"] },
+  { key: "removableDrives", page: "folders", label: "Removable drives", terms: ["usb", "media", "eject"] },
+  { key: "iconTheme", page: "icons", label: "Icon theme", terms: ["icons", "theme", "system", "whitesur", "macos", "papirus", "yaru", "apply", "desktop"] },
   { key: "iconStyle", page: "icons", label: "Icon style", terms: ["pixel", "pixel style", "mono", "monochrome", "dots", "dot matrix", "original"] },
   { key: "iconTint", page: "icons", label: "Icon colour", terms: ["color", "tint", "bw", "black", "white", "accent"] },
   { key: "iconGrid", page: "icons", label: "Pixels across", terms: ["grid", "pixel", "dots", "chunky"] },
@@ -72,9 +73,9 @@ var SETTINGS_SEARCH = [
   { key: "blur", page: "motion", label: "Blur", terms: ["frost", "glass", "translucent"] },
   { key: "blurSize", page: "motion", label: "Blur strength", terms: ["frost"] },
   { key: "grain", page: "motion", label: "Grain", terms: ["noise", "film", "texture"] },
-  { key: "autohide", page: "behavior", label: "Autohide", terms: ["hide", "reveal", "visibility", "intelligent"] },
-  { key: "revealDelay", page: "behavior", label: "Reveal delay", terms: ["autohide", "delay"] },
-  { key: "floatingDock", page: "behavior", label: "Floating workspaces", terms: ["omarchy dock", "floating", "layout", "hide", "super l"] },
+  { key: "autohide", page: "placement", label: "Autohide", terms: ["hide", "reveal", "visibility", "intelligent"] },
+  { key: "revealDelay", page: "placement", label: "Reveal delay", terms: ["autohide", "delay"] },
+  { key: "floatingDock", page: "placement", label: "Floating workspaces", terms: ["omarchy dock", "floating", "layout", "hide", "super l"] },
   { key: "minimizeMode", page: "behavior", label: "Minimize on click", terms: ["park", "click"] },
   { key: "restoreWorkspace", page: "behavior", label: "Restore on", terms: ["minimize", "park", "windows", "origin"] },
   { key: "restoreSlot", page: "behavior", label: "Restore original slot", terms: ["minimize", "park", "position", "layout"] },
@@ -91,7 +92,7 @@ var SETTINGS_SEARCH = [
   { key: "tooltipDelay", page: "behavior", label: "Tooltip delay", terms: ["tooltip"] },
   { key: "windowPreviews", page: "behavior", label: "Window previews", terms: ["preview", "thumbnail"] },
   { key: "minimizedTiles", page: "behavior", label: "Minimized window tiles", terms: ["park", "tiles", "preview"] },
-  { key: "warnUnsafeRemoval", page: "appearance", label: "Warn on unsafe removal", terms: ["drive", "usb", "eject", "removal", "unsafe", "notify"] },
+  { key: "warnUnsafeRemoval", page: "folders", label: "Warn on unsafe removal", terms: ["drive", "usb", "eject", "removal", "unsafe", "notify"] },
   { key: "labelMode", page: "labels", label: "Labels", terms: ["names", "text", "titles", "beside", "hover", "always", "rename", "custom"] },
   { key: "labelKind", page: "labels", label: "Show on", terms: ["labels", "apps", "groups", "folders", "which"] },
   { key: "labelFont", page: "labels", label: "Font", terms: ["labels", "pixel", "sans", "typeface", "retro"] },
@@ -119,6 +120,85 @@ var SETTINGS_SEARCH = [
   { key: "updateChannel", page: "about", label: "Update channel", terms: ["update", "stable", "experimental", "switch"] }
 ]
 
+// Old IPC page names remain valid; navigation and search use six categories.
+function category(page) {
+  if (["icons", "labels", "motion"].indexOf(page) >= 0) return "appearance"
+  if (page === "groups") return "folders"
+  if (page === "supporters") return "about"
+  return ["presets", "appearance", "placement", "behavior", "folders", "about"].indexOf(page) >= 0 ? page : "presets"
+}
+
+function entryFor(key) {
+  for (var i = 0; i < SETTINGS_SEARCH.length; i++) {
+    var e = SETTINGS_SEARCH[i]
+    if (e.key === key) return { key: e.key, page: category(e.page), label: e.label }
+  }
+  return null
+}
+
+// Pure dependency descriptions: search never changes configuration to expose
+// a result. The row stays readable and links to the first unmet prerequisite.
+function dependency(key, r) {
+  if (!r) return null
+  function needs(condition, target, text) { return condition ? null : { key: target, text: text } }
+  var background = ["bgFill", "bgColor", "gradientPalette", "gradientStrength", "opacityTheme", "opacity", "blurSystem", "blur", "blurSize", "grain"]
+  if (background.indexOf(key) >= 0 && !r.showBackground)
+    return { key: "showBackground", text: "Enable Background to use this setting." }
+  if (["gradientPalette", "gradientStrength"].indexOf(key) >= 0)
+    return needs(r.bgFill === "gradient", "bgFill", "Choose Gradient fill to use this setting.")
+  if (key === "bgColor") return needs(r.bgFill !== "gradient", "bgFill", "Choose Solid fill to use this setting.")
+  if (key === "opacity") return needs(r.dockOpacity >= 0, "opacityTheme", "Turn off Opacity from theme to set opacity by hand.")
+  if (["borderWidth", "borderOpacityTheme", "borderOpacity"].indexOf(key) >= 0 && !r.showBorder)
+    return { key: "border", text: "Enable Border to use this setting." }
+  if (key === "borderOpacity") return needs(r.borderOpacity >= 0, "borderOpacityTheme", "Turn off Border opacity from theme to set it by hand.")
+  if (key.indexOf("divider") === 0) {
+    if (r.placement.split) return { key: "splitSections", text: "Turn off Split sections to use dividers." }
+    if (key !== "dividerStyle" && r.dividerStyle === "none") return { key: "dividerStyle", text: "Choose a visible Divider style first." }
+    if (key === "dividerWidth" || key === "dividerOpacity") return needs(r.dividerStyle === "custom", "dividerStyle", "Choose Custom divider style to tune this value.")
+    if (key === "dividerHeight") return needs(r.dividerGeometry === "long", "dividerLength", "Choose Long divider length to set its height.")
+  }
+  if (["corners", "cornerRadius", "splitSections"].indexOf(key) >= 0 && r.placement.panel)
+    return { key: "layout", text: "Choose Dock layout to use floating dock corners and split sections." }
+  if (key === "cornerRadius") return needs(r.dockShape === "rounded", "corners", "Choose Rounded corners to set a radius.")
+  if (key === "panelSpacing") return needs(r.placement.split, "splitSections", "Enable Split sections to set panel spacing.")
+  if (key === "appsButtonAction") {
+    if (!r.sharedState || !r.sharedState.appGrid.available) return { key: "", text: "The app grid requires a compatible Omarchy shell." }
+    return needs(r.showAppsButton, "appsButton", "Enable the Omarchy button to choose its action.")
+  }
+  if (key === "warnUnsafeRemoval") return needs(r.showRemovableDrives, "removableDrives", "Enable Removable drives to use removal warnings.")
+  if (["iconTint", "iconContrast", "iconStrength"].indexOf(key) >= 0)
+    return needs(r.iconStyle === "mono" || r.iconStyle === "dots", "iconStyle", "Choose Monochrome or Dot matrix icon style first.")
+  if (key === "iconGrid") return needs(r.iconStyle === "pixel" || r.iconStyle === "dots", "iconStyle", "Choose Pixel or Dot matrix icon style first.")
+  if (key === "iconHoverOriginal") return needs(r.iconStyle !== "original", "iconStyle", "Choose an icon effect before enabling original-on-hover.")
+  if (key === "iconHoverReveal") {
+    if (r.iconStyle !== "mono" && r.iconStyle !== "dots") return { key: "iconStyle", text: "Choose Monochrome or Dot matrix icon style first." }
+    return needs(r.iconHoverOriginal, "iconHoverOriginal", "Enable Show original on hover to use dithered reveal.")
+  }
+  if (key === "shadowStrength") return needs(r.showShadow, "showShadow", "Enable Shadow to set its strength.")
+  if (key === "blur") return needs(r.blurMode !== "system", "blurSystem", "Turn off Blur from system to choose explicit blur.")
+  if (key === "blurSize") return needs(r.blurMode === "on", r.blurMode === "system" ? "blurSystem" : "blur", "Enable explicit Blur to set its strength; the size affects all Hyprland windows and panels.")
+  if (key === "revealDelay") return needs(r.autohide, "autohide", "Choose Autohide or Intelligent visibility to set a reveal delay.")
+  if (key === "floatingDock") return needs(r.floatingWatch.available, "", "Floating workspace integration requires a compatible Omarchy shell.")
+  if (["badgeStyle", "badgePosition", "badgeColor"].indexOf(key) >= 0)
+    return needs(r.showNotificationBadges, "badges", "Enable Notification badges to change badge styling.")
+  if (key === "tooltipDelay" || key === "windowPreviews") return needs(r.showTooltips, "tooltips", "Enable Tooltips to use previews and their delay.")
+  if (key === "perMonitorApps") return needs(r.multiMonitor, "multiMonitor", "Enable Show on all monitors to filter each dock by monitor.")
+  if (key.indexOf("label") === 0 && key !== "labelMode") {
+    if (r.labelMode === "off") return { key: "labelMode", text: "Enable Labels to use name styling." }
+    if (key === "labelPinned" && (r.labelMode !== "always" || ["all", "apps"].indexOf(r.labelKind) < 0))
+      return { key: r.labelMode !== "always" ? "labelMode" : "labelKind", text: "Show Labels always on apps to choose pinned-name behavior." }
+    if (key === "labelWeight") return needs(r.labelFont !== "pixel", "labelFont", "Choose Theme or Sans font to change its weight.")
+    if (key === "labelBackground") return needs(r.labelMode !== "hover", "labelMode", "Choose Always labels to set their background.")
+    if (key === "labelShape") return needs(r.labelBackground !== "none" || r.labelMode === "hover", "labelBackground", "Choose a label background before setting its corners.")
+    if (key === "labelPlateHeight" || key === "labelIndicators") {
+      if (r.labelMode !== "always") return { key: "labelMode", text: "Choose Always labels to use plate layout." }
+      return needs(r.labelBackground === "plate", "labelBackground", "Choose Plate label background to use plate layout.")
+    }
+    if (key === "labelReveal") return needs(r.labelMode === "hover", "labelMode", "Choose On hover labels to set their reveal animation.")
+  }
+  return null
+}
+
 // Ranked search over SETTINGS_SEARCH (or any entry list in the same shape).
 // Every query character must land in order on some term; the best-scoring
 // term of each entry is its score.
@@ -139,7 +219,7 @@ function searchSettings(query, entries, limit, translate) {
       var s = fuzzyScore(query, terms[j])
       if (s > best) best = s
     }
-    if (best >= 0) out.push({ key: e.key, page: e.page, label: shown, score: best })
+    if (best >= 0) out.push({ key: e.key, page: category(e.page), label: shown, score: best })
   }
   out.sort(function (a, b) { return b.score - a.score })
   return out.slice(0, cap)

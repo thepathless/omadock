@@ -74,7 +74,7 @@ Item {
 
   readonly property string resolvedSource: {
     var _tv = root ? root.themeVersion : 0
-    return DockIcons.resolveThemedFolderIcon(fitem.icon, root ? root.currentIconThemeName : "Yaru", root ? root.folderColor : "theme", root ? root.appLibrary : null)
+    return DockIcons.resolveThemedFolderIcon(fitem.icon, root ? root.iconThemeRef.iconTheme : "Yaru", root ? root.folderColor : "theme", root ? root.appLibrary : null)
   }
   readonly property bool isSymbolic: resolvedSource.indexOf("-symbolic.svg") >= 0 || resolvedSource.indexOf("symbolic") >= 0
   // On a label plate a symbolic icon takes the label's ink, which reads on the plate.

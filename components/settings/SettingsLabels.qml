@@ -2,6 +2,7 @@ import QtQuick 6.11
 import qs.Commons
 import qs.Ui
 import "../../DockLabels.js" as DockLabels
+import "../strings"
 
 // Settings page: name labels beside the dock icons — when they show, how
 // they look, and per-app names. Instantiated by SettingsPanel, which injects
@@ -45,7 +46,7 @@ Column {
 
   Column {
     width: parent.width
-    visible: root ? root.labelMode !== "off" : false
+    visible: (root ? root.labelMode !== "off" : false) || (panel ? panel.targetKey.indexOf("label") === 0 : false)
 
     ChoiceRow {
       key: "labelKind"
@@ -63,7 +64,7 @@ Column {
       key: "labelPinned"
       label: "Pinned apps"
       hint: "When running shows a pinned app's name only while it has a window; a closed one keeps just its icon."
-      visible: root ? (root.labelMode === "always" && (root.labelKind === "all" || root.labelKind === "apps")) : false
+      available: root ? (root.labelMode === "always" && (root.labelKind === "all" || root.labelKind === "apps")) : false
       options: [
         { value: "always", label: "Always" },
         { value: "running", label: "When running" }
@@ -72,6 +73,8 @@ Column {
       onPicked: function(v) { root.setOption("labelPinned", v) }
     }
 
+    SettingsSection {
+      title: Tr.t("settings.labelTuning", "Advanced label styling")
     SectionLabel { title: "Look" }
 
     ChoiceRow {
@@ -99,7 +102,7 @@ Column {
     ChoiceRow {
       key: "labelWeight"
       label: "Weight"
-      visible: root ? root.labelFont !== "pixel" : true
+      available: root ? root.labelFont !== "pixel" : true
       options: [
         { value: "regular", label: "Regular" },
         { value: "medium", label: "Medium" },
@@ -124,7 +127,7 @@ Column {
       key: "labelBackground"
       label: "Background"
       hint: "Plate puts icon and name on one surface, like a button."
-      visible: root ? root.labelMode !== "hover" : true
+      available: root ? root.labelMode !== "hover" : true
       options: [
         { value: "none", label: "None" },
         { value: "pill", label: "Pill" },
@@ -137,7 +140,7 @@ Column {
       key: "labelShape"
       label: "Corners"
       hint: "Dock follows the dock's own corners. Square meets between plates and rounds the outer ones along the dock's edge; Pill gives every plate round ends."
-      visible: root ? (root.labelBackground !== "none" || root.labelMode === "hover") : true
+      available: root ? (root.labelBackground !== "none" || root.labelMode === "hover") : true
       options: [
         { value: "dock", label: "Dock" },
         { value: "pill", label: "Pill" },
@@ -151,7 +154,7 @@ Column {
       key: "labelPlateHeight"
       label: "Plate height"
       hint: "Dock stretches plates to the dock's top and bottom, the same gap away as from each other."
-      visible: root ? (root.labelBackground === "plate" && root.labelMode === "always") : false
+      available: root ? (root.labelBackground === "plate" && root.labelMode === "always") : false
       options: [
         { value: "icon", label: "Icon" },
         { value: "dock", label: "Dock" }
@@ -163,7 +166,7 @@ Column {
       key: "labelIndicators"
       label: "Indicators"
       hint: "Window marks as a column at the plate's edge, so every plate lines up."
-      visible: root ? (root.labelBackground === "plate" && root.labelMode === "always") : false
+      available: root ? (root.labelBackground === "plate" && root.labelMode === "always") : false
       options: [
         { value: "before", label: "Before icon" },
         { value: "after", label: "After name" },
@@ -176,7 +179,7 @@ Column {
       key: "labelReveal"
       label: "Reveal"
       hint: "How a name appears when the pointer rests on an icon."
-      visible: root ? root.labelMode === "hover" : false
+      available: root ? root.labelMode === "hover" : false
       options: [
         { value: "slide", label: "Slide" },
         { value: "typewriter", label: "Typewriter" },
@@ -208,6 +211,7 @@ Column {
       onCommitted: function(v) { root.setOption("labelMaxWidth", Math.round(v)) }
     }
 
+    }
     SectionLabel { title: "Names"; visible: root ? root.labelKind === "all" || root.labelKind === "apps" : false }
 
     Repeater {

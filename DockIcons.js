@@ -73,10 +73,9 @@ function resolveDriveIcon(iconName, themeName, appLibrary, folderColorMode) {
     return "file:///usr/share/icons/Adwaita/symbolic/devices/" + (symbolicMap[name] || "drive-removable-media") + "-symbolic.svg"
   }
 
-  // Known device icons come from Yaru itself, as the folders do. The icon
-  // index is theme-agnostic (first file found under any theme wins), so
-  // asking it first gave Breeze's 16 px dark outline, which reads as a
-  // few faint dots next to Yaru's folders.
+  // Known device icons come from Yaru itself, as the folders do -- but only
+  // while Yaru is the desktop's theme. Any other theme asks the library, whose
+  // index reads the active theme first.
   var devMap = {
     "drive-removable-media-usb": "/usr/share/icons/Yaru/256x256/devices/drive-removable-media-usb.png",
     "usb-pendrive": "/usr/share/icons/Yaru/256x256/devices/drive-removable-media-usb.png",
@@ -86,7 +85,7 @@ function resolveDriveIcon(iconName, themeName, appLibrary, folderColorMode) {
     "media-optical": "/usr/share/icons/Yaru/256x256/devices/media-optical.png"
   }
 
-  if (devMap[name]) {
+  if (devMap[name] && yaruTheme) {
     return "file://" + devMap[name]
   }
 
@@ -155,10 +154,19 @@ function resolveThemedFolderIcon(iconName, themeName, folderColorMode, appLibrar
     return "file:///usr/share/icons/Yaru/256x256/places/" + name + ".png"
   }
 
-  // 2. For Vantablack / minimal themes (Yaru-gray / unstyled):
-  // Nautilus displays the clean monochrome symbolic outline icon!
-  // Do NOT route through iconIndex here — it would return colored folder
-  // icons from other themes, breaking the deliberate B&W aesthetic.
+  // 2. Any other installed theme (Papirus, WhiteSur, Tela...): the library's
+  // index reads the active theme first, so its answer is that theme's folder.
+  // Yaru-gray and Yaru-grey are the B&W markers Omarchy's dark themes name
+  // (and yaru-icon-theme no longer ships): those keep the monochrome outline
+  // the aesthetic depends on, so they are excluded here rather than resolved.
+  var bwTheme = theme === "" || theme === "Yaru-gray" || theme === "Yaru-grey"
+  if (!bwTheme && appLibrary) {
+    var src = appLibrary.iconSource(name)
+    if (src && src.length > 0) return src
+  }
+
+  // 3. No theme artwork at all: Adwaita's monochrome outline, which reads on
+  // any backdrop. Only reached when the library cannot resolve a path.
   return "file:///usr/share/icons/Adwaita/symbolic/places/" + name + "-symbolic.svg"
 }
 

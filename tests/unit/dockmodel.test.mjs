@@ -140,7 +140,7 @@ test("searchSettings: exact label outranks a synonym", () => {
 
 test("searchSettings: every hit names a page for the jump", () => {
   for (const hit of M.searchSettings("icon"))
-    assert.ok(["appearance", "icons", "motion", "behavior", "placement", "folders", "groups", "presets", "about"].includes(hit.page))
+    assert.ok(["appearance", "behavior", "placement", "folders", "presets", "about"].includes(hit.page))
 })
 
 test("searchSettings: garbage queries return nothing", () => {
@@ -197,9 +197,9 @@ test("a preset from before labels turns them off", () => {
   assert.equal(look.labelBackground, "none")
 })
 
-test("settings search finds the labels page", () => {
+test("settings search finds label tuning in Look", () => {
   const hits = plain(M.searchSettings("typewriter"))
-  assert.ok(hits.some((h) => h.key === "labelReveal" && h.page === "labels"))
+  assert.ok(hits.some((h) => h.key === "labelReveal" && h.page === "appearance"))
   assert.ok(!plain(M.SETTINGS_SEARCH).some((e) => e.key === "labelPlacement" || e.key === "showLabels"))
 })
 

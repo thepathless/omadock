@@ -13,6 +13,48 @@ Column {
   width: parent.width
 
 
+  SectionLabel { title: "Dock Items" }
+  SwitchRow {
+    key: "appsButton"
+    label: "Omarchy button"
+    hint: "The launcher at the start of the dock. Without it, right-click the dock background to reach these settings."
+    checked: root ? root.showAppsButton : true
+    onToggled: root.setOption("showAppsButton", !root.showAppsButton)
+  }
+  ChoiceRow {
+    key: "appsButtonAction"
+    label: "Omarchy button opens"
+    hint: "The app grid searches every app and lets you drag one onto the dock to pin it."
+    available: !!root && root.showAppsButton && !!root.sharedState && root.sharedState.appGrid.available
+    options: [
+      { value: "menu", label: "Omarchy menu" },
+      { value: "grid", label: "App grid" }
+    ]
+    value: root && root.sharedState ? root.sharedState.appGrid.mode : "menu"
+    onPicked: function(v) { root.sharedState.appGrid.mode = v; root.saveConfig() }
+  }
+  SwitchRow {
+    key: "removableDrives"
+    label: "Removable drives"
+    hint: "Show mounted USB drives at the end of the dock."
+    checked: root ? root.showRemovableDrives : true
+    onToggled: {
+      root.setOption("showRemovableDrives", !root.showRemovableDrives)
+      root.scanRemovableDrives()
+    }
+  }
+  SettingsSection {
+    title: Tr.t("settings.driveTuning", "Removal warnings")
+    SwitchRow {
+      key: "warnUnsafeRemoval"
+      label: "Warn on unsafe removal"
+      hint: "Notify when a drive is pulled out while still mounted."
+      available: root ? root.showRemovableDrives : true
+      checked: root ? root.warnUnsafeRemoval : true
+      onToggled: root.setOption("warnUnsafeRemoval", !root.warnUnsafeRemoval)
+    }
+  }
+
   SectionLabel { title: "Pinned folders" }
 
   Repeater {
@@ -49,6 +91,7 @@ Column {
       hint: modelData.path
 
       Button {
+      focusable: true
         text: Tr.t("common.remove", "Remove")
         foreground: Color.menu.text
         bordered: true
@@ -63,6 +106,7 @@ Column {
     hint: "Pick any directory to pin as a stack."
 
     Button {
+      focusable: true
       text: Tr.t("folders.add", "Add folder…")
       foreground: Color.menu.text
       bordered: true
@@ -73,6 +117,8 @@ Column {
     }
   }
 
+  SettingsSection {
+    title: Tr.t("settings.folderTuning", "Folder styling")
   SectionLabel {
     key: "folderColor"
     title: "Folder color"
@@ -84,6 +130,7 @@ Column {
     bottomPadding: Style.spacing.lg
 
     Button {
+      focusable: true
       text: Tr.t("folders.colorTheme", "Theme")
       foreground: Color.menu.text
       bordered: true
@@ -94,6 +141,7 @@ Column {
     // Monochrome outlines in black or white, whichever reads
     // better on what is behind them: the dock, or a stack popup.
     Button {
+      focusable: true
       text: Tr.t("folders.colorAuto", "Auto B/W")
       foreground: Color.menu.text
       bordered: true
@@ -123,5 +171,6 @@ Column {
         onPicked: root.setFolderColor(modelData.id)
       }
     }
+  }
   }
 }
