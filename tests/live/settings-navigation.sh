@@ -13,6 +13,17 @@ cleanup() {
 }
 trap cleanup EXIT
 fail() { echo "SETTINGS FAILED: $*" >&2; if declare -F probe_log_tail >/dev/null; then probe_log_tail >&2; fi; exit 1; }
+# The picker's apply writes gsettings. This suite must never change the owner's
+# desktop theme, so a stub shadows `gsettings set` for the probe process only:
+# it logs the call and lets every read (the dock's own probe included) through.
+REAL_GSETTINGS=$(command -v gsettings)
+mkdir -p "$WORK/bin"
+printf '#!/usr/bin/env bash\nif [ "${1:-}" = "set" ]; then printf "%%s\\n" "$*" >> "%s"; exit 0; fi\nexec %s "$@"\n' \
+  "$WORK/gsettings.log" "$REAL_GSETTINGS" > "$WORK/bin/gsettings"
+chmod +x "$WORK/bin/gsettings"
+export OMADOCK_TEST_GSETTINGS_LOG="$WORK/gsettings.log"
+PATH="$WORK/bin:$PATH"
+export PATH
 mkdir -p "$WORK/TestInput"
 /usr/lib/qt6/moc $(pkg-config --cflags Qt6Core Qt6Qml Qt6Quick Qt6Test) tests/live/settings-input.cpp -o "$WORK/settings-input.moc" || fail moc
 c++ -std=c++17 -shared -fPIC tests/live/settings-input.cpp -I"$WORK" \
@@ -128,8 +139,11 @@ for key in "${targets[@]}"; do
 done
 echo "   all ${#targets[@]} search targets reached a visible row in the viewport"
 
-# The icon-theme picker: the host's installed themes are listed and the current
-# one is read from the desktop, without applying anything.
+# The icon-theme picker is one searchable dropdown: the desktop's installed
+# themes plus the WhiteSur set, opened from the theme in use. Opening or
+# filtering it applies nothing.
+call category appearance >/dev/null
+wait_check '' page appearance
 call read iconTheme > "$WORK/themes.json"
 python3 - "$WORK/themes.json" <<'PY' || fail "icon theme picker"
 import glob, json, os, sys
@@ -153,13 +167,25 @@ def ships(theme):
 providers=[c for c in t["chain"] if ships(c)]
 if providers:
   assert f"/icons/{providers[0]}/" in folder or f"/.icons/{providers[0]}/" in folder, (providers, folder)
-# The macOS set is offered as a click, not silently downloaded: the row is
-# there while WhiteSur is absent and gone once its chips carry the theme.
+# The macOS set is an entry in the list while it is absent - never a silent
+# download - and simply another installed theme once it is on disk.
 w=t["whiteSur"]
 if not t["whiteSurInstalled"]:
-  assert w["found"] and w["visible"] and "WhiteSur" in w["text"], w
+  assert w["found"] and w["visible"] and w["installEntry"], w
+  assert "whitesur" in w["text"].lower() and "install" in w["text"].lower(), w
 else:
-  assert not w["found"], w
+  assert w["found"] and not w["installEntry"], w
+PY
+call read-dropdown settings-icon-theme-dropdown > "$WORK/theme-dropdown.json"
+python3 - "$WORK/theme-dropdown.json" "$WORK/themes.json" <<'PY' || fail "icon theme dropdown"
+import json,sys
+d=json.load(open(sys.argv[1])); t=json.load(open(sys.argv[2]))["themes"]
+assert d["found"] and d["visible"] and not d["open"], d
+# It opens from the current selection, listing every installed theme beside
+# the WhiteSur entry.
+assert d["value"] == t["current"] and d["current"] == t["current"], (d["value"], d["current"], t["current"])
+installed=[o["value"] for o in d["options"] if not o["value"].startswith("__install")]
+assert len(installed) == t["installed"], (len(installed), t["installed"])
 PY
 call search 'whitesur' > "$WORK/theme-search.json"
 python3 - "$WORK/theme-search.json" <<'PY' || fail "icon theme search"
@@ -167,7 +193,100 @@ import json,sys
 hits=json.load(open(sys.argv[1]))["hits"]
 assert hits and any(h["key"] == "iconTheme" for h in hits), hits
 PY
-echo "   icon theme picker lists the desktop's themes and search finds it"
+
+# Synthetic Qt keys only: Enter opens the list, letters filter it in place,
+# Down/Up walk it, Enter applies through the existing system-wide path.
+REAL_BEFORE=$("$REAL_GSETTINGS" get org.gnome.desktop.interface icon-theme)
+before_theme=$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["themes"]["current"])' "$WORK/themes.json")
+call key-trigger settings-icon-theme-dropdown:Return >/dev/null || fail "dropdown Enter"
+open_ok=0
+for _ in $(seq 25); do
+  call read-dropdown settings-icon-theme-dropdown > "$WORK/dd-open.json"
+  python3 -c 'import json,sys; sys.exit(0 if json.load(open(sys.argv[1]))["open"] else 1)' "$WORK/dd-open.json" && { open_ok=1; break; }
+  sleep 0.2
+done
+[ "$open_ok" -eq 1 ] || fail "the dropdown did not open on Enter"
+# The search field takes focus one event-loop turn after the popup maps.
+sleep 0.3
+call read iconTheme > "$WORK/themes-open.json"
+python3 - "$WORK/themes-open.json" <<'PY' || fail "the panel stands down while the list is open"
+import json,sys
+r=json.load(open(sys.argv[1]))
+assert r["iconThemeDropdownOpen"], r
+assert r["themes"]["current"] == r["themes"]["whiteSur"]["value"], r
+PY
+for k in Y A R; do call key-focused settings-icon-theme-dropdown:$k >/dev/null || fail "typing $k"; done
+sleep 0.2
+call read-dropdown settings-icon-theme-dropdown > "$WORK/dd-yar.json"
+python3 - "$WORK/dd-yar.json" <<'PY' || fail "the dropdown filters as you type"
+import json,sys
+d=json.load(open(sys.argv[1]))
+assert d["open"] and d["filtered"], d
+assert "Yaru" in d["filtered"], d
+by={o["value"]: o for o in d["options"]}
+for v in d["filtered"]:
+  o=by[v]
+  assert "yar" in (v + " " + o["label"] + " " + o["description"]).lower(), o
+assert len(d["filtered"]) < len(d["options"]), d
+PY
+call key-focused settings-icon-theme-dropdown:Down >/dev/null
+call key-focused settings-icon-theme-dropdown:Down >/dev/null
+call key-focused settings-icon-theme-dropdown:Up >/dev/null
+call key-focused settings-icon-theme-dropdown:Return >/dev/null
+applied=0
+for _ in $(seq 40); do
+  call read iconTheme > "$WORK/themes-applied.json"
+  python3 -c 'import json,sys; t=json.load(open(sys.argv[1]))["themes"]; sys.exit(0 if t["current"] != sys.argv[2] else 1)' "$WORK/themes-applied.json" "$before_theme" && { applied=1; break; }
+  sleep 0.2
+done
+[ "$applied" -eq 1 ] || fail "Enter on the filtered list did not apply a theme"
+python3 - "$WORK/themes-applied.json" "$before_theme" <<'PY' || fail "dropdown Enter applied the wrong theme"
+import json,sys
+t=json.load(open(sys.argv[1]))["themes"]
+assert t["current"] == "Yaru" and t["current"] != sys.argv[2], (t["current"], sys.argv[2])
+assert t["whiteSur"]["value"] == "Yaru", t["whiteSur"]
+PY
+grep -qxF 'set org.gnome.desktop.interface icon-theme Yaru' "$OMADOCK_TEST_GSETTINGS_LOG" \
+  || fail "the selection did not go through the existing apply path"
+[ "$("$REAL_GSETTINGS" get org.gnome.desktop.interface icon-theme)" = "$REAL_BEFORE" ] \
+  || fail "the probe changed the owner's icon theme"
+# Escape closes the list without applying: state, panel and gsettings untouched.
+count_before=$(wc -l < "$OMADOCK_TEST_GSETTINGS_LOG")
+call key-trigger settings-icon-theme-dropdown:Return >/dev/null
+for _ in $(seq 25); do
+  call read-dropdown settings-icon-theme-dropdown > "$WORK/dd-reopen.json"
+  python3 -c 'import json,sys; sys.exit(0 if json.load(open(sys.argv[1]))["open"] else 1)' "$WORK/dd-reopen.json" && break
+  sleep 0.2
+done
+sleep 0.3
+for k in B R E E; do call key-focused settings-icon-theme-dropdown:$k >/dev/null; done
+sleep 0.2
+call read-dropdown settings-icon-theme-dropdown > "$WORK/dd-bree.json"
+python3 - "$WORK/dd-bree.json" <<'PY' || fail "the second filter"
+import json,sys
+d=json.load(open(sys.argv[1]))
+by={o["value"]: o for o in d["options"]}
+assert d["open"] and d["filtered"] and "breeze-dark" in d["filtered"], d
+assert len(d["filtered"]) < len(d["options"]), d
+for v in d["filtered"]:
+  o=by[v]
+  assert "bree" in (v + " " + o["label"] + " " + o["description"]).lower(), o
+PY
+call key-focused settings-icon-theme-dropdown:Escape >/dev/null
+sleep 0.3
+call read-dropdown settings-icon-theme-dropdown > "$WORK/dd-escape.json"
+call read iconTheme > "$WORK/themes-escape.json"
+python3 - "$WORK/dd-escape.json" "$WORK/themes-escape.json" <<'PY' || fail "Escape must close the list without applying"
+import json,sys
+d=json.load(open(sys.argv[1])); r=json.load(open(sys.argv[2]))
+assert not d["open"], d
+assert d["value"] == "Yaru" and r["themes"]["current"] == "Yaru", (d["value"], r["themes"]["current"])
+assert not r["iconThemeDropdownOpen"], r
+assert r["page"] == "appearance" and r["themes"]["current"] == "Yaru", r
+PY
+[ "$(wc -l < "$OMADOCK_TEST_GSETTINGS_LOG")" -eq "$count_before" ] || fail "Escape applied an icon theme"
+echo "   icon theme dropdown: opens from the selection, filters, Enter applies, Escape cancels"
+
 python3 - "$WORK/before-navigation.json" "$(probe_cfg)" <<'PY' || fail "navigation changed config"
 import json,sys
 assert json.load(open(sys.argv[1]))==json.load(open(sys.argv[2])),"navigation/search wrote settings"

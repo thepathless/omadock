@@ -19,6 +19,9 @@ PanelWindow {
 
   readonly property string page: SettingsSearch.category(root ? root.settingsPanelPage : "presets")
   property string targetKey: ""
+  // Set by the icon-theme dropdown while its list is open: Escape then closes
+  // the list, not the whole panel.
+  property bool iconThemeDropdownOpen: false
   property alias searchInput: searchField
   readonly property alias pageContent: pageColumn
   readonly property alias pageScroller: pageFlick
@@ -207,6 +210,7 @@ PanelWindow {
   }
 
   function close() {
+    panel.iconThemeDropdownOpen = false
     if (root) root.closeSettingsPanel()
   }
 
@@ -301,7 +305,7 @@ PanelWindow {
   Shortcut {
     sequence: "Escape"
     context: Qt.WindowShortcut
-    enabled: panel.editingGroupId === "" && panel.editingPresetId === ""
+    enabled: panel.editingGroupId === "" && panel.editingPresetId === "" && !panel.iconThemeDropdownOpen
     onActivated: panel.close()
   }
 
