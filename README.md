@@ -357,7 +357,7 @@ Three looks ride with the dock and sit ahead of the presets you save — a fresh
 | :--- | :--- | :--- |
 | `thepathless:ristretto` | Dot-matrix icons on a Forest gradient with film grain, long custom dividers, the Glitch hover, and no rim or shadow | The maintainer's own dock |
 | `macOS` | Floating 27px squircle shelf with frosted white glass (#ffffff, blur on, 0.5px specular rim, soft shadow), 53px artwork, wave fisheye hover magnification, hairline dividers, and OmaDock's multi-window marks (accent bar for focused, hollow dot for minimized) | The modern macOS dock |
-| `Windows` | The Windows 11 taskbar: full-width bottom panel, always visible, 48px tall with 24px centered artwork, 40px buttons, no magnification and no labels, acrylic fill (#202020, blur through), one rounded mark per app with the focused app's accent pill, and hover previews | The Windows 11 taskbar |
+| `Windows` | The Windows 11 taskbar: full-width bottom panel, always visible, a slim bar (~50px at this UI scale) with 24px centered artwork and 42px buttons, no magnification and no labels, acrylic fill (#202020, blur through), one rounded mark per app (grey dot running, accent pill focused), no separate minimized tiles, and hover tooltips | The Windows 11 taskbar |
 
 The same list is scriptable end to end — list it, save the look on screen under a chosen name, remove one by id:
 
@@ -766,12 +766,20 @@ The pixel label font is [Silkscreen](https://fonts.google.com/specimen/Silkscree
 
 Full release notes, historical changelogs, and upgrade guides across all versions are available on [**GitHub Releases**](https://github.com/thepathless/omadock/releases).
 
+### v4.10.1 — 2026-10-30
+
+A live pass on the new Windows taskbar found two corrections.
+
+- **A minimized app keeps one tile** — minimizing an app made OmaDock add a second, 63px minimized-window tile beside the apps, which a taskbar never shows. A shipped look's setup now also carries `showMinimizedTiles`, and Windows turns it off: one icon per app, a grey dot while it runs minimized, the accent pill while it holds the focus.
+- **The numbers match the pixels** — measured on the running shell, the bar is about 50px tall with 42px buttons and 24px artwork at this desktop's UI scale; these notes had said 48px and 40px.
+- **Verified with the real pointer** — full-width bottom panel, centered icons, no labels and no magnification, a hover tooltip, and click-to-launch, click-to-minimize and click-to-restore on the bar itself. The owner's config was restored byte-identically afterwards.
+
 ### v4.10.0 — 2026-10-30
 
 The Windows look is now the Windows 11 taskbar, and a shipped look can carry the placement its shape needs.
 
-- **The Windows preset became the real taskbar** — the old look was a floating square shelf with 42px icons, zoom hover, hover labels and a mark per window, so applying it left a dock that looked and behaved nothing like Windows. It now applies the full-width bottom **panel**, centered and **always visible**: a 48px bar with 40px buttons and ~24px artwork, no magnification, no labels, square geometry, an acrylic #202020 fill blurred through the compositor, and **one rounded mark per app** — the focused app's mark is the accent pill, as on Windows 11. Window previews come from OmaDock's existing tooltips; a click still launches or activates and a right-click still opens the jump-list menu.
-- **A shipped look can carry its placement** — `layout`, `alignment` and `autohide` now ride with a shipped preset (`DockPresets.js`), and `applyPreset` applies them before it saves. This is deliberately shipped-only: a preset you saved is read back with its look alone, so applying one never moves the dock. Without it, "Windows" could only ever recolor a floating, auto-hiding dock.
+- **The Windows preset became the real taskbar** — the old look was a floating square shelf with 42px icons, zoom hover, hover labels and a mark per window, so applying it left a dock that looked and behaved nothing like Windows. It now applies the full-width bottom **panel**, centered and **always visible**: a slim bar (~50px at this desktop's UI scale) with 42px buttons and ~24px artwork, no magnification, no labels, square geometry, an acrylic #202020 fill blurred through the compositor, and **one rounded mark per app** — the focused app's mark is the accent pill, as on Windows 11. Window previews come from OmaDock's existing tooltips; a click still launches or activates and a right-click still opens the jump-list menu.
+- **A shipped look can carry its setup** — `layout`, `alignment` and `autohide` now ride with a shipped preset (`DockPresets.js`), and `applyPreset` applies them before it saves. This is deliberately shipped-only: a preset you saved is read back with its look alone, so applying one never moves the dock. Without it, "Windows" could only ever recolor a floating, auto-hiding dock.
 - **App-mode marks know the focus** — `indicatorMode: "app"` drew the same gray dot whether the app was focused or not. `DockMarks.markKind()` now turns the focused app's mark into the accent bar, so the taskbar's active-app pill is real; per-window mode keeps its three states unchanged.
 - **Honest limits** — OmaDock has no system tray or clock, and the Omarchy button sits with the centered group rather than pinned to the far left. The taskbar preset covers the dock's own surface: centered applications, running marks, launch/activate, jump lists, previews and the full-width edge-to-edge bar.
 - **Verification** — 273 Node + 118 Python unit tests, `qmllint` 0 errors, plugin validate and manifest-check clean, and the live preset suite green: Windows applies its taskbar placement with a clean dock log. The owner's config and shell PID were unchanged, and no test process or spare display was left behind.
