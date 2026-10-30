@@ -45,7 +45,12 @@ import "../DockIconTheme.js" as DockIconTheme
 
     function setIconTheme(id) {
       if (!DockIconTheme.safeId(id) || id === localAppLibrary.iconTheme) return
-      if (iconThemeApply.running) return
+      if (iconThemeApply.running) {
+        // A second click while the first apply is in flight must say so, not
+        // silently leave the picker showing a value the desktop never got.
+        localAppLibrary.themeError = "An icon theme change is already running."
+        return
+      }
       localAppLibrary.themeError = ""
       iconThemeApply.pending = id
       iconThemeApply.command = ["bash", localAppLibrary.helperPath("icon-theme.sh"), "apply", id]
@@ -87,9 +92,14 @@ import "../DockIconTheme.js" as DockIconTheme
       onExited: function(code) {
         if (code !== 0) {
           localAppLibrary.themeError = String(iconThemeApplyErr.text || "").trim() || "Could not apply the icon theme."
+          // The list may still name a theme that was removed or left partial
+          // after it was read; ask again so the picker matches the disk.
+          localAppLibrary.refreshThemes()
           return
         }
         localAppLibrary.iconTheme = iconThemeApply.pending
+        // If a scan is already running, refreshIcons queues exactly one more
+        // pass; the applied theme is not lost behind a scan of the old chain.
         localAppLibrary.refreshIcons()
       }
     }
@@ -104,6 +114,7 @@ import "../DockIconTheme.js" as DockIconTheme
         var applied = String(iconThemeInstallOut.text || "").trim()
         if (code !== 0 || !DockIconTheme.safeId(applied)) {
           localAppLibrary.themeError = String(iconThemeInstallErr.text || "").trim() || "Could not install WhiteSur."
+          localAppLibrary.refreshThemes()
           return
         }
         localAppLibrary.iconTheme = applied
@@ -181,8 +192,19 @@ import "../DockIconTheme.js" as DockIconTheme
       iconIndexScan.running = true
     }
 
+    // The panel asks for this when it opens and after a failed apply. If a
+    // read is already in flight it may have started before a theme was removed,
+    // so queue exactly one more pass: an ignored request would leave the list
+    // advertising a theme the disk no longer has.
+    property bool themeRescanPending: false
+
     function refreshThemes() {
-      if (!iconThemeScan.running) iconThemeScan.running = true
+      if (iconThemeScan.running) {
+        localAppLibrary.themeRescanPending = true
+        return
+      }
+      localAppLibrary.themeRescanPending = false
+      iconThemeScan.running = true
     }
 
     function helperPath(name) {
@@ -278,7 +300,7 @@ import "../DockIconTheme.js" as DockIconTheme
         localAppLibrary.appsChanged()
         if (localAppLibrary.rescanPending) {
           localAppLibrary.rescanPending = false
-          localAppLibrary.refreshIcons()
+          Qt.callLater(function() { localAppLibrary.refreshIcons() })
         }
       }
     }
@@ -293,6 +315,13 @@ import "../DockIconTheme.js" as DockIconTheme
       stdout: StdioCollector { id: iconThemeScanOut; waitForEnd: true }
       onExited: function(code) {
         if (code === 0) localAppLibrary.themes = DockIconTheme.parseList(iconThemeScanOut.text)
+        if (localAppLibrary.themeRescanPending) {
+          // running is still true inside onExited; defer so the queued read
+          // starts after it clears, instead of refreshThemes queueing itself
+          // again for ever.
+          localAppLibrary.themeRescanPending = false
+          Qt.callLater(function() { localAppLibrary.refreshThemes() })
+        }
       }
     }
 

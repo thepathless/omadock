@@ -44,6 +44,11 @@ export PROBE_BODY
 probe_start || fail "dock load"
 PROBE_OWNER_CFG="$OWNER_CFG"
 PROBE_OWNER_MD5="$OWNER_MD5"
+# A disposable installed theme, present before the panel reads the list and
+# removed later to exercise a stale selection without touching the owner.
+mkdir -p "$PROBE_DIR/home/.local/share/icons/ProbeTheme/apps"
+printf '[Icon Theme]\nName=ProbeTheme\n' > "$PROBE_DIR/home/.local/share/icons/ProbeTheme/index.theme"
+printf '<svg/>' > "$PROBE_DIR/home/.local/share/icons/ProbeTheme/apps/app.svg"
 call() { qs -p "$PROBE_DIR" ipc call omadock-settings-test run "$@"; }
 # Seed dependency cases only in the disposable config before opening the panel.
 python3 - "$(probe_cfg)" <<'PY'
@@ -286,6 +291,53 @@ assert r["page"] == "appearance" and r["themes"]["current"] == "Yaru", r
 PY
 [ "$(wc -l < "$OMADOCK_TEST_GSETTINGS_LOG")" -eq "$count_before" ] || fail "Escape applied an icon theme"
 echo "   icon theme dropdown: opens from the selection, filters, Enter applies, Escape cancels"
+
+# A theme that disappears after the list was read must fail through the row,
+# not apply a stale id, log a gsettings write, or crash. ProbeTheme was made
+# before the panel opened; remove it and choose it from the loaded list.
+rm -rf "$PROBE_DIR/home/.local/share/icons/ProbeTheme"
+count_before=$(wc -l < "$OMADOCK_TEST_GSETTINGS_LOG")
+call key-trigger settings-icon-theme-dropdown:Return >/dev/null || fail "removed-theme dropdown"
+for _ in $(seq 25); do
+  call read-dropdown settings-icon-theme-dropdown > "$WORK/dd-removed-open.json"
+  python3 -c 'import json,sys; sys.exit(0 if json.load(open(sys.argv[1]))["open"] else 1)' "$WORK/dd-removed-open.json" && break
+  sleep 0.2
+done
+sleep 0.3
+for k in P R O B E; do call key-focused settings-icon-theme-dropdown:$k >/dev/null || fail "typing missing theme"; done
+sleep 0.2
+call read-dropdown settings-icon-theme-dropdown > "$WORK/dd-removed.json"
+python3 - "$WORK/dd-removed.json" <<'PY' || fail "removed theme was not offered from the stale list"
+import json,sys
+d=json.load(open(sys.argv[1]))
+assert d["open"] and "ProbeTheme" in d["filtered"], d
+PY
+call key-focused settings-icon-theme-dropdown:Down >/dev/null
+call key-focused settings-icon-theme-dropdown:Return >/dev/null
+removed_failed=0
+for _ in $(seq 40); do
+  call read iconTheme > "$WORK/themes-removed.json"
+  python3 - "$WORK/themes-removed.json" <<'PY' 2>/dev/null && { removed_failed=1; break; }
+import json,sys
+r=json.load(open(sys.argv[1]))
+t=r["themes"]
+assert "not installed" in t["error"], r
+assert "ProbeTheme" not in t["installedIds"], r
+PY
+  sleep 0.2
+done
+[ "$removed_failed" -eq 1 ] || fail "the removed theme did not surface an error and refresh the list"
+python3 - "$WORK/themes-removed.json" <<'PY' || fail "removed theme left stale state"
+import json,sys
+r=json.load(open(sys.argv[1]))
+assert r["themes"]["current"] == "Yaru", r
+assert "ProbeTheme" not in r["themes"]["installedIds"], r
+PY
+[ "$(wc -l < "$OMADOCK_TEST_GSETTINGS_LOG")" -eq "$count_before" ] \
+  || fail "a removed theme reached gsettings"
+call key-focused settings-icon-theme-dropdown:Escape >/dev/null
+sleep 0.2
+echo "   removed theme: row reports not installed, list refreshes, gsettings untouched"
 
 python3 - "$WORK/before-navigation.json" "$(probe_cfg)" <<'PY' || fail "navigation changed config"
 import json,sys
