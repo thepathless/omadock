@@ -25,6 +25,15 @@ function totalWindows(windows, running) {
 //            one shifted a lone dot, or accent bar, half a gap off the icon's
 //            centre)
 // The dots, the slots, the pill and the count it shows all read this one plan.
+// The kind of mark a slot draws. "app" mode speaks for the app: one mark,
+// which turns into the active bar while any of its windows holds the focus
+// (Windows 11's wider accent pill). Per-window mode keeps its three states:
+// active bar, open dot, hollow minimized dot.
+function markKind(appMode, winActive, winMinimized) {
+  if (appMode) return winActive ? "active" : "window"
+  return winActive ? "active" : (winMinimized ? "minimized" : "window")
+}
+
 function plan(windows, running) {
   var total = totalWindows(windows, running)
   var overflow = total > DENSE_AT

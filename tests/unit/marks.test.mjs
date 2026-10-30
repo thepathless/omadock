@@ -56,6 +56,19 @@ test("plan: declared slots never outnumber drawn marks", () => {
   }
 })
 
+// The taskbar look (Windows) speaks for the app, not each window: one mark,
+// and the focused app's mark is the accent bar. Per-window mode keeps all
+// three states, which is what the rest of the dock ships.
+test("markKind: app mode shows the active bar for the focused app", () => {
+  assert.equal(M.markKind(true, true, false), "active")
+  assert.equal(M.markKind(true, false, false), "window")
+  // Minimized but running is still one open window to the taskbar.
+  assert.equal(M.markKind(true, false, true), "window")
+  assert.equal(M.markKind(false, true, false), "active")
+  assert.equal(M.markKind(false, false, false), "window")
+  assert.equal(M.markKind(false, false, true), "minimized")
+})
+
 test("plan: the pill counts the windows the dots do not show", () => {
   for (let n = 6; n <= 60; n++) {
     const { total, dots } = plain(M.plan(win(n), false))

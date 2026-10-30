@@ -26,14 +26,23 @@
 //                          soft shadow), wave fisheye hover magnification,
 //                          hairline dividers, and OmaDock's signature
 //                          multi-window indicator dots (flat bar for focused)
-//   Windows                the Windows 11 centered taskbar: flat dark shelf
-//                          (#202020), square shape (0px radius), zoom hover,
-//                          subtle underline indicator bars, and hover tooltips
+//   Windows                the Windows 11 taskbar: the full-width bottom
+//                          panel, always visible, with centered 24px artwork,
+//                          no magnification and no labels, one rounded pill
+//                          per running app (accent while focused), and the
+//                          window previews its tooltips already carry
+//
+// A shipped look may also carry a `placement` (layout, alignment, autohide),
+// because the taskbar's shape is not a look: a look-only preset would leave a
+// floating, auto-hiding dock that looks nothing like it. Only shipped entries
+// can carry one -- a saved preset is written back through boundPresets, which
+// keeps id/name/look, so applying one never moves the dock. `applyPreset`
+// applies the placement before it saves; every other shipped look leaves the
+// user's placement alone.
 //
 // Deliberately not shipped as presets, and why:
 //   - panel layout (#49) is not a look key -- `LOOK_KEYS` has no `layout`, so a
-//     preset cannot hold it and one would silently do nothing. It is a
-//     placement setting, reachable from any look.
+//     look cannot hold it; it rides in the preset's `placement` instead.
 //   - #13's "Zen / Arc-style gradient" has no matching gradient: `Dock.qml`'s
 //     `gradientPresets` are the fixed palette (aurora, sunset, ocean, forest,
 //     rose, lavender, ember, citrus, mono) plus the theme.
@@ -75,24 +84,40 @@ var SHIPPED = [
   {
     id: "builtin_windows",
     name: "Windows",
+    // The taskbar's geometry, which a look cannot hold. Always visible (the
+    // taskbar's own default), and a full-width panel on the bottom edge; the
+    // centered row is Windows 11's default alignment.
+    placement: { layout: "panel", alignment: "center", autohide: false, intelligentAutohide: false },
     look: {
       showBackground: true, bgColor: "#202020", bgFill: "solid",
-      blur: "off", blurSize: 0,
+      // Windows 11's acrylic: the desktop blurs through the bar rather than
+      // the bar drawing its own frost, so the fill stays a touch translucent.
+      blur: "system", blurSize: 0, opacity: 0.9,
       showShadow: false, shadowStrength: 0,
-      showBorder: true, borderWidth: 1, borderOpacity: 0.15,
+      // A panel's border is drawn on the screen edge, where Windows has none;
+      // its separation from a window comes from the fill alone.
+      showBorder: false, borderWidth: 1, borderOpacity: 0,
       // A square shape draws its card (and its popups) at 0px; the radius is
       // kept at 0 too, and applyLook keeps a 0 through (a look is compared key
       // for key to mark its row active, so a value the clamp changed would be
       // a preset that can never report active).
       shape: "square", cornerRadius: 0,
-      dockPaddingPx: 4, iconBaseline: "center",
-      iconSize: 42, itemSpacing: 4, sectionSpacing: 14,
+      // 48px bar: a 40px button (29px slot + 10px margin, ~24px artwork) over
+      // 4px of card padding on each side.
+      dockPaddingPx: 4, iconBaseline: "center", iconMargin: 11,
+      iconSize: 29, itemSpacing: 3, sectionSpacing: 12,
       iconStyle: "original", iconTint: "text", iconContrast: 0, iconStrength: 1,
-      hoverEffect: "zoom", magnifyPeak: 1.1, magnifyReach: 1.2, launchBounce: false,
-      indicatorMode: "windows", indicatorShape: "square", indicatorSize: 3, indicatorInset: 0,
-      dividerGeometry: "classic", dividerStyle: "theme", dividerWidth: 1.0, dividerHeight: 32, dividerOpacity: 0.20,
-      labelMode: "hover", labelBackground: "pill", labelShape: "pill", labelFont: "theme",
+      // Windows does not magnify the taskbar; its hover feedback is a highlight
+      // plus the thumbnail preview in the tooltip.
+      hoverEffect: "off", magnifyPeak: 1.0, magnifyReach: 1.0, launchBounce: false,
+      // One mark per app, not per window, and the focused app's mark is the
+      // accent bar -- Windows 11's wider, coloured active pill.
+      indicatorMode: "app", indicatorShape: "rounded", indicatorSize: 4, indicatorInset: 4,
+      dividerGeometry: "classic", dividerStyle: "none", dividerWidth: 1.0, dividerHeight: 32, dividerOpacity: 0,
+      // A taskbar carries no names; the tooltip is the whole label.
+      labelMode: "off", labelKind: "all", labelFont: "theme",
       labelSize: "small", labelWeight: "medium", labelReveal: "slide", labelColor: "auto",
+      labelBackground: "none", labelShape: "pill",
       folderColor: "theme"
     }
   }
@@ -129,7 +154,11 @@ function merge(userPresets, fillLook) {
   for (var j = 0; j < SHIPPED.length; j++) {
     var s = SHIPPED[j]
     if (saved[nameKey(s.name)]) continue
-    out.push({ id: s.id, name: s.name, look: fillLook(s.look), builtin: true })
+    var row = { id: s.id, name: s.name, look: fillLook(s.look), builtin: true }
+    // Only a shipped look can carry one (see the header): saved presets are
+    // read back through boundPresets, which keeps id/name/look.
+    if (s.placement) row.placement = s.placement
+    out.push(row)
   }
   for (var k = 0; k < list.length; k++) out.push(list[k])
   return out

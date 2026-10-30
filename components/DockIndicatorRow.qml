@@ -42,9 +42,9 @@ Item {
   // one shifted a lone dot (or accent bar) half a gap - 2 px - off the icon's
   // centre.
   readonly property var plan: DockMarks.plan(marks.windows, marks.running)
-  // "app" mode speaks for the app, not its windows: one dot while anything is
-  // open, no accent bar, no "+N" pill. The same plan shape keeps every reader
-  // below unchanged.
+  // "app" mode speaks for the app, not its windows: one mark while anything is
+  // open, the accent bar while the app holds the focus, no "+N" pill. The same
+  // plan shape keeps every reader below unchanged.
   readonly property bool appMode: marks.root ? marks.root.indicatorMode === "app" : false
   readonly property var drawPlan: marks.appMode
     ? { total: (marks.running ? 1 : 0), dense: false, overflow: false,
@@ -114,7 +114,11 @@ Item {
         required property int index
         readonly property var winObj: (marks.windows && marks.windows.length > index) ? marks.windows[index] : null
         readonly property bool winMinimized: winObj ? marks.isWinMinimized(winObj) : marks.allMinimized
-        readonly property bool winActive: !marks.appMode && !winMinimized && ((winObj && winObj.address) ? marks.isWinActive(winObj) : (index === 0 && marks.focused))
+        // In app mode the app's own focus decides: any of its windows may be
+        // the active one, not just the first window's address.
+        readonly property bool winActive: marks.appMode
+          ? marks.focused
+          : (!winMinimized && ((winObj && winObj.address) ? marks.isWinActive(winObj) : (index === 0 && marks.focused)))
 
         // Along the row the cell grows and shrinks with its mark, so the
         // others close up as one goes instead of jumping when it is gone.
@@ -155,7 +159,7 @@ Item {
           rootRef: marks.rootRef
           vertical: marks.vertical
           inkOverride: marks.markInk
-          kind: marks.appMode ? "window" : (cell.winActive ? "active" : (cell.winMinimized ? "minimized" : "window"))
+          kind: DockMarks.markKind(marks.appMode, cell.winActive, cell.winMinimized)
           dense: marks.drawPlan.dense
           urgent: marks.urgent
           pulse: marks.pulse
