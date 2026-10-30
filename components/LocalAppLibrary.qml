@@ -62,6 +62,8 @@ import "../DockIconTheme.js" as DockIconTheme
     // it, so both the picker and the setting land in one click. A host without
     // network leaves themeError set and nothing else changes.
     function installWhiteSur() {
+      // The picker's busy row (themeInstalling) is already saying this; a
+      // second click must join it, not start another clone.
       if (iconThemeInstall.running) return
       localAppLibrary.themeError = ""
       iconThemeInstall.running = true
