@@ -156,7 +156,9 @@ function isAppMatch(idA, idB) {
   var a = cliAppId(idA).toLowerCase()
   var b = cliAppId(idB).toLowerCase()
   if (a === b) return true
-
+  // Distinct reverse-DNS apps under one vendor differ even when one app name prefixes another; a -gui window class is the same app.
+  var dotA = a.split("."), dotB = b.split("."), appA = dotA.length > 1 ? dotA.pop() : "", appB = dotB.length > 1 ? dotB.pop() : ""
+  if (appA && appB && dotA.join(".") === dotB.join(".") && appA.replace(/-gui$/, "") !== appB.replace(/-gui$/, "")) return false
   var candsA = getCandidates(idA)
   var candsB = getCandidates(idB)
   for (var i = 0; i < candsA.length; i++) {

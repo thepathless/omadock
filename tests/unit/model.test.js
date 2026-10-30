@@ -260,6 +260,17 @@ test('presets include classic/long divider geometry and reject nonscalar look va
   assert.equal(look.iconSize, 0)
   assert.deepEqual(plain(model.boundPresets({ length: 1e9 })), [])
 })
+test('three apps under one reverse-DNS vendor pin as three entries (issue #76)', () => {
+  // The reported symptom, at the level it was seen: three products of one
+  // vendor, three pins, one window each - not one pin with three windows.
+  const ids = ['ai.storyteller.wordcraft', 'ai.storyteller.gridcraft', 'ai.storyteller.pdfcraft']
+  const vendorRows = ids.map((id) => ({ id, name: id.split('.').pop(), icon: id }))
+  const vendorLibrary = { entryName: (e) => e.name, iconSource: (n) => `file:///icons/${n}.svg` }
+  const result = model.buildEntries(ids, ids.map((id) => ({ appId: id, title: 'Window' })), vendorRows,
+    vendorLibrary, (tl) => ({ address: `0x${tl.appId}`, workspace: { name: '1' } }), '', {}, [], {}, {})
+  assert.deepEqual(plain(result.pinned.map((e) => [e.appId, e.windowList.length, e.icon])),
+    ids.map((id) => [id, 1, `file:///icons/${id}.svg`]))
+})
 test('ungroup retains application order without duplicating existing pins', () => {
   const row = [{ kind: 'group', id: 'g', group: { apps: ['kitty', 'firefox'] } },
     { kind: 'app', appId: 'firefox' }]

@@ -49,6 +49,20 @@ test("isAppMatch", () => {
   assert.equal(M.isAppMatch("", "foot"), false)
 })
 
+test("isAppMatch keeps distinct apps under one reverse-DNS vendor apart", () => {
+  // Issue #76: the vendor token is not the app. Three Storyteller apps share
+  // ai.storyteller but are three products, and the old candidate loop matched
+  // any shared 4+ character token.
+  assert.equal(M.isAppMatch("ai.storyteller.wordcraft", "ai.storyteller.gridcraft"), false)
+  assert.equal(M.isAppMatch("ai.storyteller.pdfcraft", "ai.storyteller.wordcraft"), false)
+  assert.equal(M.isAppMatch("com.vendor.app1", "com.vendor.app2"), false)
+  // A shared app token still means the same product: ghostty-gui is Ghostty's
+  // own GUI class, and the notification path relies on this match.
+  assert.equal(M.isAppMatch("com.mitchellh.ghostty", "com.mitchellh.ghostty-gui"), true)
+  assert.equal(M.isAppMatch("vivaldi-web.whatsapp.com__-Default", "WhatsApp"), true)
+  assert.equal(M.isAppMatch("org.mozilla.firefox", "firefox"), true)
+})
+
 test("extractNotificationWebDomain", () => {
   assert.equal(M.extractNotificationWebDomain('<a href="https://web.whatsapp.com/">x</a>', ""), "web.whatsapp.com")
   assert.equal(M.extractNotificationWebDomain("", "Visit https://Music.YouTube.com/watch"), "music.youtube.com")
