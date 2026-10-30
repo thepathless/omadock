@@ -276,28 +276,24 @@ The settings at a glance:
 <div align="center">
   <table>
     <tr>
-      <th align="center" width="25%">Appearance</th>
-      <th align="center" width="25%">Icons</th>
-      <th align="center" width="25%">Motion & Effects</th>
-      <th align="center" width="25%">Behavior</th>
+      <th align="center" width="33%">Presets</th>
+      <th align="center" width="33%">Look</th>
+      <th align="center" width="33%">Position & visibility</th>
     </tr>
     <tr>
-      <td align="center" valign="top"><img src="assets/preview-settings-1.png" width="200" alt="Appearance settings page" /></td>
-      <td align="center" valign="top"><img src="assets/preview-settings-2.png" width="200" alt="Icons settings page" /></td>
-      <td align="center" valign="top"><img src="assets/preview-settings-3.png" width="200" alt="Motion & Effects settings page" /></td>
-      <td align="center" valign="top"><img src="assets/preview-settings-4.png" width="200" alt="Behavior settings page" /></td>
+      <td align="center" valign="top"><img src="assets/preview-settings-1.png" width="240" alt="Presets page: shipped and saved looks, with apply, save and manage" /></td>
+      <td align="center" valign="top"><img src="assets/preview-settings-2.png" width="240" alt="Look page: icon theme picker, icon style, labels, size and spacing" /></td>
+      <td align="center" valign="top"><img src="assets/preview-settings-3.png" width="240" alt="Position and visibility page: layout, alignment, autohide and monitors" /></td>
     </tr>
     <tr>
-      <th align="center" width="25%">Placement</th>
-      <th align="center" width="25%">Folders</th>
-      <th align="center" width="25%">App Groups</th>
-      <th align="center" width="25%">Presets</th>
+      <th align="center" width="33%">Apps & windows</th>
+      <th align="center" width="33%">Organize dock</th>
+      <th align="center" width="33%">About</th>
     </tr>
     <tr>
-      <td align="center" valign="top"><img src="assets/preview-settings-5.png" width="200" alt="Placement settings page" /></td>
-      <td align="center" valign="top"><img src="assets/preview-settings-6.png" width="200" alt="Folders settings page" /></td>
-      <td align="center" valign="top"><img src="assets/preview-settings-7.png" width="200" alt="App Groups settings page" /></td>
-      <td align="center" valign="top"><img src="assets/preview-settings-8.png" width="200" alt="Presets settings page" /></td>
+      <td align="center" valign="top"><img src="assets/preview-settings-4.png" width="240" alt="Apps and windows page: click to minimize, restore, badges, tooltips and previews" /></td>
+      <td align="center" valign="top"><img src="assets/preview-settings-5.png" width="240" alt="Organize dock page: Omarchy button, removable drives, pinned folders and app groups" /></td>
+      <td align="center" valign="top"><img src="assets/preview-settings-6.png" width="240" alt="About page: version, update channel, project links and credits" /></td>
     </tr>
   </table>
 </div>
@@ -335,7 +331,7 @@ The settings at a glance:
 With labels on, an item's tooltip shows only when it adds something: window previews, a starting/minimized/workspace hint, or the full name of a shortened label.
 
 <div align="center">
-  <img src="assets/preview-settings-labels.png" width="420" alt="The Labels settings page" />
+  <img src="assets/preview-settings-labels.png" width="420" alt="Label styling under Look: names beside the icons on plates, with the per-app name fields" />
 </div>
 
 ---
@@ -781,6 +777,15 @@ The pixel label font is [Silkscreen](https://fonts.google.com/specimen/Silkscree
 ## Changelog
 
 Full release notes, historical changelogs, and upgrade guides across all versions are available on [**GitHub Releases**](https://github.com/thepathless/omadock/releases).
+
+### v4.12.0 — 2026-10-30
+
+The settings panel got one row contract, and the desktop's icon theme moved into it.
+
+- **One row, everywhere** — every indexed setting is now reachable from the search box (88 of them), a row whose prerequisite is unmet stays visible with an explanation and a **Go to prerequisite** button instead of vanishing, and the pages say what they do: **Look**, **Apps & windows**, **Organize dock**.
+- **Icon theme** — the first row under *Look* lists every icon theme installed on the machine, searchable, and applies one to the whole desktop with a click: `gsettings`, both GTK settings files, `~/.icons/default` and the KDE/Qt files when they exist. **Install WhiteSur** fetches the macOS Big Sur icon set once into `~/.local/share/icons` and applies it, so the macOS look is one click away.
+- **Theme-first icons** — the dock's icon index now walks the active theme's inheritance chain from its very first scan. Before, the scan that starts at load, before the desktop answers which theme it uses, could leave fallback artwork in the index for the rest of the session.
+- **Verification** — 273 Node + 126 Python unit tests, `qmllint` 0 errors, structure, security, manifest and plugin gates clean; the live settings suite drives all 88 targets, the icon-theme search and the WhiteSur row through the real QML with synthetic Qt keys, and leaves the desktop's config, shell PID and monitor list unchanged.
 
 ### v4.11.0 — 2026-10-30
 
