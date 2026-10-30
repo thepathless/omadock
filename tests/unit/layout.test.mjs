@@ -17,15 +17,38 @@ test("normalizeLayout keeps panel, everything else is dock", () => {
   for (const v of ["", null, undefined, "taskbar", 3, {}]) assert.equal(L.normalizeLayout(v), "dock")
 })
 
-test("normalizeAlignment accepts the four values, else center", () => {
-  for (const v of ["left", "right", "spread", "center"]) assert.equal(L.normalizeAlignment(v), v)
+test("normalizeAlignment accepts the five values, else center", () => {
+  for (const v of ["left", "right", "spread", "taskbar", "center"]) assert.equal(L.normalizeAlignment(v), v)
   assert.equal(L.normalizeAlignment("Right"), "right")
   for (const v of ["", null, undefined, "both", "top", 7]) assert.equal(L.normalizeAlignment(v), "center")
 })
 
 test("placement: panel ignores split", () => {
-  assert.deepEqual(plain(L.placement("panel", "left", true, true)), { panel: true, split: false, align: "left" })
-  assert.deepEqual(plain(L.placement("dock", "left", true, true)), { panel: false, split: true, align: "left" })
+  assert.deepEqual(plain(L.placement("panel", "left", true, true)), { panel: true, split: false, align: "left", taskbar: false })
+  assert.deepEqual(plain(L.placement("dock", "left", true, true)), { panel: false, split: true, align: "left", taskbar: false })
+})
+
+test("placement: taskbar needs the panel, then draws Start, apps and tray", () => {
+  assert.deepEqual(plain(L.placement("panel", "taskbar", true, true)),
+    { panel: true, split: false, align: "taskbar", taskbar: true })
+  // A floating dock has no room for three zones: it centres instead.
+  assert.equal(L.placement("dock", "taskbar", true, true).align, "center")
+  assert.equal(L.placement("dock", "taskbar", true, true).taskbar, false)
+})
+
+test("taskbar geometry: the app section centres between Start and the tray", () => {
+  // 10 apps of 44px with 4px gaps, a 44px Start button, a 98px clock.
+  const apps = L.taskbarAppWidth(44, 10, 0, 0, 0, 0, 4)
+  assert.equal(apps, 476)
+  // Apps start at 44 + 4 + 670 + 4 = 722, centre 960.
+  assert.equal(L.taskbarStartGap(1920, apps, 44, 524, 98, 4, true), 670)
+  // Without Start, the gap alone puts them at 718 + 4, still centred.
+  assert.equal(L.taskbarStartGap(1920, apps, 0, 476, 98, 4, false), 718)
+  // A packed bar leaves no free room to open.
+  assert.equal(L.taskbarStartGap(600, apps, 44, 590, 98, 4, true), 0)
+  // A hidden divider is a negative slot, counted as Dock.baseRowWidth counts it.
+  assert.equal(L.taskbarAppWidth(40, 3, 0, 0, 1, -4, 4), 128)
+  assert.equal(L.TASKBAR_CLOCK_WIDTH, 74)
 })
 
 test("placement: spread needs panel or split, and a right group", () => {

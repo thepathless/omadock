@@ -636,7 +636,7 @@ Item {
 
   // ------------------------------------------------- configuration options
 
-  property string alignment: "center" // "center" | "left" | "right" | "spread"
+  property string alignment: "center" // "center" | "left" | "right" | "spread" | "taskbar"
   property string layout: "dock"      // "dock" | "panel" (DockLayout.js)
   // What the dock draws: { panel, split, align } (DockLayout.placement).
   readonly property var placement: DockLayout.placement(root.layout, root.alignment, root.splitSections, root.folderSlots + root.driveSlots > 0)

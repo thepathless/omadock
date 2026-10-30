@@ -36,6 +36,7 @@ Column {
       { value: "lift", label: "Lift" },
       { value: "glow", label: "Glow" },
       { value: "glitch", label: "Glitch" },
+      { value: "highlight", label: "Highlight" },
       { value: "off", label: "None" }
     ]
     value: root ? root.hoverEffect : "zoom"

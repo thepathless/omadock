@@ -46,7 +46,7 @@ Crafted in the spirit of **Omakase (おまかせ)**: wave magnification, live wi
 
 ### Architecture & Recognition
 
-Every release is backed by 244 Node.js unit tests, 116 Python checks, and ten sandboxed live Wayland integration suites. OmaDock's atomic asynchronous configuration gate (`CappedFileView.qml` and `tests/unit/test_capped_gate.py`) was independently selected for the **[XERJ Corpus Hub](https://github.com/xerj-org/xerj)** as a verified open-source reference implementation for AI coding agents.
+Every release is backed by 276 Node.js unit tests, 118 Python checks, and eleven sandboxed live Wayland integration suites. OmaDock's atomic asynchronous configuration gate (`CappedFileView.qml` and `tests/unit/test_capped_gate.py`) was independently selected for the **[XERJ Corpus Hub](https://github.com/xerj-org/xerj)** as a verified open-source reference implementation for AI coding agents.
 
 ### Highlights
 
@@ -195,7 +195,7 @@ Zero-CPU hardware integration for removable media and USB storage:
 
 Flexible screen placement tailored to your workflow:
 
-- **`"center"`, `"left"`, `"right"`, `"spread"`** along the bottom edge, with smooth cubic transitions. `"spread"` (Both sides) keeps the apps at the left edge and puts folders and drives at the right; it needs the panel layout or Split sections.
+- **`"center"`, `"left"`, `"right"`, `"spread"`, `"taskbar"`** along the bottom edge, with smooth cubic transitions. `"spread"` (Both sides) keeps the apps at the left edge and puts folders and drives at the right; it needs the panel layout or Split sections. `"taskbar"` is the Windows 11 arrangement: Start at the far left, the application row centred on the screen, and the tray (the clock and your folders) at the right; it needs the panel layout.
 - **Panel layout** (`"layout": "panel"`): a full-width bar on the bottom edge with square corners; alignment moves the icons inside it.
 - **Popovers, tooltips, and menus** self-reposition so nothing clips at screen edges.
 - **Always fits the screen**: a dock that would be wider than its monitor makes room on its own, in this order: shorter labels, labels folded to their icons (closed pinned apps first), tighter spacing, smaller icons (down to half their size). Only then do items at the end of the row move into a **»** tile, which opens them in a popup (click and right click work as on the dock).
@@ -289,7 +289,7 @@ The settings at a glance:
 
 - **Shapes**: `Auto (Theme)`, `Rounded`, `Round (Pill)`, `Square`.
 - **Opacity**: `Auto (Theme)`, `100%`, `80%`, `65%`, `35%`, `0% (Transparent Specular)`.
-- **Placement & Alignment**: `Dock` or `Panel` layout; `Left`, `Center (Default)`, `Right`, `Both sides` along the screen edge. Applying the shipped **Windows** look sets the panel, centered and always visible for you — the taskbar's shape is part of that preset.
+- **Placement & Alignment**: `Dock` or `Panel` layout; `Left`, `Center (Default)`, `Right`, `Both sides` and `Taskbar` along the screen edge. `Taskbar` gives the Windows 11 zones — Start far left, apps centred, the clock and folders at the right — and adds the two-line taskbar clock. Applying the shipped **Windows** look sets the panel, the taskbar alignment and always visible for you — the taskbar's shape is part of that preset.
 - **Color Presets**: Theme Auto, Pure Black, Mocha, Deep Slate, Midnight Blue, Dark Navy, Emerald Forest, Velvet Ruby.
 - **Icon Sizing**: Small (28px), Medium (36px), Large (44px), Extra Large (52px).
 - **Icon Styles**: `Original`, `Mono`, `Pixel` (coarse grid) and `Dots` (dithered dot matrix), with grid size, tint, contrast and hover-reveal controls.
@@ -351,13 +351,13 @@ omarchy-shell omadock applyPreset "Night"
 
 ### Shipped looks
 
-Three looks ride with the dock and sit ahead of the presets you save — a fresh install with no `omadock.json` still offers every one of them. A shipped look and a saved preset can never appear as two rows under one name: the list carries a name once, and where they collide the preset you saved keeps it (it is the row you can rename, update or delete), so the shipped look of that name sits that one out rather than the other way round. They are read-only (no Update or Delete, and the name cannot be edited), so removing your own presets never removes them. `DockPresets.js` holds the definitions; the shipped keys are the ones that differ from the defaults, and every other key is filled from `DockModel.DEFAULT_LOOK` when the list is built, so a look key added later cannot leak the value the dock happens to hold. A shipped look may also carry the **placement** its shape needs: only shipped entries can, and a preset you saved is read back with its look alone, so applying one never moves the dock.
+Three looks ride with the dock and sit ahead of the presets you save — a fresh install with no `omadock.json` still offers every one of them. A shipped look and a saved preset can never appear as two rows under one name: the list carries a name once, and where they collide the preset you saved keeps it (it is the row you can rename, update or delete), so the shipped look of that name sits that one out rather than the other way round. They are read-only (no Update or Delete, and the name cannot be edited), so removing your own presets never removes them. `DockPresets.js` holds the definitions; the shipped keys are the ones that differ from the defaults, and every other key is filled from `DockModel.DEFAULT_LOOK` when the list is built, so a look key added later cannot leak the value the dock happens to hold. A shipped look may also carry the **setup** its shape needs (layout, alignment, autohide and the taskbar's one-tile-per-app behaviour): only shipped entries can, and a preset you saved is read back with its look alone, so applying one never moves the dock.
 
 | Preset | The look | Built from |
 | :--- | :--- | :--- |
 | `thepathless:ristretto` | Dot-matrix icons on a Forest gradient with film grain, long custom dividers, the Glitch hover, and no rim or shadow | The maintainer's own dock |
 | `macOS` | Floating 27px squircle shelf with frosted white glass (#ffffff, blur on, 0.5px specular rim, soft shadow), 53px artwork, wave fisheye hover magnification, hairline dividers, and OmaDock's multi-window marks (accent bar for focused, hollow dot for minimized) | The modern macOS dock |
-| `Windows` | The Windows 11 taskbar: full-width bottom panel, always visible, a slim bar (~50px at this UI scale) with 24px centered artwork and 42px buttons, no magnification and no labels, acrylic fill (#202020, blur through), one rounded mark per app (grey dot running, accent pill focused), no separate minimized tiles, and hover tooltips | The Windows 11 taskbar |
+| `Windows` | The Windows 11 taskbar: full-width bottom panel, always visible, Start at the far left, the apps centred and the two-line clock and folders at the right, a slim bar (~50px at this UI scale) with 24px artwork and 42px buttons, no magnification and no labels, acrylic fill (#202020, blur through), a rounded hover wash, one pill per app (short and grey running, wider and accent-focused), no separate minimized tiles, and hover tooltips | The Windows 11 taskbar |
 
 The same list is scriptable end to end — list it, save the look on screen under a chosen name, remove one by id:
 
@@ -481,7 +481,7 @@ Settings persist in `~/.config/omarchy/omadock.json` and are editable live:
 
 | Key | Type | Default | Description |
 | :--- | :--- | :--- | :--- |
-| `alignment` | `string` | `"center"` | Dock placement along screen edge: `"center"`, `"left"`, `"right"`, `"spread"` (apps left, folders and drives right; panel layout or `splitSections` only). |
+| `alignment` | `string` | `"center"` | Dock placement along screen edge: `"center"`, `"left"`, `"right"`, `"spread"` (apps left, folders and drives right; panel layout or `splitSections` only), `"taskbar"` (Start far left, apps centred, clock and folders right; panel layout only). |
 | `layout` | `string` | `"dock"` | `"dock"` floats above the edge; `"panel"` spans the full width on the bottom edge. |
 | `screen` | `string` | first monitor | Monitor for the single dock (e.g. `"DP-3"`). With `multiMonitor`, the dock on this monitor plays alert sounds. |
 | `multiMonitor` | `bool` | `false` | Runs one dock on every connected monitor. |
@@ -604,7 +604,7 @@ o.bind("SUPER + SHIFT + M", "Restore oldest minimized", "exec qs -p /usr/share/o
 Additional IPC methods available:
 - `reveal`: Force dock to slide into view.
 - `hide`: Force dock to slide out of view.
-- `setAlignment("center" | "left" | "right" | "spread")`: Change dock alignment dynamically.
+- `setAlignment("center" | "left" | "right" | "spread" | "taskbar")`: Change dock alignment dynamically.
 - `setLayout("dock" | "panel")`: Switch between the floating dock and the full-width panel.
 - `setPosition("bottom" | "top" | "left" | "right")`: Change dock edge position.
 - `openSettings`: Open the settings panel on the focused monitor's dock.
@@ -765,6 +765,17 @@ The pixel label font is [Silkscreen](https://fonts.google.com/specimen/Silkscree
 ## Changelog
 
 Full release notes, historical changelogs, and upgrade guides across all versions are available on [**GitHub Releases**](https://github.com/thepathless/omadock/releases).
+
+### v4.11.0 — 2026-10-30
+
+The Windows preset now carries the taskbar's three zones and its clock, not just its bar.
+
+- **Taskbar alignment** — a new `"taskbar"` alignment option (Settings → Placement & Alignment, panel layout only) puts the Omarchy Start button at the far left, centres the application row on the screen, and sends the folder/drive row and the clock to the right edge. The shipped Windows look uses it automatically; the floating dock only offers it with the panel layout, and falls back to centred with a hint when the panel is off.
+- **The taskbar clock** — a two-line time and date at the right of the bar, updated by Quickshell's minute clock (zero polling timers), reading the shell's locale formats and clickable to toggle Omarchy's own calendar. Its width is reserved in the fit planner, so a full row overflows into OmaDock's existing **»** tile instead of growing under the clock.
+- **The Windows hover** — a new `Highlight` hover effect draws a rounded wash behind the button, with no icon growth; the Start button gets the same treatment. It is a normal look option, so you can pick it for any preset.
+- **The running pill** — taskbar mode draws Windows 11's short 12px running pill, widening to 20px and taking the accent while the app holds the focus, instead of one mark per window. Combined with `showMinimizedTiles: false` it is one icon per app through launch, minimize and restore.
+- **Verification** — 276 Node + 118 Python unit tests, `qmllint` 0 errors, structure and security gates clean, plugin validate and manifest-check clean; the live `presets`, `interactions`, `label-metrics` and `teardown` suites pass on a headless output with a clean dock log, and the owner's config and shell PID were unchanged. The Windows bar was captured at full width with the apps exactly centred and the clock/right group detached from them.
+- **Honest limit** — this is the dock's own taskbar surface: the Start menu, app tiles, running pills, previews, jump lists and the clock/calendar are OmaDock's. Windows' network, volume and battery tray icons are not part of OmaDock.
 
 ### v4.10.1 — 2026-10-30
 

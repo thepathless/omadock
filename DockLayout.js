@@ -7,10 +7,11 @@ function normalizeLayout(v) {
   return String(v === undefined || v === null ? "" : v).toLowerCase() === "panel" ? "panel" : "dock"
 }
 
-// "spread" (Both sides) puts folders and drives at the right edge.
+// "spread" (Both sides) puts folders and drives at the right edge; "taskbar"
+// is Windows 11's three zones (Start left, apps centred, tray right).
 function normalizeAlignment(v) {
   var a = String(v === undefined || v === null ? "" : v).toLowerCase()
-  return (a === "left" || a === "right" || a === "spread") ? a : "center"
+  return (a === "left" || a === "right" || a === "spread" || a === "taskbar") ? a : "center"
 }
 
 // Both sides needs room to open a gap: the full-width panel, or a dock
@@ -21,14 +22,17 @@ function spreadAvailable(layout, splitSections) {
 
 // What the dock draws for the stored settings. The panel is one bar, so
 // it ignores split sections; Both sides falls back to center where it
-// cannot open a gap, and to left when nothing would go right.
+// cannot open a gap, and to left when nothing would go right. The taskbar
+// needs the panel's full width for its three zones, so a floating dock
+// centres instead.
 function placement(layout, alignment, splitSections, hasRightGroup) {
   var panel = normalizeLayout(layout) === "panel"
   var split = !panel && splitSections === true
   var align = normalizeAlignment(alignment)
   if (align === "spread" && !spreadAvailable(layout, splitSections)) align = "center"
   if (align === "spread" && !hasRightGroup) align = "left"
-  return { panel: panel, split: split, align: align }
+  if (align === "taskbar" && !panel) align = "center"
+  return { panel: panel, split: split, align: align, taskbar: align === "taskbar" }
 }
 
 // The card's x and width when it does not hug its icons: the panel spans
@@ -72,4 +76,29 @@ function spreadGap(innerWidth, gapX, rightWidth, spacing, dpr) {
 // would put them: the card's free width at rest.
 function spreadHomeShift(innerWidth, restWidth) {
   return Math.max(0, innerWidth - restWidth)
+}
+
+// Windows 11's taskbar: Start at the left edge, the app section centred on
+// the screen, the tray (the clock) at the right edge. The clock's room is
+// reserved in style units so the fit planner and the clock agree on it.
+var TASKBAR_CLOCK_WIDTH = 74
+
+// The width the app section takes between Start and the tray, from the slots
+// the row draws plus the tiles and separators that sit inside it. Every app,
+// group, folder and drive takes one icon slot; a separator can be a negative
+// width (a hidden divider), exactly as Dock.baseRowWidth counts it.
+function taskbarAppWidth(iconSlot, appSlots, tileCount, tileWidth, separators, separatorWidth, gap) {
+  var elements = appSlots + tileCount + separators
+  if (elements <= 0) return 0
+  return appSlots * iconSlot + tileCount * tileWidth + separators * separatorWidth + (elements - 1) * gap
+}
+
+// The free room between Start and the apps: enough to centre the app section
+// on the screen, clamped so a bar packed to its edges never overflows.
+// `packedWidth` is the whole row at rest (Dock.baseRowWidth), without the
+// clock; adding the start gap and the clock costs one row spacing each.
+function taskbarStartGap(innerWidth, appsWidth, buttonWidth, packedWidth, clockWidth, spacing, hasButton) {
+  var ideal = (innerWidth - appsWidth) / 2 - (hasButton ? buttonWidth + 2 * spacing : spacing)
+  var slack = innerWidth - packedWidth - clockWidth - 2 * spacing
+  return Math.max(0, Math.min(ideal, slack))
 }

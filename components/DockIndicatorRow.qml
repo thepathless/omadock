@@ -44,8 +44,11 @@ Item {
   readonly property var plan: DockMarks.plan(marks.windows, marks.running)
   // "app" mode speaks for the app, not its windows: one mark while anything is
   // open, the accent bar while the app holds the focus, no "+N" pill. The same
-  // plan shape keeps every reader below unchanged.
-  readonly property bool appMode: marks.root ? marks.root.indicatorMode === "app" : false
+  // plan shape keeps every reader below unchanged. "taskbar" is that plan in
+  // Windows 11's shape: a short running pill that widens and turns accent when
+  // the app holds the focus.
+  readonly property bool taskbarMode: marks.root ? marks.root.indicatorMode === "taskbar" : false
+  readonly property bool appMode: marks.root ? (marks.root.indicatorMode === "app" || marks.taskbarMode) : false
   readonly property var drawPlan: marks.appMode
     ? { total: (marks.running ? 1 : 0), dense: false, overflow: false,
         dots: (marks.running ? 1 : 0), slots: 1 }
@@ -58,10 +61,14 @@ Item {
   // largest mark, centred by whole device pixels. Left to the Grid, the
   // half-pixel offset rounded the bar against one side of the dots.
   readonly property real dpr: marks.root ? marks.root.outputScale : 1
-  readonly property real cross: marks.appMode
-    ? DockMarkGeometry.dotFor(Style.space, marks.dpr, "app", marks.root ? marks.root.indicatorSize : 0)
-    : DockMarkGeometry.cell(Style.space, marks.dpr, marks.plan.dense, marks.vertical)
-  readonly property real dynamicSpacing: DockMarkGeometry.rowSpacing(Style.space, marks.dpr, marks.plan.dense)
+  readonly property real cross: marks.taskbarMode
+    ? DockMarkGeometry.taskbarCell(Style.space, marks.dpr)
+    : marks.appMode
+      ? DockMarkGeometry.dotFor(Style.space, marks.dpr, "app", marks.root ? marks.root.indicatorSize : 0)
+      : DockMarkGeometry.cell(Style.space, marks.dpr, marks.plan.dense, marks.vertical)
+  readonly property real dynamicSpacing: marks.taskbarMode
+    ? 0
+    : DockMarkGeometry.rowSpacing(Style.space, marks.dpr, marks.plan.dense)
 
   visible: marks.running
 

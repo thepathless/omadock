@@ -53,15 +53,16 @@ test("the Windows look is the taskbar, and carries the setup it needs", () => {
   const w = SHIPPED.find((p) => p.name === "Windows")
   assert.ok(w, "the taskbar look ships")
   assert.deepEqual(plain(w.setup), {
-    layout: "panel", alignment: "center", autohide: false, intelligentAutohide: false,
-    showMinimizedTiles: false
+    layout: "panel", alignment: "taskbar", autohide: false, intelligentAutohide: false,
+    showMinimizedTiles: false, minimizeMode: "active", showAppsButton: true,
+    showTooltips: true, advancedTooltips: true
   })
   assert.equal(w.look.shape, "square")
   assert.equal(w.look.cornerRadius, 0)
   assert.equal(w.look.showBorder, false)
-  assert.equal(w.look.hoverEffect, "off", "a taskbar does not magnify")
+  assert.equal(w.look.hoverEffect, "highlight", "a taskbar washes the button, it does not magnify")
   assert.equal(w.look.magnifyPeak, 1)
-  assert.equal(w.look.indicatorMode, "app", "one mark per app, not per window")
+  assert.equal(w.look.indicatorMode, "taskbar", "one thin pill per app, not a dot per window")
   assert.equal(w.look.indicatorShape, "rounded")
   // iconSlot is iconSize + iconMargin in style units (29 + 11); 4px of card
   // padding each side lands the bar at ~50px on this desktop's UI scale.

@@ -51,7 +51,8 @@ Row {
   anchors.verticalCenter: parent.verticalCenter
   // Also while its last rows and dividers are on their way out.
   visible: root ? (root.hasFolderSeparator || root.folderSlots > 0 || root.driveSlots > 0 || trailingDropGap.open
-    || folderRowModel.count > 0 || driveRowModel.count > 0 || folderSeparator.visible || driveSeparator.visible || overflowSlot.visible) : true
+    || folderRowModel.count > 0 || driveRowModel.count > 0 || folderSeparator.visible || driveSeparator.visible || overflowSlot.visible
+    || root.placement.taskbar) : true
 
   RowDivider {
     id: folderSeparator
@@ -192,5 +193,11 @@ Row {
     rootRef: group.wrapper.rootRef
     shown: !!(group.root && group.root.fitHostRef.plan.overflowFrom >= 0)
     DockOverflowTile { rootRef: group.wrapper.rootRef }
+  }
+
+  // Windows taskbar's tray clock, at the far right of the row.
+  DockTaskbarClock {
+    rootRef: group.rootRef
+    visible: group.root ? group.root.placement.taskbar : false
   }
 }

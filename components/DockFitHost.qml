@@ -3,6 +3,7 @@ import Quickshell
 import qs.Commons
 import "../DockFit.js" as DockFit
 import "../DockKeys.js" as DockKeys
+import "../DockLayout.js" as DockLayout
 import "../DockLabels.js" as DockLabels
 import "../DockModel.js" as DockModel
 
@@ -64,6 +65,10 @@ Item {
     var win = root ? root.dockWindowRef : null
     if (!card || !win) return 1e9
     var insets = card.dockCard.contentLeftInset + card.dockCard.contentRightInset
+    // The tray clock is drawn by the right group but is not one of the
+    // planner's items, so its room (and the spacing before it) is reserved
+    // here or the fit would put the last app under the clock.
+    if (root && root.placement.taskbar) insets += Style.space(DockLayout.TASKBAR_CLOCK_WIDTH) + host.gapAt(1)
     if (card.stretch) return card.stretch.width - insets
     return win.width - 4 * Style.gapsOut - insets
   }
