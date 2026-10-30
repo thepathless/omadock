@@ -29,7 +29,7 @@ MAX_LINES = 800
 # Composition roots: single-owner state + wiring must live somewhere, and it
 # lives here. These ceilings are ratchets - see rule 2.
 ROOT_CEILINGS = {
-    "Dock.qml": 2382,    "DockModel.js": 1326,
+    "Dock.qml": 2379,    "DockModel.js": 1326,
 }
 
 # Rule 5: the live suites, ratcheted at the size they had when the cap was
