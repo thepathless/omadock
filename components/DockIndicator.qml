@@ -62,6 +62,8 @@ Rectangle {
   // A look that sizes its own dot draws it flat: the ring is the classic theme
   // dot's, tuned for a 5px mark, and would swallow a 4px one.
   readonly property bool lookSized: !!(mark.root && mark.root.indicatorMode === "app")
+  // Windows 11's taskbar pill: a wide, thin bar instead of a round dot.
+  readonly property bool taskbarSized: !!(mark.root && mark.root.indicatorMode === "taskbar")
 
   property real snapX: 0
   property real snapY: 0
@@ -110,18 +112,24 @@ Rectangle {
   // Upright in a column the bar is as thick as a dot: the 1.5 output is
   // drawn at 2x and scaled down, so a thinner bar could not be centred on
   // the dots and leaned a pixel to one side.
-  width: kind === "active" ? (mark.vertical ? mark.dotSize : mark.barLength) : dotSize
-  height: kind === "active" ? (mark.vertical ? mark.barLength : mark.barHeight) : dotSize
+  width: mark.taskbarSized
+    ? DockMarkGeometry.taskbarLength(Style.space, mark.dpr, mark.kind === "active")
+    : kind === "active" ? (mark.vertical ? mark.dotSize : mark.barLength) : dotSize
+  height: mark.taskbarSized
+    ? DockMarkGeometry.taskbarThickness(Style.space, mark.dpr)
+    : kind === "active" ? (mark.vertical ? mark.barLength : mark.barHeight) : dotSize
   radius: (root && root.indicatorSquare) ? 0 : Math.min(width, height) / 2
 
-  color: kind === "active" ? Color.accent
+  color: mark.taskbarSized
+    ? (kind === "active" ? Color.accent : Util.alpha(root ? root.dockForeground : Color.bar.text, 0.55))
+    : kind === "active" ? Color.accent
     : kind === "minimized" ? "transparent"
     : kind === "background" ? Util.alpha(mark.ink, 0.35)
     : mark.ink
   border.color: kind === "minimized" ? mark.ink
     : kind === "background" ? Qt.rgba(0, 0, 0, 0.18)
     : Qt.rgba(0, 0, 0, 0.45)
-  border.width: mark.lookSized ? 0 : (kind === "minimized" ? mark.hairline * 1.5 : mark.hairline)
+  border.width: (mark.lookSized || mark.taskbarSized) ? 0 : (kind === "minimized" ? mark.hairline * 1.5 : mark.hairline)
 
   opacity: urgent ? (0.4 + 0.6 * pulse) : 1.0
 

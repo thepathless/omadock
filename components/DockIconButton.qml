@@ -39,6 +39,14 @@ Item {
   // indicator band and grows upward. The glyph is sized and centred by its
   // painted (tight) bounds, since icon fonts carry uneven side bearings and
   // sit low in their line box.
+  // Windows 11's taskbar hover, under the glyph like an app tile's.
+  DockHoverPlate {
+    rootRef: btn.rootRef
+    shown: area.containsMouse
+    anchors.fill: parent
+    anchors.margins: Style.space(1)
+  }
+
   // Drawn through DockIconArt so the dock's icon style (pixel, dot matrix…)
   // and icon shadow apply to the button like to every other icon.
   // A plate of its own with always-on plate labels (TilePlate).

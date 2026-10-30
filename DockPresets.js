@@ -27,10 +27,12 @@
 //                          hairline dividers, and OmaDock's signature
 //                          multi-window indicator dots (flat bar for focused)
 //   Windows                the Windows 11 taskbar: the full-width bottom
-//                          panel, always visible, with centered 24px artwork,
-//                          no magnification and no labels, one rounded pill
-//                          per running app (accent while focused), and the
-//                          window previews its tooltips already carry
+//                          panel, always visible, Start at the far left, the
+//                          app icons centred and the clock/date on the right,
+//                          with 24px artwork, no labels, a rounded hover wash
+//                          and a thin running pill per app (wider and accent
+//                          while focused), plus the window previews its
+//                          tooltips already carry
 //
 // A shipped look may also carry a `setup` (layout, alignment, autohide and the
 // behavior a look cannot spell), because the taskbar's shape is not a look: a
@@ -86,9 +88,10 @@ var SHIPPED = [
     name: "Windows",
     // The taskbar's setup, which a look cannot hold: always visible (the
     // taskbar's own default), a full-width panel on the bottom edge with the
-    // centered row Windows 11 uses, and one tile per app - a minimized window
-    // is its app's dot, never a second tile in the bar.
-    setup: { layout: "panel", alignment: "center", autohide: false, intelligentAutohide: false, showMinimizedTiles: false },
+    // three zones Windows 11 uses (Start left, apps centred, tray right), and
+    // one tile per app - a minimized window is its app's mark, never a second
+    // tile in the bar. Clicking the focused app minimizes it, as on Windows.
+    setup: { layout: "panel", alignment: "taskbar", autohide: false, intelligentAutohide: false, showMinimizedTiles: false, minimizeMode: "active", showAppsButton: true, showTooltips: true, advancedTooltips: true },
     look: {
       showBackground: true, bgColor: "#202020", bgFill: "solid",
       // Windows 11's acrylic: the desktop blurs through the bar rather than
@@ -109,12 +112,13 @@ var SHIPPED = [
       dockPaddingPx: 4, iconBaseline: "center", iconMargin: 11,
       iconSize: 29, itemSpacing: 3, sectionSpacing: 12,
       iconStyle: "original", iconTint: "text", iconContrast: 0, iconStrength: 1,
-      // Windows does not magnify the taskbar; its hover feedback is a highlight
-      // plus the thumbnail preview in the tooltip.
-      hoverEffect: "off", magnifyPeak: 1.0, magnifyReach: 1.0, launchBounce: false,
-      // One mark per app, not per window, and the focused app's mark is the
-      // accent bar -- Windows 11's wider, coloured active pill.
-      indicatorMode: "app", indicatorShape: "rounded", indicatorSize: 4, indicatorInset: 4,
+      // Windows does not magnify the taskbar; its hover feedback is a soft
+      // rounded wash plus the thumbnail preview in the tooltip.
+      hoverEffect: "highlight", magnifyPeak: 1.0, magnifyReach: 1.0, launchBounce: false,
+      // One mark per app, not per window, in Windows 11's own shape: a thin
+      // 12px running pill that widens to 20px and takes the accent while the
+      // app holds the focus (indicatorSize is the "app" dot's size, unused).
+      indicatorMode: "taskbar", indicatorShape: "rounded", indicatorSize: 4, indicatorInset: 4,
       dividerGeometry: "classic", dividerStyle: "none", dividerWidth: 1.0, dividerHeight: 32, dividerOpacity: 0,
       // A taskbar carries no names; the tooltip is the whole label.
       labelMode: "off", labelKind: "all", labelFont: "theme",

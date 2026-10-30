@@ -37,7 +37,20 @@ Item {
   // Label plates keep their edges on whole device pixels (the floating card
   // snaps its x for them).
   readonly property real plateDpr: (root && root.labelPlates) ? root.outputScale : 0
-  readonly property real rowOffset: (root && stretch) ? DockLayout.rowOffset(root.placement.align, innerWidth, row.implicitWidth, plateDpr) : 0
+  readonly property bool taskbar: !!(root && root.placement.taskbar)
+  readonly property real rowOffset: (root && stretch) ? (cardWrapper.taskbar ? 0 : DockLayout.rowOffset(root.placement.align, innerWidth, row.implicitWidth, plateDpr)) : 0
+  // The width of the app section between Start and the tray, and the free room
+  // that centres it: policy in DockLayout.js, like the rest of the row geometry.
+  readonly property real taskbarAppsWidth: cardWrapper.taskbar
+    ? DockLayout.taskbarAppWidth(root.iconSlot, root.pinnedSection.length + root.groupSlots + root.visibleRunningCount,
+        root.tileCount, root.tileWidth, (root.hasLeftTileSeparator ? 1 : 0) + (root.hasSeparator ? 1 : 0),
+        root.separatorWidth, root.gapWidth)
+    : 0
+  readonly property real taskbarStartGap: cardWrapper.taskbar
+    ? DockLayout.taskbarStartGap(innerWidth, cardWrapper.taskbarAppsWidth,
+        root.showAppsButton ? root.iconSlot : 0, root.baseRowWidth + DockLabels.extrasTotal(root.labelExtras),
+        Style.space(DockLayout.TASKBAR_CLOCK_WIDTH), root.gapWidth, root.showAppsButton)
+    : 0
   // Both sides: how far the right group rests past a packed row, from the
   // resting widths, so the magnification wave never measures itself. The
   // gap and the spacing after it together take the card's free width.
@@ -490,6 +503,15 @@ Item {
         }
       }
 
+      // Windows taskbar: the free room that centres the app section between
+      // Start and the tray. A floating dock draws no gap (it is not taskbar).
+      Item {
+        id: taskbarGap
+        visible: cardWrapper.taskbar
+        width: cardWrapper.taskbarStartGap
+        height: 1
+      }
+
       // Pinned apps and app groups share one run (root.pinnedRow): each
       // group stands where its "before" app puts it.
       Repeater {
@@ -714,7 +736,7 @@ Item {
       // Both sides: the free width between the groups.
       Item {
         id: spreadGap
-        visible: root ? root.placement.align === "spread" : false
+        visible: root ? (root.placement.align === "spread" || root.placement.taskbar) : false
         width: visible ? DockLayout.spreadGap(cardWrapper.innerWidth, spreadGap.x, rightRow.implicitWidth, row.spacing, cardWrapper.plateDpr) : 0
         height: 1
       }

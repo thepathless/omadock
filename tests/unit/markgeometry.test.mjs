@@ -51,6 +51,19 @@ test("bar: the accent bar's thickness and length", () => {
   assert.equal(G.barLength(space(1), 2, false), 12)
 })
 
+test("taskbar: the 12x2 running pill widens to 20x2 when focused", () => {
+  assert.equal(G.taskbarLength(space(1), 1, false), 12)
+  assert.equal(G.taskbarLength(space(1), 1, true), 20)
+  assert.equal(G.taskbarThickness(space(1), 1), 2)
+  assert.equal(G.taskbarCell(space(1), 1), 20)
+  // The same 12/20/2 style units on a 1.5x output, snapped to device pixels.
+  assert.equal(G.taskbarLength(space(1), 1.5, false), 12)
+  assert.equal(G.taskbarLength(space(1), 1.5, true), 20)
+  assert.equal(G.taskbarThickness(space(1), 1.5), 2)
+  // A theme too compact to draw a whole pixel keeps the hairline floor.
+  assert.equal(G.taskbarThickness(() => 1, 1), 2)
+})
+
 test("spacing and the overflow pill", () => {
   assert.equal(G.rowSpacing(space(1), 1, false), 3)
   assert.equal(G.rowSpacing(space(1), 1, true), 2)

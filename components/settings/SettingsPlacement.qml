@@ -33,11 +33,16 @@ Column {
     // The Omarchy ButtonGroup has no disabled state: Both sides is left
     // out where it cannot apply, and the hint says why.
     readonly property bool spreadOk: root ? DockLayout.spreadAvailable(root.layout, root.splitSections) : false
-    hint: !spreadOk
-      ? (root && root.alignment === "spread"
-        ? Tr.t("setting.alignment.hintSpreadCentred", "Both sides needs Split sections (Appearance); centred until then.")
-        : Tr.t("setting.alignment.hintSpreadNeedsSplit", "Both sides needs Split sections (Appearance)."))
-      : (root && root.alignment === "spread" ? Tr.t("setting.alignment.hintSpread", "Folders and drives go to the right edge.") : "")
+    readonly property bool panelOk: root ? DockLayout.normalizeLayout(root.layout) === "panel" : false
+    hint: root && root.alignment === "taskbar"
+      ? (panelOk
+        ? Tr.t("setting.alignment.hintTaskbar", "Start at the left edge, app icons centred and the clock on the right.")
+        : Tr.t("setting.alignment.hintTaskbarNeedsPanel", "Taskbar needs the Panel layout; centred until then."))
+      : !spreadOk
+        ? (root && root.alignment === "spread"
+          ? Tr.t("setting.alignment.hintSpreadCentred", "Both sides needs Split sections (Appearance); centred until then.")
+          : Tr.t("setting.alignment.hintSpreadNeedsSplit", "Both sides needs Split sections (Appearance)."))
+        : (root && root.alignment === "spread" ? Tr.t("setting.alignment.hintSpread", "Folders and drives go to the right edge.") : "")
     options: {
       var list = [
         { value: "left", label: "Left" },
@@ -45,6 +50,7 @@ Column {
         { value: "right", label: "Right" }
       ]
       if (spreadOk) list.push({ value: "spread", label: "Both sides" })
+      if (panelOk) list.push({ value: "taskbar", label: "Taskbar" })
       return list
     }
     // A stored Both sides that cannot apply marks what the dock draws.

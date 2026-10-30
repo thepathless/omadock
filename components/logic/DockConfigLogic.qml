@@ -20,7 +20,7 @@ QtObject {
   // Sets properties only; callers save and update the blur rule.
   function applyLook(root, parsed) {
     // Migrates the old boolean: an explicit magnification:false meant no growth.
-    root.hoverEffect = parsed && ["zoom", "wave", "lift", "glow", "glitch", "off"].indexOf(parsed.hoverEffect) >= 0
+    root.hoverEffect = parsed && ["zoom", "wave", "lift", "glow", "glitch", "highlight", "off"].indexOf(parsed.hoverEffect) >= 0
       ? parsed.hoverEffect
       : ((parsed && parsed.magnification === false) ? "off" : "zoom")
     root.launchBounce = parsed && parsed.launchBounce !== false
@@ -104,7 +104,8 @@ QtObject {
       ? Math.max(0, Math.min(1, parsed.surfaceStability)) : 0
     // Running marks: "windows" draws one per window (the classic dock),
     // "app" draws one dot per running app whatever its windows do.
-    root.indicatorMode = (parsed && parsed.indicatorMode === "app") ? "app" : "windows"
+    root.indicatorMode = (parsed && parsed.indicatorMode === "app") ? "app"
+      : (parsed && parsed.indicatorMode === "taskbar") ? "taskbar" : "windows"
     root.indicatorSize = parsed && typeof parsed.indicatorSize === "number" && isFinite(parsed.indicatorSize)
       ? Math.max(2, Math.min(12, Math.round(parsed.indicatorSize))) : 5
     // Distance from the card's bottom edge to the marks; negative is the
@@ -455,6 +456,10 @@ QtObject {
         root.intelligentAutohide = setup.autohide ? setup.intelligentAutohide === true : false
       }
       if (typeof setup.showMinimizedTiles === "boolean") root.showMinimizedTiles = setup.showMinimizedTiles
+      if (setup.minimizeMode && ["active", "all", "off"].indexOf(setup.minimizeMode) >= 0) root.minimizeMode = setup.minimizeMode
+      if (typeof setup.showAppsButton === "boolean") root.showAppsButton = setup.showAppsButton
+      if (typeof setup.showTooltips === "boolean") root.showTooltips = setup.showTooltips
+      if (typeof setup.advancedTooltips === "boolean") root.advancedTooltips = setup.advancedTooltips
       root.syncVisibility()
     }
     root.applyBlurRule(false)

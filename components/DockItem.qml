@@ -299,6 +299,15 @@ Item {
       }
     }
 
+    // Windows 11's taskbar hover: a rounded wash behind the button, no growth.
+    DockHoverPlate {
+      rootRef: item.rootRef
+      shown: area.containsMouse && !item.isDragging
+      anchors.centerIn: iconBox
+      width: Math.min(iconBox.width, (root ? root.iconSlot : iconBox.width) - Style.space(2))
+      height: width
+    }
+
     // Sits on the dock floor and grows upward, so a magnified icon never
     // reaches down over the running dot beneath it.
     DockIconArt {

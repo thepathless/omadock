@@ -89,3 +89,25 @@ function pillHeight(space) { return space(PILL_HEIGHT) }
 function column(space, dpr) {
   return { edge: space(EDGE), width: cell(space, dpr, true, true), gap: space(GAP) }
 }
+
+// Windows 11's running indicator: a short, thin pill under a running app,
+// widening while the app holds the focus. The styling guide's defaults are
+// 12x2 for the running state and 20x2 for the active one, in style units so a
+// theme's scale carries them like every other mark.
+var TASKBAR_BAR = 12
+var TASKBAR_ACTIVE = 20
+var TASKBAR_THICKNESS = 2
+
+function taskbarLength(space, dpr, active) {
+  return snap(space(active ? TASKBAR_ACTIVE : TASKBAR_BAR), dpr)
+}
+
+function taskbarThickness(space, dpr) {
+  return Math.max(hairline(dpr), snap(space(TASKBAR_THICKNESS), dpr))
+}
+
+// The cell a taskbar mark sits in: the active (widest) pill's length, so the
+// running and focused pills share one centre line.
+function taskbarCell(space, dpr) {
+  return Math.max(taskbarLength(space, dpr, true), taskbarThickness(space, dpr))
+}

@@ -180,7 +180,7 @@ import json, sys
 cfg = json.load(open(sys.argv[1]))
 name, mode, bg, font = sys.argv[2], sys.argv[3], sys.argv[4], sys.argv[5]
 if name == "Windows":
-    assert (cfg.get("layout"), cfg.get("alignment"), cfg.get("autohide"), cfg.get("showMinimizedTiles")) == ("panel", "center", False, False), "taskbar setup"
+    assert (cfg.get("layout"), cfg.get("alignment"), cfg.get("autohide"), cfg.get("showMinimizedTiles"), cfg.get("hoverEffect"), cfg.get("indicatorMode"), cfg.get("minimizeMode")) == ("panel", "taskbar", False, False, "highlight", "taskbar", "active"), "taskbar setup"
 for field, want in (("labelMode", mode), ("labelBackground", bg), ("labelFont", font)):
     got = cfg.get(field)
     assert got == want, "%s: %s is %r, expected %r" % (name, field, got, want)
