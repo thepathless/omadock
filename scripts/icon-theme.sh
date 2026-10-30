@@ -200,7 +200,12 @@ reclaim_stale_stages() {
 
 acquire_theme_lock() {
   local wait=${OMADOCK_ICON_LOCK_WAIT:-150}
-  command -v flock >/dev/null 2>&1 || return 0
+  # Fail closed: silently proceeding without a lock is the race this function
+  # exists to stop. util-linux (flock) ships with the rest of the stack.
+  if ! command -v flock >/dev/null 2>&1; then
+    echo "icon-theme: flock is required to serialise icon theme changes" >&2
+    return 8
+  fi
   # Lock the icon root itself: no lock file to leave behind, and every theme
   # move happens inside this directory's inode.
   mkdir -p "$HOME/.local/share/icons" || return 1
