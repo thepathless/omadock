@@ -45,6 +45,12 @@ if [ "${1:-}" = list ]; then
   printf '%s\n' "$out"
   exit 0
 fi
+if [ "${1:-}" = install ]; then
+  printf 'install\n' >> "$HOME/.theme-rescan-installs"
+  sleep 2
+  printf 'WhiteSur\n'
+  exit 0
+fi
 exec bash "$OMADOCK_THEME_REAL" "$@"
 SH
 OMADOCK_THEME_REAL="$WORK/real-icon-theme.sh"
@@ -118,6 +124,38 @@ if [ -s "$WORK/gsettings.log" ]; then
   fail "a removed theme reached gsettings"
 fi
 echo "   stale theme-list read: failed apply, queued read, no stale id, no gsettings write"
+
+# A second click while the install is still fetching must not start a second
+# process. The picker's busy row is driven by themeInstalling, which stays true
+# for the whole (slowed) install.
+call install >/dev/null
+for _ in $(seq 25); do
+  call state > "$WORK/install-state.json"
+  python3 -c 'import json,sys; sys.exit(0 if json.load(open(sys.argv[1]))["installing"] else 1)' "$WORK/install-state.json" && break
+  sleep 0.1
+done
+python3 - "$WORK/install-state.json" <<'PY' || fail "install busy state"
+import json,sys
+r=json.load(open(sys.argv[1]))
+assert r["installing"] is True, r
+PY
+call install > "$WORK/install-twice.json"
+python3 - "$WORK/install-twice.json" <<'PY' || fail "second click during install"
+import json,sys
+r=json.load(open(sys.argv[1]))
+assert r["installing"] is True, r
+PY
+sleep 0.3
+[ "$(wc -l < "$PROBE_DIR/home/.theme-rescan-installs")" -eq 1 ] \
+  || fail "a second click during install started another run"
+sleep 2.5
+call state > "$WORK/install-done.json"
+python3 - "$WORK/install-done.json" <<'PY' || fail "install did not finish"
+import json,sys
+r=json.load(open(sys.argv[1]))
+assert r["installing"] is False, r
+PY
+echo "   install click while installing: one process, busy row, no second run"
 probe_cleanup || fail "probe cleanup"
 rm -rf "$WORK"
 trap - EXIT

@@ -174,6 +174,45 @@ WHITESUR_TAG=2026-09-10
 WHITESUR_STAGE=""
 WHITESUR_BACKUP=""
 
+# One icon-theme change at a time. A second install that starts while the
+# first is still fetching would otherwise see neither a complete theme nor a
+# destination, then move its own copy into the directory the first just made
+# (mv nests it under WhiteSur/WhiteSur). It would also race the final apply.
+# apply takes the same lock so a choice made during an install lands after the
+# install instead of being overwritten by it. flock releases on exit, including
+# SIGKILL, so a dead owner never blocks the next run.
+LOCK_HELD=""
+
+reclaim_stale_stages() {
+  local dir pid
+  [ "$LOCK_HELD" = 1 ] || return 0
+  for dir in "$HOME/.local/share"/.omadock-whitesur.* "$HOME/.local/share"/.omadock-backup.*; do
+    [ -d "$dir" ] || continue
+    # No PID file means the stage predates this lock protocol; without proof
+    # that its owner is dead, leave it alone.
+    [ -f "$dir/pid" ] || continue
+    pid=$(cat "$dir/pid" 2>/dev/null || true)
+    case "$pid" in ''|*[!0-9]*) continue ;; esac
+    kill -0 "$pid" 2>/dev/null && continue
+    rm -rf "$dir"
+  done
+}
+
+acquire_theme_lock() {
+  local wait=${OMADOCK_ICON_LOCK_WAIT:-150}
+  command -v flock >/dev/null 2>&1 || return 0
+  # Lock the icon root itself: no lock file to leave behind, and every theme
+  # move happens inside this directory's inode.
+  mkdir -p "$HOME/.local/share/icons" || return 1
+  exec 9<"$HOME/.local/share/icons" || return 1
+  if ! flock -w "$wait" 9; then
+    echo "icon-theme: another icon theme change is already running; try again shortly" >&2
+    return 7
+  fi
+  LOCK_HELD=1
+  reclaim_stale_stages
+}
+
 cleanup_whitesur() {
   [ -n "$WHITESUR_STAGE" ] && rm -rf "$WHITESUR_STAGE"
   [ -n "$WHITESUR_BACKUP" ] && rm -rf "$WHITESUR_BACKUP"
@@ -195,6 +234,7 @@ restore_whitesur_backup() {
 
 install_whitesur() {
   command -v git >/dev/null 2>&1 || { echo "icon-theme: git is not installed" >&2; return 3; }
+  acquire_theme_lock || return $?
 
   local dest="$HOME/.local/share/icons" stage backup name dir rc
   # A complete WhiteSur already on disk is still installed; apply it without
@@ -207,6 +247,10 @@ install_whitesur() {
 
   mkdir -p "$HOME/.local/share" "$dest" || return 1
   stage=$(mktemp -d "$HOME/.local/share/.omadock-whitesur.XXXXXX") || return 1
+  if ! printf '%s\n' "$$" > "$stage/pid"; then
+    rm -rf "$stage"
+    return 1
+  fi
   WHITESUR_STAGE=$stage
   WHITESUR_BACKUP=""
   trap cleanup_whitesur EXIT INT TERM HUP
@@ -247,6 +291,10 @@ install_whitesur() {
   fi
 
   backup=$(mktemp -d "$HOME/.local/share/.omadock-backup.XXXXXX") || return 1
+  if ! printf '%s\n' "$$" > "$backup/pid"; then
+    rm -rf "$backup"
+    return 1
+  fi
   WHITESUR_BACKUP=$backup
   # Move only complete staged directories. Existing complete variants win;
   # an incomplete copy (from an older interrupted run) is displaced and
@@ -287,6 +335,9 @@ case "${1:-}" in
       echo "icon-theme: invalid theme id" >&2
       exit 2
     fi
+    # A choice made while an install is in flight waits for it, then applies
+    # its own theme; otherwise the installer's final apply would overwrite it.
+    acquire_theme_lock || exit $?
     if [ -z "$(theme_path "$theme")" ]; then
       echo "icon-theme: theme is not installed: $theme" >&2
       exit 6

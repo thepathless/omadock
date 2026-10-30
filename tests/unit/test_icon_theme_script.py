@@ -205,7 +205,7 @@ class InstallTheme(unittest.TestCase):
             env.update(extra_env)
         return env
 
-    def local_upstream(self):
+    def local_upstream(self, slow=False):
         """A real git repository with the pinned tag and a fake installer."""
         repo = self.home / "upstream"
         repo.mkdir()
@@ -213,9 +213,11 @@ class InstallTheme(unittest.TestCase):
         subprocess.run(["git", "-C", str(repo), "config", "user.email", "test@example.invalid"], check=True)
         subprocess.run(["git", "-C", str(repo), "config", "user.name", "Test"], check=True)
         install = repo / "install.sh"
+        delay = "sleep 1\n" if slow else ""
         install.write_text(
             "#!/usr/bin/env bash\n"
             "while [ $# -gt 0 ]; do case \"$1\" in -d) dest=$2; shift 2;; *) shift;; esac; done\n"
+            + delay +
             "mkdir -p \"$dest/WhiteSur/apps\"\n"
             "printf '<svg/>' > \"$dest/WhiteSur/apps/app.svg\"\n"
             "printf '[Icon Theme]\\nName=WhiteSur\\n' > \"$dest/WhiteSur/index.theme\"\n"
@@ -224,6 +226,24 @@ class InstallTheme(unittest.TestCase):
         subprocess.run(["git", "-C", str(repo), "commit", "-qm", "fake upstream"], check=True)
         subprocess.run(["git", "-C", str(repo), "tag", "2026-09-10"], check=True)
         return repo
+
+    def slow_git(self):
+        """Real git, with the clone delayed so two runs overlap for real."""
+        real = shutil.which("git")
+        stub = self.bin / "git"
+        stub.write_text(
+            "#!/usr/bin/env bash\n"
+            "printf '%s\\n' \"$*\" >> " + str(self.clone_log) + "\n"
+            "if [ \"${1:-}\" = clone ]; then sleep 0.4; fi\n"
+            "exec " + real + " \"$@\"\n"
+        )
+        stub.chmod(0o755)
+
+    def start_install(self, env):
+        run_env = dict(os.environ, HOME=str(self.home), PATH=self.path)
+        run_env.update(env)
+        return subprocess.Popen(["bash", str(SCRIPT), "install"], stdout=subprocess.PIPE,
+                                stderr=subprocess.PIPE, text=True, env=run_env)
 
     def start_slow_clone(self, body):
         self.git(
@@ -318,6 +338,19 @@ class InstallTheme(unittest.TestCase):
         self.assertEqual(retried.returncode, 0, retried.stderr)
         self.assertIn("WhiteSur", self.list_ids())
         self.assertTrue((self.home / ".local/share/icons/WhiteSur/index.theme").is_file())
+        # The retry holds the lock and sees the dead owner's PID, so the orphan
+        # is reclaimed; the theme itself was never advertised.
+        self.assertEqual(list((self.home / ".local/share").glob(".omadock-*")), [])
+
+    def test_an_orphan_without_a_pid_file_is_left_alone(self):
+        orphan = self.home / ".local/share/.omadock-whitesur.old"
+        orphan.mkdir(parents=True)
+        (orphan / "partial").write_text("unknown owner")
+        self.successful_clone()
+        done = self.install()
+        self.assertEqual(done.returncode, 0, done.stderr)
+        self.assertTrue((orphan / "partial").is_file(),
+                        "a stage with no proven-dead owner must not be deleted")
 
     def test_a_real_clone_against_an_unreachable_remote_is_one_quiet_sentence(self):
         cfg = self.git_config(
@@ -351,6 +384,60 @@ class InstallTheme(unittest.TestCase):
         self.assertIn("WhiteSur", self.list_ids())
         self.assertIn("icon-theme WhiteSur", self.log.read_text())
         self.assertEqual(list((self.home / ".local/share").glob(".omadock-*")), [])
+
+    def test_two_real_installs_overlap_without_a_nested_or_duplicate_theme(self):
+        repo = self.local_upstream(slow=True)
+        self.slow_git()
+        cfg = self.git_config(
+            self.bin / "gitconfig-concurrent",
+            '[url "file://%s"]\n\tinsteadOf = https://github.com/vinceliuice/WhiteSur-icon-theme.git\n' % repo,
+        )
+        cfg["OMADOCK_ICON_TIMEOUT"] = "30"
+        first = self.start_install(cfg)
+        second = self.start_install(cfg)
+        first_out = first.communicate(timeout=30)
+        second_out = second.communicate(timeout=30)
+        self.assertEqual(first.returncode, 0, first_out)
+        self.assertEqual(second.returncode, 0, second_out)
+
+        icons = self.home / ".local/share/icons"
+        self.assertFalse((icons / "WhiteSur/WhiteSur").exists(), "one install moved the other's theme into its own directory")
+        self.assertEqual(len(list(icons.glob("WhiteSur*"))), 1)
+        rows = [line for line in run(["list"], self.home).stdout.splitlines() if line.startswith("WhiteSur|")]
+        self.assertEqual(len(rows), 1, rows)
+        self.assertTrue((icons / "WhiteSur/index.theme").is_file())
+        self.assertEqual(list((self.home / ".local/share").glob(".omadock-*")), [])
+        # A serialised pair clones once: the second waits, then applies the
+        # complete theme the first installed.
+        self.assertEqual(len(self.clone_log.read_text().splitlines()), 1)
+
+    def test_apply_arriving_during_an_install_wins_after_it_finishes(self):
+        write_theme(self.home, "Yaru")
+        repo = self.local_upstream(slow=True)
+        self.slow_git()
+        cfg = self.git_config(
+            self.bin / "gitconfig-apply-during-install",
+            '[url "file://%s"]\n\tinsteadOf = https://github.com/vinceliuice/WhiteSur-icon-theme.git\n' % repo,
+        )
+        cfg["OMADOCK_ICON_TIMEOUT"] = "30"
+        installing = self.start_install(cfg)
+        # Wait until the install has its lock and a stage on disk, so apply
+        # genuinely arrives in the middle of the clone rather than before it.
+        for _ in range(100):
+            if list((self.home / ".local/share").glob(".omadock-whitesur.*")):
+                break
+            time.sleep(0.05)
+        else:
+            installing.kill()
+            self.fail("the install never staged")
+        applied = run(["apply", "Yaru"], self.home, self.path, cfg)
+        _out, err = installing.communicate(timeout=30)
+        self.assertEqual(installing.returncode, 0, err)
+        self.assertEqual(applied.returncode, 0, applied.stderr)
+        self.assertEqual((self.home / ".icons/default/index.theme").read_text(),
+                         "[Icon Theme]\nInherits=Yaru\n")
+        self.assertEqual(self.log.read_text().splitlines()[-1],
+                         "set org.gnome.desktop.interface icon-theme Yaru")
 
     def test_second_install_is_idempotent_and_does_not_clone_again(self):
         self.successful_clone()
