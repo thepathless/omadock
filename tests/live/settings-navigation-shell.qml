@@ -15,6 +15,25 @@
     for (var i = 0; i < kids.length; i++) { var hit = find(kids[i], name, depth + 1); if (hit) return hit }
     return null
   }
+  // The first thing a Tab would land on: a dropdown's trigger, say, rather
+  // than the component root the test names.
+  function focusable(o, depth) {
+    if (!o || depth > 30) return null
+    if (o.activeFocusOnTab && o.visible && o.enabled) return o
+    var kids = o.children || []
+    for (var i = 0; i < kids.length; i++) { var hit = focusable(kids[i], depth + 1); if (hit) return hit }
+    return null
+  }
+  function dropdown(panel) {
+    var dd = find(panel.pageContent, "settings-icon-theme-dropdown", 0)
+    if (!dd) return null
+    var opts = [], filt = []
+    for (var i = 0; i < dd.options.length; i++)
+      opts.push({ value: String(dd.options[i].value), label: String(dd.options[i].label), description: String(dd.options[i].description) })
+    for (var j = 0; j < dd.filtered.length; j++) filt.push(String(dd.filtered[j].value))
+    return { found: true, visible: dd.visible, open: !!dd.popupOpen, value: String(dd.value),
+      current: String(dd.currentLabel()), options: opts, filtered: filt }
+  }
   function report(key) {
     if (!panel) return { error: error || "no panel" }
     var row = panel.rowByKey[key]
@@ -40,10 +59,17 @@
         chain: dock().iconThemeRef.themeChain(),
         whiteSurInstalled: dock().iconThemeRef.themes.some(function(th) { return th.id.indexOf("WhiteSur") === 0 }),
         whiteSur: (function() {
-          var b = find(panel.pageContent, "settings-icon-theme-whitesur", 0)
-          return { found: !!b, visible: !!(b && b.visible), text: b ? String(b.text) : "" }
+          var dd = dropdown(panel)
+          if (!dd) return { found: false }
+          var entry = null
+          for (var i = 0; i < dd.options.length; i++)
+            if (dd.options[i].value.indexOf("__install") === 0) entry = dd.options[i]
+          return { found: dd.found, visible: dd.visible, installEntry: !!entry,
+            text: entry ? entry.label : "", open: dd.open, value: dd.value }
         })(),
         folder: String(dock().iconThemeRef.iconIndex["folder"] || "") },
+      settingsOpen: dock().settingsPanelOpen,
+      iconThemeDropdownOpen: panel.iconThemeDropdownOpen,
       config: dock().buildConfig({}) }
   }
 
@@ -79,10 +105,24 @@
         var args = arg.split(":")
         var object = find(panel.contentItem, args[0], 0)
         var keys = { Right: Qt.Key_Right, Left: Qt.Key_Left, Space: Qt.Key_Space, Return: Qt.Key_Return,
-          Tab: Qt.Key_Tab, Backtab: Qt.Key_Backtab, Down: Qt.Key_Down, Up: Qt.Key_Up, PageDown: Qt.Key_PageDown }
-        var sent = action === "key" ? input.key(object, keys[args[1]]) : input.keyFocused(object, keys[args[1]])
+          Tab: Qt.Key_Tab, Backtab: Qt.Key_Backtab, Down: Qt.Key_Down, Up: Qt.Key_Up, PageDown: Qt.Key_PageDown,
+          Escape: Qt.Key_Escape }
+        var code = keys[args[1]]
+        if (code === undefined && args[1].length === 1) code = args[1].toUpperCase().charCodeAt(0)
+        var sent = action === "key" ? input.key(object, code) : input.keyFocused(object, code)
         return JSON.stringify({ keySent: sent, focus: input.focused(panel.pageContent) })
       }
+      if (action === "key-trigger") {
+        // A synthetic key on the first Tab stop of a named component: the
+        // dropdown trigger, which takes focus and opens the list on Enter.
+        var parts = arg.split(":")
+        var trigger = focusable(find(panel.contentItem, parts[0], 0), 0)
+        var codes = { Return: Qt.Key_Return, Enter: Qt.Key_Enter, Down: Qt.Key_Down, Space: Qt.Key_Space, Escape: Qt.Key_Escape }
+        var keyCode = codes[parts[1]]
+        if (keyCode === undefined && parts[1].length === 1) keyCode = parts[1].toUpperCase().charCodeAt(0)
+        return JSON.stringify({ keySent: input.key(trigger, keyCode), focus: input.focused(panel.pageContent) })
+      }
+      if (action === "read-dropdown") return JSON.stringify(dropdown(panel) || { found: false })
       if (action === "targets") return JSON.stringify(Object.keys(panel.rowByKey))
       if (action === "read") return JSON.stringify(report(arg))
       if (action === "close") { panel.visible = false; panel.destroy(); panel = null; return "ok" }
