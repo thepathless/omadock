@@ -44,8 +44,11 @@ QtObject {
       root.borderOpacity = -1.0
     }
     root.dockShape = parsed && typeof parsed.shape === "string" ? parsed.shape : "rounded"
+    // Stored as written down to 0: a square look draws at 0 and would
+    // otherwise never match its own preset key for key. The 2px floor belongs
+    // to a drawn rounded radius (Dock.qml roundedRadius), not to this value.
     root.cornerRadius = parsed && typeof parsed.cornerRadius === "number" && isFinite(parsed.cornerRadius) && parsed.cornerRadius >= 0
-      ? Math.max(2, Math.round(parsed.cornerRadius)) : -1
+      ? Math.max(0, Math.round(parsed.cornerRadius)) : -1
     root.dockBgColor = parsed && typeof parsed.bgColor === "string" ? parsed.bgColor : "theme"
     root.showBackground = parsed ? parsed.showBackground !== false : true
     root.bgFill = (parsed && parsed.bgFill === "gradient") ? "gradient" : "solid"

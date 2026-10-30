@@ -80,6 +80,10 @@ var SHIPPED = [
       blur: "off", blurSize: 0,
       showShadow: false, shadowStrength: 0,
       showBorder: true, borderWidth: 1, borderOpacity: 0.15,
+      // A square shape draws its card (and its popups) at 0px; the radius is
+      // kept at 0 too, and applyLook keeps a 0 through (a look is compared key
+      // for key to mark its row active, so a value the clamp changed would be
+      // a preset that can never report active).
       shape: "square", cornerRadius: 0,
       dockPaddingPx: 4, iconBaseline: "center",
       iconSize: 42, itemSpacing: 4, sectionSpacing: 14,
