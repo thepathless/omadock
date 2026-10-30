@@ -15,7 +15,7 @@
 <br />
 
 <p align="center">
-  <img src="assets/preview-desktop.png" alt="OmaDock on an Omarchy desktop showcasing pinned apps, app group folders, folder stacks, and settings" width="880" style="border-radius: 12px; box-shadow: 0 8px 24px rgba(0,0,0,0.4);" />
+  <img src="assets/preview-desktop.png" alt="OmaDock on an Omarchy desktop: the Presets page open over the macOS glass-shelf dock, every shipped look one click away" width="880" style="border-radius: 12px; box-shadow: 0 8px 24px rgba(0,0,0,0.4);" />
 </p>
 
 <p align="center">
@@ -41,12 +41,12 @@
 Crafted in the spirit of **Omakase (おまかせ)**: wave magnification, live window previews, app groups, multi-monitor docks. Beautiful, opinionated, and strictly **0.00% background CPU**.
 
 <p align="center">
-  <img src="assets/screenshot-transparent.png" alt="omadock close-up: running marks — a dot per open window and the focused app's accent bar — dead-centre under their icons on the translucent gradient dock" width="700" />
+  <img src="assets/screenshot-transparent.png" alt="omadock close-up: the frosted glass shelf with colourful app icons and the running marks underneath them" width="700" />
 </p>
 
 ### Architecture & Recognition
 
-Every release is backed by 276 Node.js unit tests, 118 Python checks, and eleven sandboxed live Wayland integration suites. OmaDock's atomic asynchronous configuration gate (`CappedFileView.qml` and `tests/unit/test_capped_gate.py`) was independently selected for the **[XERJ Corpus Hub](https://github.com/xerj-org/xerj)** as a verified open-source reference implementation for AI coding agents.
+Every release is backed by 299 Node.js unit tests, 126 Python checks, and thirteen sandboxed live Wayland integration suites. OmaDock's atomic asynchronous configuration gate (`CappedFileView.qml` and `tests/unit/test_capped_gate.py`) was independently selected for the **[XERJ Corpus Hub](https://github.com/xerj-org/xerj)** as a verified open-source reference implementation for AI coding agents.
 
 ### Highlights
 
@@ -152,6 +152,12 @@ $$\text{scale}(d) = 1 + (\text{peak} - 1) \cdot \frac{1 + \cos\left(\frac{\pi \c
 - **`"off"`** — calm, static geometry.
 
 With an icon style active, `iconHoverOriginal` shows the hovered icon as shipped, and `iconHoverReveal` dissolves it back in as a dithered reveal instead of a hard switch.
+
+<div align="center">
+  <img src="assets/demo-hover.gif" width="700" alt="Hovering a dock tile: its neighbours rise in the magnification wave, a tooltip names the app, and the running marks stay under the icons" />
+  <br />
+  <sub>Hover: the magnification wave, the app's tooltip, and the running marks underneath.</sub>
+</div>
 
 ---
 
@@ -267,9 +273,21 @@ Right-clicking either one opens six task-oriented categories, with the existing 
 
 **Icon theme** is the first row under *Look*: search the icon themes installed on the machine and apply one with a click. It is the desktop's theme, not a dock option — OmaDock writes the same places the rest of the system reads (`gsettings`, both GTK settings files, `~/.icons/default`, and the KDE/Qt files when they exist), then draws its own icons through it, so the whole desktop changes at once. The chips list every theme on disk, and a set you install later appears there without a restart. **Install WhiteSur** fetches the macOS Big Sur icon set for you (upstream's GPL project, pinned to the release verified in October 2026, installed into `~/.local/share/icons` with no privilege asked for) and applies it; once installed it is just another chip. The WhiteSur *look* preset pairs it with the matching glass shelf.
 
+<div align="center">
+  <img src="assets/demo-icon-theme.gif" width="560" alt="Searching the Look page's icon-theme search for WhiteSur, focusing the chip, and applying it: the dock's own icons redraw in the macOS Big Sur set" />
+  <br />
+  <sub>Icon theme: search the installed sets, apply one, and the dock's own icons redraw through it.</sub>
+</div>
+
 Advanced sections start collapsed and remember expansion only until the panel closes. Fuzzy search finds every existing indexed setting by name or synonym (typos included — `pixl` reaches the pixel icon style). Picking a hit opens its category and disclosure, scrolls to the row, highlights it and moves keyboard focus there. A setting with unmet prerequisites remains readable with an explanation and a **Go to prerequisite** link; searching never enables features or changes saved values. In particular, searching for blur strength does not alter Hyprland's global blur size.
 
 Use <kbd>Tab</kbd>/<kbd>Shift+Tab</kbd> to move between controls, arrows then <kbd>Enter</kbd>/<kbd>Space</kbd> for choices, <kbd>Space</kbd> for toggles, and arrows for sliders. Category arrows change category; <kbd>Ctrl+F</kbd> focuses search and <kbd>Enter</kbd> opens its selected result. Changes apply live. Close with <kbd>Esc</kbd>, the close button, or a click outside. The panel also opens through `omarchy-shell omadock openSettings`. No configuration migration is needed; existing values and legacy page entry points are preserved.
+
+<div align="center">
+  <img src="assets/demo-settings-search.gif" width="560" alt="Typing pixl into settings search, picking a hit with the arrow keys and pressing Enter jumps to the Pixel controls and flashes the row" />
+  <br />
+  <sub>Search: a fragment (typos welcome), <kbd>&darr;</kbd> to pick, <kbd>Enter</kbd> to jump and flash the row.</sub>
+</div>
 
 The settings at a glance:
 
@@ -359,6 +377,13 @@ The dock follows your Omarchy theme's palette and wallpaper — three of the twe
 ```bash
 omarchy-shell omadock applyPreset "Night"
 ```
+
+
+<div align="center">
+  <img src="assets/demo-presets.gif" width="560" alt="The Presets page with macOS marked active while the dock below changes from ristretto's dot-matrix forest shelf to the macOS glass shelf and back" />
+  <br />
+  <sub>Presets: one click applies the whole look — shape, fill, icons, labels and spacing — live.</sub>
+</div>
 
 ### Shipped looks
 
@@ -786,6 +811,7 @@ The settings panel got one row contract, and the desktop's icon theme moved into
 - **Icon theme** — the first row under *Look* lists every icon theme installed on the machine, searchable, and applies one to the whole desktop with a click: `gsettings`, both GTK settings files, `~/.icons/default` and the KDE/Qt files when they exist. **Install WhiteSur** fetches the macOS Big Sur icon set once into `~/.local/share/icons` and applies it, so the macOS look is one click away.
 - **Theme-first icons** — the dock's icon index now walks the active theme's inheritance chain from its very first scan. Before, the scan that starts at load, before the desktop answers which theme it uses, could leave fallback artwork in the index for the rest of the session.
 - **Verification** — 273 Node + 126 Python unit tests, `qmllint` 0 errors, structure, security, manifest and plugin gates clean; the live settings suite drives all 88 targets, the icon-theme search and the WhiteSur row through the real QML with synthetic Qt keys, and leaves the desktop's config, shell PID and monitor list unchanged.
+- **The README, in motion** — four short clips recorded from a second Quickshell instance running this repository's own `DockHost.qml` on a headless output: hover, preset switching, settings search, and the icon-theme picker applying WhiteSur to the dock's own icons. A fresh hero and close-up replace the old captures.
 
 ### v4.11.0 — 2026-10-30
 
