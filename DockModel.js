@@ -107,12 +107,24 @@ function notificationAliasIds(appId) {
   return [raw]
 }
 
+// A dock rebuild runs on every window title change and asks this ~1200 times
+// for a few dozen ids, so each answer is kept per id string. Callers get copies.
+var candidateCache = Object.create(null), candidateCacheSize = 0
 function getCandidates(id) {
+  if (typeof id !== "string") return computeCandidates(id)
+  var known = candidateCache[id]
+  if (known) return known.slice()
+  if (++candidateCacheSize > 4096) { candidateCache = Object.create(null); candidateCacheSize = 1 }
+  return (candidateCache[id] = computeCandidates(id)).slice()
+}
+
+function computeCandidates(id) {
   // The id as written, plus its canonical name: a candidate set never shrinks.
   var raw = stripDesktop(id).toLowerCase(), canon = cliAppId(id).toLowerCase()
   if (!raw) return []
   var list = [raw]
   if (canon !== raw) list.push(canon)
+  function addCandidate(part) { if (part && list.indexOf(part) < 0) list.push(part) }
 
   // WebApp extraction (Chrome, Chromium, Brave, Edge, Helium, Opera, Vivaldi PWAs)
   var webAppMatch = raw.match(/^(?:google-chrome|google-chrome-stable|chrome|chromium|brave|edge|microsoft-edge|helium|helium-browser|opera|vivaldi)-(.*?)__?-(?:default|profile.*)$/i)
@@ -120,19 +132,11 @@ function getCandidates(id) {
   if (webAppMatch) {
     var webTarget = webAppMatch[1].replace(/^https?___?/i, "").replace(/__.*$/, "")
     if (webTarget && list.indexOf(webTarget) < 0) list.push(webTarget)
-    var webDomain = webTarget.split(/[\.\/_]+/)
-    for (var w = 0; w < webDomain.length; w++) {
-      var seg = webDomain[w]
-      if (seg && list.indexOf(seg) < 0) list.push(seg)
-    }
+    webTarget.split(/[\.\/_]+/).forEach(addCandidate)
   }
 
   // Split by dots, underscores, dashes, slashes
-  var parts = raw.split(/[\.\/_-]+/)
-  for (var i = 0; i < parts.length; i++) {
-    var p = parts[i]
-    if (p && list.indexOf(p) < 0) list.push(p)
-  }
+  raw.split(/[\.\/_-]+/).forEach(addCandidate)
 
   var len = list.length
   for (var i = 0; i < len; i++) {
@@ -143,14 +147,8 @@ function getCandidates(id) {
     if (prefixStripped && list.indexOf(prefixStripped) < 0) list.push(prefixStripped)
   }
 
-  var out = []
-  for (var i = 0; i < list.length; i++) {
-    var s = list[i]
-    if (s && !IGNORED_TOKENS[s] && out.indexOf(s) < 0) {
-      out.push(s)
-    }
-  }
-  return out
+  // Every push above skips duplicates, so only vendor tokens need dropping.
+  return list.filter(function (s) { return s && !IGNORED_TOKENS[s] })
 }
 
 function isAppMatch(idA, idB) {

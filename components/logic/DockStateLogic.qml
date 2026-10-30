@@ -28,6 +28,19 @@ QtObject {
     root.notificationBadgeTimerRef.restart()
   }
 
+  // terminal-hosts.py reruns on every window title change, and an animated
+  // title changes about once a second. Only a different answer is applied, so
+  // only a different answer costs the caller a dock rebuild.
+  function applyTerminalIdentities(root, text) {
+    var identities = JSON.parse(text) || ({})
+    var hosts = identities.terminals || ({}), apps = identities.apps || ({})
+    if (JSON.stringify(hosts) === JSON.stringify(root.terminalHosts)
+        && JSON.stringify(apps) === JSON.stringify(root.terminalApps)) return false
+    root.terminalHosts = hosts
+    root.terminalApps = apps
+    return true
+  }
+
   function rescanMinimizedWindows(root) {
     var mins = []
     var tops = Hyprland.toplevels ? Hyprland.toplevels.values : []

@@ -961,10 +961,7 @@ Item {
     stdout: StdioCollector {
       onStreamFinished: {
         try {
-          var identities = JSON.parse(text) || ({})
-          root.terminalHosts = identities.terminals || ({})
-          root.terminalApps = identities.apps || ({})
-          modelTimer.restart()
+          if (stateLogic.applyTerminalIdentities(root, text)) modelTimer.restart()
         } catch (e) {
           console.warn("[omadock] Failed resolving terminal and CLI identities:", e)
         }
