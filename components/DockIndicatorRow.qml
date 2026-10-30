@@ -42,6 +42,14 @@ Item {
   // one shifted a lone dot (or accent bar) half a gap - 2 px - off the icon's
   // centre.
   readonly property var plan: DockMarks.plan(marks.windows, marks.running)
+  // "app" mode speaks for the app, not its windows: one dot while anything is
+  // open, no accent bar, no "+N" pill. The same plan shape keeps every reader
+  // below unchanged.
+  readonly property bool appMode: marks.root ? marks.root.indicatorMode === "app" : false
+  readonly property var drawPlan: marks.appMode
+    ? { total: (marks.running ? 1 : 0), dense: false, overflow: false,
+        dots: (marks.running ? 1 : 0), slots: 1 }
+    : marks.plan
   // How big a mark is, and how much room it needs, is policy too: it comes from
   // DockMarkGeometry.js, which the unit tests pin, and the indicators and the
   // label's reserved room read the same module. Sizes are on the output's pixel
@@ -50,7 +58,9 @@ Item {
   // largest mark, centred by whole device pixels. Left to the Grid, the
   // half-pixel offset rounded the bar against one side of the dots.
   readonly property real dpr: marks.root ? marks.root.outputScale : 1
-  readonly property real cross: DockMarkGeometry.cell(Style.space, marks.dpr, marks.plan.dense, marks.vertical)
+  readonly property real cross: marks.appMode
+    ? DockMarkGeometry.dotFor(Style.space, marks.dpr, "app", marks.root ? marks.root.indicatorSize : 0)
+    : DockMarkGeometry.cell(Style.space, marks.dpr, marks.plan.dense, marks.vertical)
   readonly property real dynamicSpacing: DockMarkGeometry.rowSpacing(Style.space, marks.dpr, marks.plan.dense)
 
   visible: marks.running
@@ -90,21 +100,21 @@ Item {
   Grid {
     id: indicatorRow
     spacing: marks.dynamicSpacing
-    columns: marks.vertical ? 1 : Math.max(marks.plan.slots, marks.shownDots + (marks.plan.overflow ? 1 : 0))
-    rows: marks.vertical ? Math.max(marks.plan.slots, marks.shownDots + (marks.plan.overflow ? 1 : 0)) : 1
+    columns: marks.vertical ? 1 : Math.max(marks.drawPlan.slots, marks.drawPlan.dots + (marks.drawPlan.overflow ? 1 : 0))
+    rows: marks.vertical ? Math.max(marks.drawPlan.slots, marks.drawPlan.dots + (marks.drawPlan.overflow ? 1 : 0)) : 1
     flow: marks.vertical ? Grid.TopToBottom : Grid.LeftToRight
     horizontalItemAlignment: Grid.AlignHCenter
     verticalItemAlignment: Grid.AlignVCenter
 
     Repeater {
-      model: marks.shownDots
+      model: marks.drawPlan.dots
       // Active window: accent bar; open window: dot; minimized: hollow dot.
       delegate: Item {
         id: cell
         required property int index
         readonly property var winObj: (marks.windows && marks.windows.length > index) ? marks.windows[index] : null
         readonly property bool winMinimized: winObj ? marks.isWinMinimized(winObj) : marks.allMinimized
-        readonly property bool winActive: !winMinimized && ((winObj && winObj.address) ? marks.isWinActive(winObj) : (index === 0 && marks.focused))
+        readonly property bool winActive: !marks.appMode && !winMinimized && ((winObj && winObj.address) ? marks.isWinActive(winObj) : (index === 0 && marks.focused))
 
         // Along the row the cell grows and shrinks with its mark, so the
         // others close up as one goes instead of jumping when it is gone.
@@ -112,7 +122,7 @@ Item {
         width: marks.vertical ? marks.cross : mark.width * cell.along
         height: marks.vertical ? mark.height * cell.along : marks.cross
 
-        readonly property bool going: index >= marks.plan.dots
+        readonly property bool going: index >= marks.drawPlan.dots
         property real appear: 0
         property bool _settled: false
         // The easing reads the Behavior's target (set before the animation
@@ -145,8 +155,8 @@ Item {
           rootRef: marks.rootRef
           vertical: marks.vertical
           inkOverride: marks.markInk
-          kind: cell.winActive ? "active" : (cell.winMinimized ? "minimized" : "window")
-          dense: marks.plan.dense
+          kind: marks.appMode ? "window" : (cell.winActive ? "active" : (cell.winMinimized ? "minimized" : "window"))
+          dense: marks.drawPlan.dense
           urgent: marks.urgent
           pulse: marks.pulse
           moveKey: marks.moveKey
@@ -156,7 +166,7 @@ Item {
 
     // Compact overflow pill when 6+ windows are open
     Rectangle {
-      visible: marks.plan.overflow
+      visible: marks.drawPlan.overflow
       width: DockMarkGeometry.pillWidth(Style.space, overflowText.implicitWidth)
       height: DockMarkGeometry.pillHeight(Style.space)
       radius: (marks.root && marks.root.indicatorSquare) ? 0 : height / 2

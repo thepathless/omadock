@@ -20,31 +20,15 @@
 //   thepathless:ristretto  the owner's own look on the maintainer's desktop
 //                          (dot-matrix icons, forest gradient, grain, long
 //                          custom dividers, glitch hover, no rim or shadow)
-//   Glass                  gradient fill (PR #13, 7ab8e81) with film grain
-//                          (#13, 172407b) and a rim that stays visible over it
-//                          (#45, a9fe92c), long theme-coloured dividers
-//                          (#17, bbd672b) and the Lift hover (#19, 8f46e06)
-//   Pixel                  the pixel icon style with a B/W tint and a coarse
-//                          grid, plus the tone controls that keep a poster-like
-//                          icon readable (#13, ef69eb5 and 9e34022)
-//   Mono                   the transparent dock -- icons only, no card, border
-//                          or panel (#12, 23ab907) -- in monochrome with the
-//                          accent tint (#13) and the Glow hover (#19, fb70a80)
-//                          that was drawn for exactly these glyph-like icons
-//   Panels                 Split sections (#14, afb82a6 and b721251): one panel
-//                          per dock section over a quiet Mono gradient, with the
-//                          panel gap #13 taught to snap to the pixel grid
-//   Nameplates             names always on, joined to the icon by a Plate, with
-//                          the window marks in the upright column beside the
-//                          name (#47, @priard)
-//   Silkscreen              the same names in the Silkscreen pixel font the
-//                          labels ship with, small on a pill, drawn with the
-//                          outline that reads on any fill (#47, @priard)
-//   macOS                  the modern Apple macOS dock (Liquid Glass aesthetic):
-//                          floating squircle shelf with 0.35 frosted glass blur,
-//                          specular rim highlight, soft ambient shadow, fisheye
-//                          wave magnification, launch hop bounce, circular dots,
-//                          classic 50% divider, and floating pill hover tooltips
+//   macOS                  the modern macOS dock: 53px artwork, floating
+//                          rounded squircle shelf (27px radius) with frosted
+//                          white glass (#ffffff, blur on, 0.5px specular rim,
+//                          soft shadow), wave fisheye hover magnification,
+//                          hairline dividers, and OmaDock's signature
+//                          multi-window indicator dots (flat bar for focused)
+//   Windows                the Windows 11 centered taskbar: flat dark shelf
+//                          (#202020), square shape (0px radius), zoom hover,
+//                          subtle underline indicator bars, and hover tooltips
 //
 // Deliberately not shipped as presets, and why:
 //   - panel layout (#49) is not a look key -- `LOOK_KEYS` has no `layout`, so a
@@ -69,67 +53,43 @@ var SHIPPED = [
     }
   },
   {
-    id: "builtin_glass",
-    name: "Glass",
-    look: {
-      bgFill: "gradient", gradientPreset: "aurora", gradientStrength: 0.55, grain: 0.18,
-      shadowStrength: 0.5, dividerGeometry: "long", dividerStyle: "theme",
-      hoverEffect: "lift", itemSpacing: 6
-    }
-  },
-  {
-    id: "builtin_pixel",
-    name: "Pixel",
-    look: { iconStyle: "pixel", iconTint: "bw", iconGrid: 12, iconContrast: 0.5 }
-  },
-  {
-    id: "builtin_mono",
-    name: "Mono",
-    look: {
-      showBackground: false, showBorder: false, shadowStrength: 0.45,
-      iconStyle: "mono", iconTint: "accent", iconContrast: 0.5, iconHoverReveal: true,
-      hoverEffect: "glow", itemSpacing: 8, sectionSpacing: 20
-    }
-  },
-  {
-    id: "builtin_panels",
-    name: "Panels",
-    look: {
-      bgFill: "gradient", gradientPreset: "mono", gradientStrength: 0.4, grain: 0.12,
-      splitSections: true, sectionSpacing: 14, hoverEffect: "zoom"
-    }
-  },
-  {
-    id: "builtin_nameplates",
-    name: "Nameplates",
-    look: {
-      labelMode: "always", labelKind: "all", labelBackground: "plate",
-      labelPlateHeight: "icon", labelIndicators: "before", labelSize: "medium",
-      labelWeight: "medium", labelColor: "auto", labelFont: "theme"
-    }
-  },
-  {
-    id: "builtin_silkscreen",
-    name: "Silkscreen",
-    look: {
-      labelMode: "always", labelKind: "all", labelBackground: "pill", labelFont: "pixel",
-      labelSize: "small", labelWeight: "bold", labelColor: "auto", labelEffect: "outline",
-      labelReveal: "slide"
-    }
-  },
-  {
     id: "builtin_macos",
     name: "macOS",
     look: {
-      showBackground: true, bgFill: "solid", opacity: 0.35, blur: "on",
-      showBorder: true, borderWidth: 1.5, borderOpacity: 0.45,
-      showShadow: true, shadowStrength: 0.5, shape: "rounded", cornerRadius: 22,
-      hoverEffect: "wave", launchBounce: true, indicatorShape: "rounded",
-      itemSpacing: 6, sectionSpacing: 16,
-      dividerGeometry: "classic", dividerStyle: "custom", dividerWidth: 1.5, dividerHeight: 50, dividerOpacity: 0.25,
-      iconStyle: "original", iconContrast: 0, iconStrength: 1,
+      showBackground: true, bgColor: "#ffffff", bgFill: "solid",
+      blur: "on", blurSize: 12,
+      showShadow: true, shadowStrength: 0.5,
+      showBorder: true, borderWidth: 0.5, borderOpacity: 0.5,
+      shape: "rounded", cornerRadius: 27,
+      dockPaddingPx: 7, iconBaseline: "center", surfaceGlass: 1, iconMargin: 8.5,
+      surfaceLift: 0.53, surfaceDesaturate: 1, surfaceStability: 0.87, folderColor: "theme",
+      iconSize: 53, itemSpacing: 0, sectionSpacing: 15,
+      iconStyle: "original", iconTint: "text", iconContrast: 0, iconStrength: 1,
+      indicatorMode: "windows", indicatorSize: 4, indicatorInset: 4, indicatorShape: "rounded",
+      hoverEffect: "wave", magnifyPeak: 1.6, magnifyReach: 3.6, launchBounce: true,
+      dividerGeometry: "classic", dividerStyle: "custom", dividerWidth: 1.0, dividerHeight: 50, dividerOpacity: 0.18,
       labelMode: "hover", labelBackground: "pill", labelShape: "pill", labelFont: "theme",
       labelSize: "medium", labelWeight: "medium", labelReveal: "slide", labelColor: "auto"
+    }
+  },
+  {
+    id: "builtin_windows",
+    name: "Windows",
+    look: {
+      showBackground: true, bgColor: "#202020", bgFill: "solid",
+      blur: "off", blurSize: 0,
+      showShadow: false, shadowStrength: 0,
+      showBorder: true, borderWidth: 1, borderOpacity: 0.15,
+      shape: "square", cornerRadius: 0,
+      dockPaddingPx: 4, iconBaseline: "center",
+      iconSize: 42, itemSpacing: 4, sectionSpacing: 14,
+      iconStyle: "original", iconTint: "text", iconContrast: 0, iconStrength: 1,
+      hoverEffect: "zoom", magnifyPeak: 1.1, magnifyReach: 1.2, launchBounce: false,
+      indicatorMode: "windows", indicatorShape: "square", indicatorSize: 3, indicatorInset: 0,
+      dividerGeometry: "classic", dividerStyle: "theme", dividerWidth: 1.0, dividerHeight: 32, dividerOpacity: 0.20,
+      labelMode: "hover", labelBackground: "pill", labelShape: "pill", labelFont: "theme",
+      labelSize: "small", labelWeight: "medium", labelReveal: "slide", labelColor: "auto",
+      folderColor: "theme"
     }
   }
 ]

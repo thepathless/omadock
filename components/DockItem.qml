@@ -386,7 +386,7 @@ Item {
     visible: item.backgroundMedia && !label.sideMarks
     anchors.horizontalCenter: iconBox.horizontalCenter
     anchors.bottom: parent.bottom
-    anchors.bottomMargin: Style.space(1) + (root ? root.indicatorLift : 0)
+    anchors.bottomMargin: root ? root.markBottomMargin : 0
     kind: "background"
   }
 
@@ -403,7 +403,7 @@ Item {
     moveKey: (label.plate && label.shown) ? label.rise : 0
     anchors.horizontalCenter: iconBox.horizontalCenter
     anchors.bottom: parent.bottom
-    anchors.bottomMargin: Style.space(1) + (root ? root.indicatorLift : 0)
+    anchors.bottomMargin: root ? root.markBottomMargin : 0
     z: 2
     windows: item.windowList
     running: item.running
@@ -635,7 +635,10 @@ Item {
 
       TooltipWindow {
         target: iconBox
-        gap: Style.space(10)
+        // The hover name floats between this surface and the bar, so the
+        // tooltip (task row, window previews) stacks above the chip rather
+        // than replacing it. The name's own clear band is the whole gap.
+        gap: label.overlay ? label.chipClear : Style.space(10)
         shown: true
         level: itemTooltipLife.level
         rises: itemTooltipLife.rises

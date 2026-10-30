@@ -26,6 +26,42 @@ QtObject {
     }
     // The size can change while the mode stays the same.
     root.applyBlurSize(force)
+    // Layer blur is gated by the compositor's own switch. "on" without it
+    // renders a flat panel, which is not what the setting promises.
+    root.ensureHyprBlur(force)
+  }
+
+  function setHyprBlurEnabled(root, on) {
+    Quickshell.execDetached(["hyprctl", "eval",
+      "hl.config({ decoration = { blur = { enabled = " + (on ? "true" : "false") + " } } })"])
+  }
+
+  // Turn the compositor's blur on while the dock's mode is "on", and put the
+  // user's own value back when it leaves. The value is probed once, lazily, so
+  // a dock that never asks for blur never touches the setting. What the dock
+  // changed is remembered in this session only: this runs from the config load
+  // path, and a save here rewrote the whole file from memory - which landed
+  // over an edit made outside the dock (a preset apply over a restored config,
+  // measured 1 run in 5) and made the dock the last writer of every external
+  // change. Nothing on this path writes the config; the flag needs no file.
+  function ensureHyprBlur(root, force) {
+    if (!root.isPrimary) return
+    if (root.blurMode === "on") {
+      if (!root._blurProbed) {
+        root.probeHyprBlur()
+        return
+      }
+      // Already on: that is the user's own value, so there is nothing for the
+      // dock to put back when the look stops asking.
+      if (root.systemBlurEnabled) return
+      if (force || !root._blurEnabledOverride) {
+        root.setHyprBlurEnabled(true)
+        root._blurEnabledOverride = true
+      }
+    } else if (root._blurEnabledOverride) {
+      root.setHyprBlurEnabled(root.systemBlurEnabled)
+      root._blurEnabledOverride = false
+    }
   }
 
   function setHyprBlurSize(root, size) {

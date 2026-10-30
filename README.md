@@ -362,7 +362,7 @@ Eight looks ride with the dock and sit ahead of the presets you save — a fresh
 | `Panels` | Split sections: one panel per dock section over a quiet Mono gradient, with a pixel-snapped gap | [#14](https://github.com/thepathless/omadock/pull/14) and [#13](https://github.com/thepathless/omadock/pull/13) by [@priard](https://github.com/priard) |
 | `Nameplates` | Names always on, joined to their icon by a plate, with the window marks in the upright column beside the name | [#47](https://github.com/thepathless/omadock/pull/47) by [@priard](https://github.com/priard) |
 | `Silkscreen` | The same names in the bundled Silkscreen pixel font — small, on a pill, drawn with the outline that reads on any fill | [#47](https://github.com/thepathless/omadock/pull/47) by [@priard](https://github.com/priard) |
-| `macOS` | The modern Apple macOS dock (Liquid Glass aesthetic): floating squircle shelf with 0.35 frosted blur, specular rim highlight, soft shadow, fisheye wave magnification, launch hop bounce, circular dots, and floating pill hover tooltips | Reverse-engineered macOS 14/15/26/27 specification |
+| `macOS Sequoia` | The modern Apple macOS Sequoia dock: floating 24px squircle shelf with neutral #ffffff frosted glass (0.22 opacity, blur on), 0.5px white specular rim highlight, deep ambient shadow (0.55), bottom-anchored fisheye wave magnification, launch hop bounce, 4px circular dots, 1px hairline divider, and floating pill hover tooltips | Reverse-engineered macOS Sequoia specification & Apple HIG |
 
 The same list is scriptable end to end — list it, save the look on screen under a chosen name, remove one by id:
 
@@ -770,6 +770,19 @@ The pixel label font is [Silkscreen](https://fonts.google.com/specimen/Silkscree
 ## Changelog
 
 Full release notes, historical changelogs, and upgrade guides across all versions are available on [**GitHub Releases**](https://github.com/thepathless/omadock/releases).
+
+### v4.9.0 — 2026-10-30
+
+Authentic macOS & Windows 11 presets, aspect-ratio preserved window previews, auto-clearing notification badges on window close, and contributor performance & lifecycle fixes.
+
+- **Authentic macOS preset with OmaDock multi-window indicators** — floating 27px squircle shelf with frosted white glass (#ffffff, blur on, 0.5px specular rim, soft ambient shadow), wave fisheye hover magnification, and OmaDock's signature 3-state multi-window indicators (flat accent bar for focused, hollow dot for minimized, distinct mark per window).
+- **Windows 11 Taskbar preset** — centered dark shelf (#202020), flat square geometry, zoom hover, subtle underline indicator bars, and hover tooltips.
+- **Aspect-ratio preserved window previews** — `PreviewTile` (dock minimized window cards) and `WindowCardStack` (hover previews) now respect native window aspect ratios via `constraintSize`, preventing weirdly stretched thumbnails or distorted letterboxes.
+- **Notification badge auto-pruning on window close** — closing an app's window (e.g. Ghostty after an Antigravity CLI run) immediately clears unread notification badges from the dock without requiring the app to be refocused first.
+- **Model performance cache** — contributed by [@Reflectionist](https://github.com/Reflectionist) ([#77](https://github.com/thepathless/omadock/pull/77)): `getCandidates` results are cached and `applyTerminalIdentities` deduplicates title-change rescans, eliminating redundant full dock rebuilds.
+- **Reaped udevadm monitor on removal watch exit** — contributed by [@MikeNoppo](https://github.com/MikeNoppo) ([#79](https://github.com/thepathless/omadock/pull/79)): `scripts/drive-removal-watch.py` now registers `PR_SET_PDEATHSIG` so child `udevadm monitor` processes never orphan when OmaDock stops.
+- **Preset streamlining** — niche showcase presets pruned to highlight OmaDock's signature trio: `thepathless:ristretto`, `macOS`, and `Windows`.
+- **Verification**: 268 Node + 118 Python unit tests, `qmllint` 0 errors, structure-check PASSED, plugin validate and manifest-check clean, smoke PASSED.
 
 ### v4.8.0 — 2026-10-21
 

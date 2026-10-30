@@ -53,8 +53,15 @@ Rectangle {
   // fractional-scale borders once thinned every mark a pixel with it; the sizes
   // there are the look the dock ships, and a side column on a plate keeps the
   // full dot with an upright bar as thick: the dense dot looked lost there.
-  readonly property real dotSize: DockMarkGeometry.dot(Style.space, mark.dpr, dense, vertical)
+  // "app" mode draws a dot at the look's own size; every other mode keeps
+  // the classic dot from DockMarkGeometry.
+  readonly property real dotSize: (root && root.indicatorMode === "app")
+    ? DockMarkGeometry.dotFor(Style.space, mark.dpr, "app", root.indicatorSize)
+    : DockMarkGeometry.dot(Style.space, mark.dpr, dense, vertical)
   readonly property real barHeight: DockMarkGeometry.barThickness(Style.space, mark.dpr)
+  // A look that sizes its own dot draws it flat: the ring is the classic theme
+  // dot's, tuned for a 5px mark, and would swallow a 4px one.
+  readonly property bool lookSized: !!(mark.root && mark.root.indicatorMode === "app")
 
   property real snapX: 0
   property real snapY: 0
@@ -114,7 +121,7 @@ Rectangle {
   border.color: kind === "minimized" ? mark.ink
     : kind === "background" ? Qt.rgba(0, 0, 0, 0.18)
     : Qt.rgba(0, 0, 0, 0.45)
-  border.width: kind === "minimized" ? mark.hairline * 1.5 : mark.hairline
+  border.width: mark.lookSized ? 0 : (kind === "minimized" ? mark.hairline * 1.5 : mark.hairline)
 
   opacity: urgent ? (0.4 + 0.6 * pulse) : 1.0
 

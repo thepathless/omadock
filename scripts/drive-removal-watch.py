@@ -12,14 +12,17 @@ signals a change (POLLPRI). When both are ready, the removal is handled
 first, against the mount table as it was.
 """
 
+import ctypes
 import json
 import os
 import re
 import select
+import signal
 import subprocess
 import sys
 
 MOUNTS = "/proc/self/mounts"
+PR_SET_PDEATHSIG = 1
 _REMOVE = re.compile(r"^KERNEL\[[0-9.]+\]\s+remove\s+(\S+)\s+\(block\)\s*$")
 _OCTAL = re.compile(r"\\([0-7]{3})")
 
@@ -59,10 +62,21 @@ def read_mounts():
         return {}
 
 
+def die_with_parent():
+    ctypes.CDLL(None, use_errno=True).prctl(PR_SET_PDEATHSIG, signal.SIGTERM)
+
+
+def exit_on_signal(signum, _frame):
+    sys.exit(0)
+
+
 def main():
+    signal.signal(signal.SIGTERM, exit_on_signal)
+    signal.signal(signal.SIGHUP, exit_on_signal)
     try:
         monitor = subprocess.Popen(["udevadm", "monitor", "--kernel", "--subsystem-match=block"],
-                                   stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, text=True, bufsize=1)
+                                   stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, text=True, bufsize=1,
+                                   preexec_fn=die_with_parent)
     except OSError as error:
         print(f"[omadock] drive removal watch unavailable: {error}", file=sys.stderr)
         return 1

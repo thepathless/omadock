@@ -165,6 +165,7 @@ Item {
   readonly property real shadowRoom: (root && !root.placement.panel && root.showShadow && root.showBackground && root.shadowStrength > 0) ? Style.space(5) : 0
   anchors.bottom: parent ? parent.bottom : undefined
   anchors.bottomMargin: (root && root.dockVisible) ? root.edgeGap + cardWrapper.shadowRoom : -(dockCard.height + (root ? root.edgeGap : 0) + cardWrapper.shadowRoom + 10)
+  transformOrigin: Item.Bottom
 
   x: {
     if (!parent) return 0
@@ -352,6 +353,18 @@ Item {
         blurEnabled: true
         blur: 1.0
         blurMax: 20
+        // ...and no shadow under the card itself: a translucent fill would
+        // show the blurred rectangle as a grey wash over the glass.
+        maskEnabled: true
+        maskSource: shadowCut
+      }
+
+      CardShadowMask {
+        id: shadowCut
+        anchors.fill: parent
+        inset: cardShadow.pad
+        bottomInset: cardShadow.padBottom
+        radius: dockCard.radius
       }
 
       Rectangle {
@@ -366,6 +379,8 @@ Item {
 
   BorderSurface {
     id: dockCard
+    transformOrigin: Item.Bottom
+    anchors.bottom: parent ? parent.bottom : undefined
     // The element a drag in the dock holds (DockLift), for the row's slots
     // and drop gaps.
     readonly property var liftRef: dockLift
@@ -394,7 +409,7 @@ Item {
       ? Border.none()
       : Border.flat("transparent", (root && root.placement.panel) ? dockCard.effectiveBorderWidth + " 0 0 0" : dockCard.effectiveBorderWidth)
     radius: root ? root.cardRadius(height) : Style.cornerRadius
-    padding: dockCard.devSnap(Style.space(5))
+    padding: dockCard.devSnap(root ? root.dockPadPx : Style.space(5))
     // With label plates the sides match the gap between plates.
     leftPadding: (root && root.labelPlates) ? root.plateSpacing.edge : padding
     rightPadding: (root && root.labelPlates) ? root.plateSpacing.edge : padding

@@ -57,6 +57,16 @@ function cell(space, dpr, dense, vertical) {
   return Math.max(dot(space, dpr, dense, vertical), barThickness(space, dpr))
 }
 
+// The size a mark takes when a look names it, on the output's pixel grid:
+// "app" mode draws one dot at this size, every other mode keeps dot().
+function dotFor(space, dpr, mode, size) {
+  if (mode !== "app") return dot(space, dpr, false, false)
+  var n = Number(size)
+  var px = (isFinite(n) && n > 0) ? n : DOT
+  var scale = (dpr > 0) ? dpr : 1
+  return Math.max(1 / scale, Math.round(px * scale) / scale)
+}
+
 // A dot's own size, a hairline at the very least so it stays visible.
 function dot(space, dpr, dense, vertical) {
   return Math.max(hairline(dpr), snap(space(dotSpace(dense, vertical)), dpr))

@@ -29,6 +29,11 @@ Item {
   property var dockRoot: null
   // What the bubble points at; a tile with a label passes its icon.
   property Item target: bubble.parent
+  // Height of the band kept clear under the bubble for a floating hover
+  // name, measured from the target's top: the chip sits between the bubble
+  // and the bar, so the bubble stacks above it instead of covering it. Zero
+  // (or no hover name) falls back to the plain gap.
+  property real chipClear: 0
 
   width: 0
   height: 0
@@ -68,7 +73,7 @@ Item {
 
     TooltipWindow {
       target: bubble.target
-      gap: Style.space(8)
+      gap: bubble.chipClear > 0 ? bubble.chipClear : Style.space(8)
       shown: true
       level: life.level
       rises: life.rises

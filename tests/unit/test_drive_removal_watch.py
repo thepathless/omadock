@@ -1,7 +1,12 @@
 """scripts/drive-removal-watch.py: spotting a drive pulled while mounted."""
 import importlib.util
+import os
 import pathlib
+import shutil
+import signal
+import subprocess
 import sys
+import time
 import unittest
 
 SCRIPTS = pathlib.Path(__file__).resolve().parents[2] / "scripts"
@@ -44,6 +49,55 @@ class Decide(unittest.TestCase):
     def test_unmounted_first_is_safe(self):
         self.assertIsNone(watch.unsafe_removal("/dev/sdc1", watch.mounted_devices(MOUNTS)))
         self.assertIsNone(watch.unsafe_removal("", watch.mounted_devices(MOUNTS)))
+
+
+def children(pid):
+    try:
+        return [int(c) for c in pathlib.Path(f"/proc/{pid}/task/{pid}/children").read_text().split()]
+    except OSError:
+        return []
+
+
+def wait_for(predicate, timeout=5.0):
+    deadline = time.monotonic() + timeout
+    while time.monotonic() < deadline:
+        if predicate():
+            return True
+        time.sleep(0.05)
+    return False
+
+
+def alive(pid):
+    try:
+        return pathlib.Path(f"/proc/{pid}/stat").read_text().split(") ")[1][0] != "Z"
+    except OSError:
+        return False
+
+
+@unittest.skipUnless(shutil.which("udevadm"), "udevadm not installed")
+class Lifecycle(unittest.TestCase):
+    def watcher_with_monitor(self):
+        proc = subprocess.Popen([sys.executable, str(SCRIPTS / "drive-removal-watch.py")],
+                                stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        self.addCleanup(proc.wait)
+        self.addCleanup(lambda: proc.poll() is None and proc.kill())
+        if not wait_for(lambda: children(proc.pid)):
+            self.skipTest("udevadm monitor cannot run here")
+        monitor = children(proc.pid)[0]
+        self.addCleanup(lambda: alive(monitor) and os.kill(monitor, signal.SIGKILL))
+        return proc, monitor
+
+    def test_sigterm_reaps_udevadm(self):
+        proc, monitor = self.watcher_with_monitor()
+        proc.send_signal(signal.SIGTERM)
+        self.assertEqual(proc.wait(timeout=5), 0)
+        self.assertTrue(wait_for(lambda: not alive(monitor)), "udevadm outlived SIGTERM")
+
+    def test_sigkill_still_takes_udevadm_down(self):
+        proc, monitor = self.watcher_with_monitor()
+        proc.kill()
+        proc.wait(timeout=5)
+        self.assertTrue(wait_for(lambda: not alive(monitor)), "udevadm outlived SIGKILL")
 
 
 if __name__ == "__main__":

@@ -109,13 +109,11 @@ Item {
         anchors.centerIn: parent
         active: card.reached && !!card.win && stack.canCapture
         sourceComponent: ScreencopyView {
-          // Letterbox the window into the frame by its own aspect ratio.
-          readonly property real aspect: (sourceSize.width > 0 && sourceSize.height > 0)
-            ? sourceSize.width / sourceSize.height : stack.frameWidth / stack.frameHeight
-          readonly property real boxW: stack.frameWidth - 2
-          readonly property real boxH: stack.frameHeight - 2
-          width: Math.min(boxW, boxH * aspect)
-          height: width / aspect
+          constraintSize: Qt.size(Math.max(1, stack.frameWidth - 2), Math.max(1, stack.frameHeight - 2))
+          width: implicitWidth > 0 ? implicitWidth : (stack.frameWidth - 2)
+          height: implicitHeight > 0 ? implicitHeight : (stack.frameHeight - 2)
+          readonly property real aspect: (implicitWidth > 0 && implicitHeight > 0)
+            ? implicitWidth / implicitHeight : stack.frameWidth / stack.frameHeight
           live: true
           captureSource: (card.win && stack.root) ? stack.root.liveToplevelForAddress(card.win.address) : null
           onCaptureSourceChanged: live = true

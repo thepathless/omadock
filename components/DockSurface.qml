@@ -24,8 +24,13 @@ BorderSurface {
 
   // A gradient fill is drawn by the layer below instead of the card colour.
   readonly property bool gradientFill: root ? (root.showBackground && root.bgFill === "gradient") : false
+  // The card's body (root.surfaceBody): the fill's colour at the look's own
+  // lightness and chroma, at the look's stability. With no material set that
+  // is exactly the fill at the dock's opacity, as before.
   color: (root && (!root.showBackground || surface.gradientFill)) ? "transparent"
-    : ((root && root.dockBgColor === "none") ? effectiveBgColor : Util.alpha(effectiveBgColor, root ? root.effectiveDockOpacity : 1.0))
+    : ((root && root.dockBgColor === "none") ? effectiveBgColor
+      : (root ? root.surfaceBody(effectiveBgColor, root.effectiveDockOpacity)
+              : Util.alpha(effectiveBgColor, 1.0)))
   borderSpec: (root && !root.showBorder)
     ? Border.none()
     : Border.flat(surface.effectiveBorderColor, (root && root.placement.panel) ? surface.borderWidth + " 0 0 0" : surface.borderWidth)
@@ -51,6 +56,21 @@ BorderSurface {
       property real radius: surface.radius
       property size size: Qt.size(width, height)
       fragmentShader: Qt.resolvedUrl("../shaders/gradient.frag.qsb")
+    }
+  }
+
+  // Specular glass over the fill (shaders/glass.frag): a light layer, not a
+  // tint, so the fill and the compositor's blur behind it stay the dock's own
+  // background. 0 draws nothing and keeps the surface exactly as it was.
+  Loader {
+    anchors.fill: parent
+    z: 0.4
+    active: root ? (root.showBackground && root.surfaceGlass > 0) : false
+    sourceComponent: ShaderEffect {
+      property real strength: root ? root.surfaceGlass : 0
+      property real radius: surface.radius
+      property size size: Qt.size(width, height)
+      fragmentShader: Qt.resolvedUrl("../shaders/glass.frag.qsb")
     }
   }
 
