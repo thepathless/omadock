@@ -56,26 +56,6 @@ function chain(id, themes) {
   return out
 }
 
-// Search over the installed themes. A query must appear in the display name or
-// the id; the shorter the name it appears in, the earlier it sorts.
-function filter(themes, query) {
-  var list = Array.isArray(themes) ? themes : []
-  var q = String(query == null ? "" : query).trim().toLowerCase()
-  if (!q) return list.slice()
-  var hits = []
-  for (var i = 0; i < list.length; i++) {
-    var t = list[i]
-    var name = String(t.name || "").toLowerCase()
-    var id = String(t.id || "").toLowerCase()
-    var at = name.indexOf(q)
-    if (at < 0) at = id.indexOf(q)
-    if (at < 0) continue
-    hits.push({ theme: t, at: at, length: name.length })
-  }
-  hits.sort(function (a, b) { return a.at - b.at || a.length - b.length || (a.theme.name < b.theme.name ? -1 : 1) })
-  return hits.map(function (h) { return h.theme })
-}
-
 // What a row says under the theme's name: the id when it is not already the
 // name, and which theme it builds on.
 function subtitle(theme) {
