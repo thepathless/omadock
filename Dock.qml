@@ -930,6 +930,8 @@ Item {
   readonly property int revealHeight: 6
 
   property bool windowsOverlapDock: false
+  // The second look at a "no overlap" snapshot; see the component's header.
+  property OverlapConfirmation overlapConfirmTimer: OverlapConfirmation { dock: root }
 
   Timer {
     id: hideTimer
@@ -1112,7 +1114,7 @@ Item {
           }
         }
 
-        root.windowsOverlapDock = overlap
+        stateLogic.settleOverlap(root, overlap)
       }
     }
   }
