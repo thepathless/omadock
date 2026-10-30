@@ -289,7 +289,7 @@ The settings at a glance:
 
 - **Shapes**: `Auto (Theme)`, `Rounded`, `Round (Pill)`, `Square`.
 - **Opacity**: `Auto (Theme)`, `100%`, `80%`, `65%`, `35%`, `0% (Transparent Specular)`.
-- **Placement & Alignment**: `Dock` or `Panel` layout; `Left`, `Center (Default)`, `Right`, `Both sides` along the screen edge.
+- **Placement & Alignment**: `Dock` or `Panel` layout; `Left`, `Center (Default)`, `Right`, `Both sides` along the screen edge. Applying the shipped **Windows** look sets the panel, centered and always visible for you — the taskbar's shape is part of that preset.
 - **Color Presets**: Theme Auto, Pure Black, Mocha, Deep Slate, Midnight Blue, Dark Navy, Emerald Forest, Velvet Ruby.
 - **Icon Sizing**: Small (28px), Medium (36px), Large (44px), Extra Large (52px).
 - **Icon Styles**: `Original`, `Mono`, `Pixel` (coarse grid) and `Dots` (dithered dot matrix), with grid size, tint, contrast and hover-reveal controls.
@@ -351,18 +351,13 @@ omarchy-shell omadock applyPreset "Night"
 
 ### Shipped looks
 
-Eight looks ride with the dock and sit ahead of the presets you save — a fresh install with no `omadock.json` still offers every one of them. A shipped look and a saved preset can never appear as two rows under one name: the list carries a name once, and where they collide the preset you saved keeps it (it is the row you can rename, update or delete), so the shipped look of that name sits that one out rather than the other way round. They are read-only (no Update or Delete, and the name cannot be edited), so removing your own presets never removes them. `DockPresets.js` holds the definitions; the shipped keys are the ones that differ from the defaults, and every other key is filled from `DockModel.DEFAULT_LOOK` when the list is built, so a look key added later cannot leak the value the dock happens to hold.
+Three looks ride with the dock and sit ahead of the presets you save — a fresh install with no `omadock.json` still offers every one of them. A shipped look and a saved preset can never appear as two rows under one name: the list carries a name once, and where they collide the preset you saved keeps it (it is the row you can rename, update or delete), so the shipped look of that name sits that one out rather than the other way round. They are read-only (no Update or Delete, and the name cannot be edited), so removing your own presets never removes them. `DockPresets.js` holds the definitions; the shipped keys are the ones that differ from the defaults, and every other key is filled from `DockModel.DEFAULT_LOOK` when the list is built, so a look key added later cannot leak the value the dock happens to hold. A shipped look may also carry the **placement** its shape needs: only shipped entries can, and a preset you saved is read back with its look alone, so applying one never moves the dock.
 
 | Preset | The look | Built from |
 | :--- | :--- | :--- |
 | `thepathless:ristretto` | Dot-matrix icons on a Forest gradient with film grain, long custom dividers, the Glitch hover, and no rim or shadow | The maintainer's own dock |
-| `Glass` | Aurora gradient fill with grain, a rim that stays visible over it, long theme-coloured dividers and the Lift hover | [#13](https://github.com/thepathless/omadock/pull/13), [#45](https://github.com/thepathless/omadock/pull/45), [#17](https://github.com/thepathless/omadock/pull/17), [#19](https://github.com/thepathless/omadock/pull/19) by [@priard](https://github.com/priard) |
-| `Pixel` | Pixel icons on a B/W tint with a coarse grid and the tone controls that keep a poster-like icon readable | [#13](https://github.com/thepathless/omadock/pull/13) by [@priard](https://github.com/priard) |
-| `Mono` | The transparent dock — icons only, no card, rim or panel — in monochrome with the accent tint and the Glow hover | [#12](https://github.com/thepathless/omadock/pull/12), [#13](https://github.com/thepathless/omadock/pull/13), [#19](https://github.com/thepathless/omadock/pull/19) by [@priard](https://github.com/priard) |
-| `Panels` | Split sections: one panel per dock section over a quiet Mono gradient, with a pixel-snapped gap | [#14](https://github.com/thepathless/omadock/pull/14) and [#13](https://github.com/thepathless/omadock/pull/13) by [@priard](https://github.com/priard) |
-| `Nameplates` | Names always on, joined to their icon by a plate, with the window marks in the upright column beside the name | [#47](https://github.com/thepathless/omadock/pull/47) by [@priard](https://github.com/priard) |
-| `Silkscreen` | The same names in the bundled Silkscreen pixel font — small, on a pill, drawn with the outline that reads on any fill | [#47](https://github.com/thepathless/omadock/pull/47) by [@priard](https://github.com/priard) |
-| `macOS Sequoia` | The modern Apple macOS Sequoia dock: floating 24px squircle shelf with neutral #ffffff frosted glass (0.22 opacity, blur on), 0.5px white specular rim highlight, deep ambient shadow (0.55), bottom-anchored fisheye wave magnification, launch hop bounce, 4px circular dots, 1px hairline divider, and floating pill hover tooltips | Reverse-engineered macOS Sequoia specification & Apple HIG |
+| `macOS` | Floating 27px squircle shelf with frosted white glass (#ffffff, blur on, 0.5px specular rim, soft shadow), 53px artwork, wave fisheye hover magnification, hairline dividers, and OmaDock's multi-window marks (accent bar for focused, hollow dot for minimized) | The modern macOS dock |
+| `Windows` | The Windows 11 taskbar: full-width bottom panel, always visible, 48px tall with 24px centered artwork, 40px buttons, no magnification and no labels, acrylic fill (#202020, blur through), one rounded mark per app with the focused app's accent pill, and hover previews | The Windows 11 taskbar |
 
 The same list is scriptable end to end — list it, save the look on screen under a chosen name, remove one by id:
 
@@ -744,7 +739,7 @@ qs -p /usr/share/omarchy/shell ipc call omadock restoreLast
 | `shaders/` | Hover/icon-style fragment shaders with precompiled `.qsb` bundles. |
 | `tests/unit/` | Node and Python unit suites — what CI runs on every PR. |
 | `tests/` | `smoke-test.sh` (live-shell probe) and `manifest-check.sh` (CI manifest gate). |
-| `tests/live/` | Live suites. `probe.sh` is the harness: a second Quickshell instance running this tree's `DockHost.qml` against a byte-copy of the config under a redirected HOME, off screen (autohide, `exclusiveZone: 0`), re-checking the owner's config md5 and shell PID at exit - and `probe_start` returns only once the dock has applied the config copy, so a suite's first read never races the load. Nothing is restarted and nothing is clicked. `presets.sh`, `teardown.sh` (a session leaves no process or directory behind) and `label-metrics.sh` (the shortening search survives its metrics being destroyed, via `PROBE_BODY`) run on it and are the non-intrusive ones; `ipc-roundtrip.sh`, `layout.sh` and `config-fuzz.sh` are marked INTRUSIVE because they drive the dock on this desktop and write the live config (see the note at the top of each). |
+| `tests/live/` | Live suites. `probe.sh` is the harness: a second Quickshell instance running this tree's `DockHost.qml` against a byte-copy of the config under a redirected HOME, off screen (autohide, `exclusiveZone: 0`), re-checking the owner's config md5 and shell PID at exit - and `probe_start` returns only once the dock has applied the config copy, so a suite's first read never races the load. Nothing is restarted and nothing is clicked. `presets.sh`, `teardown.sh` (a session leaves no process or directory behind) and `label-metrics.sh` (the shortening search survives its metrics being destroyed, via `PROBE_BODY`) run on it and are the non-intrusive ones; `presets.sh` gets a headless output from `headless.sh` because applying the Windows look switches on an always-visible panel. `ipc-roundtrip.sh`, `layout.sh` and `config-fuzz.sh` are marked INTRUSIVE because they drive the dock on this desktop and write the live config (see the note at the top of each). |
 | `assets/` | README imagery. |
 | `.github/workflows/ci.yml` | CI: test suites, QML syntax gate, manifest schema. |
 
@@ -770,6 +765,16 @@ The pixel label font is [Silkscreen](https://fonts.google.com/specimen/Silkscree
 ## Changelog
 
 Full release notes, historical changelogs, and upgrade guides across all versions are available on [**GitHub Releases**](https://github.com/thepathless/omadock/releases).
+
+### v4.10.0 — 2026-10-30
+
+The Windows look is now the Windows 11 taskbar, and a shipped look can carry the placement its shape needs.
+
+- **The Windows preset became the real taskbar** — the old look was a floating square shelf with 42px icons, zoom hover, hover labels and a mark per window, so applying it left a dock that looked and behaved nothing like Windows. It now applies the full-width bottom **panel**, centered and **always visible**: a 48px bar with 40px buttons and ~24px artwork, no magnification, no labels, square geometry, an acrylic #202020 fill blurred through the compositor, and **one rounded mark per app** — the focused app's mark is the accent pill, as on Windows 11. Window previews come from OmaDock's existing tooltips; a click still launches or activates and a right-click still opens the jump-list menu.
+- **A shipped look can carry its placement** — `layout`, `alignment` and `autohide` now ride with a shipped preset (`DockPresets.js`), and `applyPreset` applies them before it saves. This is deliberately shipped-only: a preset you saved is read back with its look alone, so applying one never moves the dock. Without it, "Windows" could only ever recolor a floating, auto-hiding dock.
+- **App-mode marks know the focus** — `indicatorMode: "app"` drew the same gray dot whether the app was focused or not. `DockMarks.markKind()` now turns the focused app's mark into the accent bar, so the taskbar's active-app pill is real; per-window mode keeps its three states unchanged.
+- **Honest limits** — OmaDock has no system tray or clock, and the Omarchy button sits with the centered group rather than pinned to the far left. The taskbar preset covers the dock's own surface: centered applications, running marks, launch/activate, jump lists, previews and the full-width edge-to-edge bar.
+- **Verification** — 273 Node + 118 Python unit tests, `qmllint` 0 errors, plugin validate and manifest-check clean, and the live preset suite green: Windows applies its taskbar placement with a clean dock log. The owner's config and shell PID were unchanged, and no test process or spare display was left behind.
 
 ### v4.9.1 — 2026-10-30
 

@@ -440,7 +440,22 @@ QtObject {
   function applyPreset(root, id) {
     var i = presetIndex(root, id)
     if (i < 0) return false
-    applyLook(root, root.presets[i].look)
+    var preset = root.presets[i]
+    applyLook(root, preset.look)
+    // A shipped look may carry the geometry its shape needs (the Windows
+    // taskbar's full-width, always-visible panel). Only a shipped entry can:
+    // a saved preset is read back with id/name/look, so this never moves the
+    // dock for one the user made.
+    var place = preset.placement
+    if (place && typeof place === "object") {
+      if (place.layout) root.layout = DockLayout.normalizeLayout(place.layout)
+      if (place.alignment) root.alignment = DockLayout.normalizeAlignment(place.alignment)
+      if (typeof place.autohide === "boolean") {
+        root.autohide = place.autohide
+        root.intelligentAutohide = place.autohide ? place.intelligentAutohide === true : false
+      }
+      root.syncVisibility()
+    }
     root.applyBlurRule(false)
     root.saveConfig()
     return true

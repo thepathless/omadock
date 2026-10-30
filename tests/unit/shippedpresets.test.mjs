@@ -40,11 +40,48 @@ test("every label key a shipped look carries is a value the labels accept", () =
     if (p.look.labelMode && p.look.labelMode !== "off") shown++
   }
   assert.ok(shown >= 1, "at least one shipped look shows the names")
-  for (const name of ["macOS", "Windows"]) {
-    const look = SHIPPED.find((p) => p.name === name)
-    assert.ok(look, `${name} ships`)
-    assert.equal(look.look.labelMode, "hover", `${name} shows the names`)
+  // macOS shows the name on hover; the Windows taskbar never carries one.
+  assert.equal(SHIPPED.find((p) => p.name === "macOS").look.labelMode, "hover")
+  assert.equal(SHIPPED.find((p) => p.name === "Windows").look.labelMode, "off")
+})
+
+// The taskbar is more than a look: a full-width, always-visible bottom panel
+// with 24px-class artwork, no magnification and one pill per running app. The
+// placement is what a look cannot spell, which is why a shipped preset carries
+// it; applying the look alone used to leave a floating, auto-hiding dock.
+test("the Windows look is the taskbar, and carries the placement it needs", () => {
+  const w = SHIPPED.find((p) => p.name === "Windows")
+  assert.ok(w, "the taskbar look ships")
+  assert.deepEqual(plain(w.placement), {
+    layout: "panel", alignment: "center", autohide: false, intelligentAutohide: false
+  })
+  assert.equal(w.look.shape, "square")
+  assert.equal(w.look.cornerRadius, 0)
+  assert.equal(w.look.showBorder, false)
+  assert.equal(w.look.hoverEffect, "off", "a taskbar does not magnify")
+  assert.equal(w.look.magnifyPeak, 1)
+  assert.equal(w.look.indicatorMode, "app", "one mark per app, not per window")
+  assert.equal(w.look.indicatorShape, "rounded")
+  // 29px slot + 10px margin is the 40px Windows button; 4px padding each side
+  // lands the bar on 48px.
+  assert.equal(w.look.iconSize + w.look.iconMargin, 40)
+  assert.equal(w.look.dockPaddingPx, 4)
+})
+
+test("only a shipped look carries placement; a saved preset never does", () => {
+  const windows = merged([]).find((p) => p.name === "Windows")
+  assert.deepEqual(plain(windows.placement), plain(SHIPPED.find((p) => p.name === "Windows").placement),
+    "merge keeps the shipped placement")
+  for (const p of merged([])) {
+    if (p.name === "Windows") continue
+    assert.equal(p.placement, undefined, `${p.name} leaves the user's placement alone`)
   }
+  // boundPresets is what a saved preset is read back through, and it keeps
+  // only id/name/look, so a placement in a hand-edited config is dropped rather
+  // than moving the dock when that preset is applied.
+  const saved = { id: "preset_1", name: "Mine", look: plain(ctx.pickLook({})),
+    placement: { layout: "panel", alignment: "center", autohide: false } }
+  assert.equal(plain(ctx.boundPresets([saved]))[0].placement, undefined)
 })
 
 test("shipped presets are well formed and distinct", () => {

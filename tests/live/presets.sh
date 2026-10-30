@@ -4,57 +4,42 @@
 #
 # This is the safe live test: it never touches the desktop, the config or the
 # shell the owner is using. The probe runs against a copy of omadock.json under
-# a redirected HOME, hidden behind autohide with exclusiveZone 0, and the
-# owner's md5 and shell PID are re-checked at exit. Use it instead of driving
-# the running dock for anything the second instance can exercise - with
-# QS_DISABLE_FILE_WATCHER=1 the running dock executes the code it loaded, so a
-# test against it would exercise the previous release, not this tree.
+# a redirected HOME on its own headless output - the Windows preset carries the
+# taskbar's always-visible panel, which must live on a screen with no glass
+# attached - and the owner's md5 and shell PID are re-checked at exit. Use it
+# instead of the running dock: the launcher disables QML watching.
 #
-# Covers: presets() shape (one row per name, at most one active, every saved
-# preset listed, no name carried by a shipped look and a saved preset at once),
-# the probe's own dock answering state/itemGeometry, applyPreset by NAME for
-# shipped looks - the two name looks included, asserting their label keys reach
-# the config - the id-is-not-a-name trap, deletePreset ok/not found with the
-# config rewrite, save-then-remove leaving every other preset and config key
-# intact, a hostile preset name stored bounded (MAX_PRESET_NAME) and stripped
-# of control and bidi characters, an edit made outside the dock still being
-# picked up, and no config parse failure in the dock's log (a read that caught
-# the file mid-write used to hand the dock a truncated document, which it
-# answered with defaults).
+# Covers: presets() shape (one active at most, every saved preset listed, no
+# shipped/saved name clash), the probe dock's state/itemGeometry, applyPreset
+# by NAME for every shipped look (the label and taskbar placements included),
+# the id-is-not-a-name trap, deletePreset ok/not found with the config rewrite,
+# save-then-remove leaving other presets and keys intact, a hostile name stored
+# bounded and clean, an outside edit still landing, and no torn-read parse.
 set -u
 cd "$(dirname "$0")/../.."
+
+OWNER_CFG="${PROBE_CFG_SRC:-$HOME/.config/omarchy/omadock.json}"
+# shellcheck source=tests/live/headless.sh
+. tests/live/headless.sh
+headless_start "$OWNER_CFG" || exit 1
+# shellcheck source=tests/live/probe.sh
 . tests/live/probe.sh
+# shellcheck source=tests/live/presets-support.sh
+. tests/live/presets-support.sh
 
 WORK=""
+cleanup() {
+  if declare -F probe_cleanup >/dev/null; then probe_cleanup >/dev/null 2>&1; fi
+  headless_stop >/dev/null 2>&1
+}
+trap cleanup EXIT
+
 fail() {
   echo "PRESETS FAILED: $*" >&2
   [ -n "$WORK" ] && probe_log_tail >&2
   probe_cleanup >/dev/null 2>&1
+  headless_stop >/dev/null 2>&1
   exit 1
-}
-
-# Make room for $1 more saved presets (default one) on a copy that may already
-# hold the maximum six - an ordinary config, and the copy is disposable (this
-# suite removes saved presets from it anyway). Called before a section takes
-# its snapshot, so the snapshot is the state that section compares against.
-ensure_slot() {
-  local need=${1:-1} saved victim
-  while :; do
-    saved=$(probe_ipc presets | python3 -c '
-import json, sys
-print(sum(1 for r in json.load(sys.stdin) if not r.get("builtin")))
-')
-    [ "$saved" -le $((6 - need)) ] && return 0
-    victim=$(probe_ipc presets | python3 -c '
-import json, sys
-rows = [r["id"] for r in json.load(sys.stdin) if not r.get("builtin")]
-print(rows[0] if rows else "")
-')
-    [ -n "$victim" ] || return 1
-    probe_ipc deletePreset "$victim" >/dev/null || return 1
-    probe_wait_presets out "$victim"
-    echo "   (six presets already saved - removed $victim from the copy)" >&2
-  done
 }
 
 # A presets() listing - or a config's saved presets - may carry each name once:
@@ -85,6 +70,10 @@ case "$MAX_PRESET_NAME" in
 esac
 
 probe_start || { probe_cleanup >/dev/null 2>&1; exit 1; }
+# probe_start recorded the synthetic source as the "owner" it re-checks; point
+# that back at the real file so the exit check guards the user's config.
+PROBE_OWNER_CFG="$OWNER_CFG"
+PROBE_OWNER_MD5=$(md5sum "$OWNER_CFG" | cut -d' ' -f1)
 WORK="$PROBE_DIR/work"
 mkdir -p "$WORK"
 CFG=$(probe_cfg)
@@ -181,7 +170,7 @@ done < "$WORK/shipped-looks.tsv"
 # a preset's label look is applied through DockLabels.pickLabelLook, which keeps
 # a value only when it is one the labels accept.
 echo "-- the shipped looks reach the config"
-for spec in "macOS:hover:pill:theme" "Windows:hover:pill:theme"; do
+for spec in "macOS:hover:pill:theme" "Windows:off:none:theme"; do
   IFS=: read -r name mode bg font <<<"$spec"
   out=$(probe_ipc applyPreset "$name")
   [ "$out" = "ok" ] || fail "applyPreset \"$name\" -> $out"
@@ -190,6 +179,8 @@ for spec in "macOS:hover:pill:theme" "Windows:hover:pill:theme"; do
 import json, sys
 cfg = json.load(open(sys.argv[1]))
 name, mode, bg, font = sys.argv[2], sys.argv[3], sys.argv[4], sys.argv[5]
+if name == "Windows":
+    assert (cfg.get("layout"), cfg.get("alignment"), cfg.get("autohide")) == ("panel", "center", False), "taskbar placement"
 for field, want in (("labelMode", mode), ("labelBackground", bg), ("labelFont", font)):
     got = cfg.get(field)
     assert got == want, "%s: %s is %r, expected %r" % (name, field, got, want)
@@ -385,4 +376,5 @@ python3 -c 'import json,sys; json.load(open(sys.argv[1]))' "$CFG" || fail "the c
 
 echo
 probe_cleanup || exit 1
+headless_stop || fail "the monitor list did not come back"
 echo "PRESETS PASSED"

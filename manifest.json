@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "id": "omadock",
   "name": "Dock (OmaDock)",
-  "version": "4.9.1",
+  "version": "4.10.0",
   "author": "thepathless",
   "license": "MIT",
   "description": "Dock for Omarchy — clean, modern, high-performance application dock with zero-CPU autohide, tiling window adaptation, and deep customization",
