@@ -56,6 +56,8 @@
         height: row.height } : null,
       viewport: panel.pageScroller.height, visibleKeys: controls, advanced: advanced,
       themes: { installed: dock().iconThemeRef.themes.length, current: dock().iconThemeRef.iconTheme,
+        installedIds: dock().iconThemeRef.themes.map(function(th) { return th.id }),
+        error: String(dock().iconThemeRef.themeError),
         chain: dock().iconThemeRef.themeChain(),
         whiteSurInstalled: dock().iconThemeRef.themes.some(function(th) { return th.id.indexOf("WhiteSur") === 0 }),
         whiteSur: (function() {

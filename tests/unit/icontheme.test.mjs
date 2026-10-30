@@ -18,14 +18,17 @@ const LIST = [
   "whitesur-icon-theme|WhiteSur|Adwaita,hicolor",
   "Papirus|Papirus|hicolor",
   "Yaru-blue|Yaru-blue|Yaru,hicolor",
+  "MixedCase|Mixed Case|",
   "bad id|Nope|",
+  "Tëma|Non ASCII|",
+  "日本|CJK|",
   "../etc|Escape|",
   ""
 ].join("\n")
 
 test("the list keeps one row per id, sorts by name and drops unsafe ids", () => {
   const themes = T.parseList(LIST)
-  assert.deepEqual(plain(themes.map((t) => t.id)), ["Adwaita", "breeze-dark", "Papirus", "whitesur-icon-theme", "Yaru", "Yaru-blue"])
+  assert.deepEqual(plain(themes.map((t) => t.id)), ["Adwaita", "breeze-dark", "MixedCase", "Papirus", "whitesur-icon-theme", "Yaru", "Yaru-blue"])
   assert.equal(themes.find((t) => t.id === "breeze-dark").name, "Breeze Dark")
   assert.deepEqual(plain(themes.find((t) => t.id === "Yaru-blue").inherits), ["Yaru", "hicolor"])
   assert.equal(T.parseList("").length, 0)
@@ -33,8 +36,8 @@ test("the list keeps one row per id, sorts by name and drops unsafe ids", () => 
 })
 
 test("an id is a directory name: nothing else may reach a path or gsettings", () => {
-  for (const ok of ["Yaru", "Yaru-yellow", "whitesur-icon-theme", "Papirus", "Adwaita_dark", "a1+"]) assert.ok(T.safeId(ok), ok)
-  for (const bad of ["", " ", "../etc", "a/b", "a b", "'x'", "a;rm -rf /", "$(id)", "a\nb", "-x"]) assert.ok(!T.safeId(bad), bad)
+  for (const ok of ["Yaru", "Yaru-yellow", "whitesur-icon-theme", "Papirus", "Adwaita_dark", "a1+", "MixedCase"]) assert.ok(T.safeId(ok), ok)
+  for (const bad of ["", " ", "../etc", "a/b", "a b", "'x'", "a;rm -rf /", "$(id)", "a\nb", "-x", "Tëma", "日本"]) assert.ok(!T.safeId(bad), bad)
 })
 
 test("the chain follows Inherits and stops on a cycle or a missing theme", () => {
