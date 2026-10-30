@@ -789,7 +789,7 @@ var DEFAULT_LOOK = {
   iconGrid: 16, indicatorShape: "theme", hoverEffect: "zoom", launchBounce: true, groupStyle: "rounded",
   groupIconEffects: "theme", folderColor: "theme", iconSize: 0, itemSpacing: 4, sectionSpacing: 18, labelMode: "off",
   labelKind: "all", labelFont: "theme", labelSize: "medium", labelColor: "auto", labelBackground: "none", labelReveal: "slide",
-  labelEffect: "none", labelMaxWidth: 140, labelWeight: "medium", labelShape: "dock", labelIndicators: "before", labelPlateHeight: "icon", labelPinned: "always"
+  labelEffect: "none", labelMaxWidth: 140, labelWeight: "medium", labelShape: "dock", labelIndicators: "before", labelPlateHeight: "icon", labelPinned: "always", dockPadding: 5, dockPaddingPx: -1, iconBaseline: "dock", surfaceGlass: 0, surfaceLift: -1, surfaceDesaturate: 0, surfaceStability: 0, magnifyPeak: 1.4, magnifyReach: 2.2, indicatorMode: "windows", indicatorSize: 5, indicatorInset: -1, blurSize: 0, iconMargin: 10
 }
 var LOOK_KEYS = Object.keys(DEFAULT_LOOK)
 var MAX_PRESETS = 6

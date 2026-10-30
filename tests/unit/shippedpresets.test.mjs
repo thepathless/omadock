@@ -39,17 +39,12 @@ test("every label key a shipped look carries is a value the labels accept", () =
     }
     if (p.look.labelMode && p.look.labelMode !== "off") shown++
   }
-  // #47's whole subject is how the names look, and no other look turns them
-  // on, so a set that shows no names is the gap this test exists to keep shut.
   assert.ok(shown >= 1, "at least one shipped look shows the names")
-  for (const name of ["Nameplates", "Silkscreen"]) {
+  for (const name of ["macOS", "Windows"]) {
     const look = SHIPPED.find((p) => p.name === name)
     assert.ok(look, `${name} ships`)
-    assert.equal(look.look.labelMode, "always", `${name} shows the names`)
+    assert.equal(look.look.labelMode, "hover", `${name} shows the names`)
   }
-  assert.notEqual(SHIPPED.find((p) => p.name === "Nameplates").look.labelBackground,
-    SHIPPED.find((p) => p.name === "Silkscreen").look.labelBackground,
-    "the two name looks are not the same look")
 })
 
 test("shipped presets are well formed and distinct", () => {
@@ -163,22 +158,22 @@ test("thepathless:ristretto pins the look the maintainer's dock runs", () => {
 })
 
 test("a key-for-key tie goes to the saved preset, not the shipped row", () => {
-  const mono = merged([]).find((p) => p.name === "Mono")
+  const mac = merged([]).find((p) => p.name === "macOS")
   // The user's own copy of that look, under a name of their own: no name
   // collision, so merge keeps both rows and only the active mark can tell.
-  const mine = { id: "preset_1700000000000", name: "Mine", look: plain(mono.look) }
+  const mine = { id: "preset_1700000000000", name: "Mine", look: plain(mac.look) }
   const list = merged([mine])
   assert.equal(list.findIndex((p) => p.builtin === true), 0,
     "the shipped looks lead the list, which is why the tie needs settling")
-  assert.equal(ctx.activeId(list, plain(mono.look), ctx.lookIncludes), mine.id,
+  assert.equal(ctx.activeId(list, plain(mac.look), ctx.lookIncludes), mine.id,
     "the row the user can edit takes the active mark")
-  assert.notEqual(ctx.activeId(list, plain(mono.look), ctx.lookIncludes), mono.id,
+  assert.notEqual(ctx.activeId(list, plain(mac.look), ctx.lookIncludes), mac.id,
     "the read-only shipped row does not")
   // A look only a shipped preset matches still marks that one, whether or not
   // anything was saved.
-  const glass = merged([]).find((p) => p.name === "Glass")
-  assert.equal(ctx.activeId(list, plain(glass.look), ctx.lookIncludes), glass.id)
-  assert.equal(ctx.activeId(merged([]), plain(glass.look), ctx.lookIncludes), glass.id)
+  const win = merged([]).find((p) => p.name === "Windows")
+  assert.equal(ctx.activeId(list, plain(win.look), ctx.lookIncludes), win.id)
+  assert.equal(ctx.activeId(merged([]), plain(win.look), ctx.lookIncludes), win.id)
   // Nothing matches: no row is marked, and an empty list answers "".
   assert.equal(ctx.activeId(list, plain(ctx.pickLook({ grain: 0.9 })), ctx.lookIncludes), "")
   assert.equal(ctx.activeId([], plain(ctx.pickLook({})), ctx.lookIncludes), "")

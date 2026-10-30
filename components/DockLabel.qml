@@ -1,5 +1,6 @@
 import QtQuick 6.11
 import QtQuick.Effects
+import Quickshell
 import qs.Commons
 import qs.Ui
 import "../DockLabels.js" as DockLabels
@@ -183,9 +184,35 @@ Item {
   Behavior on nameFade { NumberAnimation { duration: (label.motion ? label.motion.fast : 0); easing.type: Easing.OutCubic } }
   // The plate stays put while the name folds into it.
   readonly property bool restingPlate: label.plate && label.shown && label.foldable
-  // Hover labels slide out over the neighbours instead of widening the
-  // tile, so the dock never moves under the pointer.
+  // Hover names float above the bar in their own surface (HoverNamePlate), so
+  // they widen no tile, cover no neighbour, and the dock never moves under the
+  // pointer.
   readonly property bool overlay: !!label.style && label.style.hover
+  // Where the floating name sits above its icon's top: clear of the card's
+  // rim and padding, and of the tallest artwork the wave raises. One formula
+  // owns it, and a tooltip that accompanies the name (a window preview, a
+  // task row) stacks above `chipClear`, so the preview never covers the
+  // name; the name is the thing that always shows.
+  readonly property real chipGap: Style.space(10) + (label.root
+    ? label.root.dockPadPx + label.root.borderWidth
+      + (label.root.waveHover ? Math.ceil(label.root.baseIconArt * (label.root.magnifyPeak - 1) / 2) : 0)
+    : 0)
+  // The chip's box: one line in the look's own font inside the plate's own
+  // padding. A line's height belongs to the font, not to the name (the same
+  // measure the plate's own Text takes), so it is known before the chip opens:
+  // the room a tooltip keeps above the name is final from the first frame, and
+  // the preview does not move when the chip lands under it.
+  Text {
+    id: chipLine
+    visible: false
+    text: "X"
+    textFormat: Text.PlainText
+    font.family: label.style ? label.style.family : Style.font.family
+    font.pixelSize: label.style ? label.style.fontPx : Style.font.caption
+    font.weight: label.style ? label.style.weight : Font.Medium
+  }
+  readonly property real chipBox: Math.ceil(chipLine.implicitHeight) + Style.space(4) * 2
+  readonly property real chipClear: label.chipGap + label.chipBox + Style.space(3)
   readonly property real rawExtra: label.overlay ? 0 : Math.round(label.progress * label.naturalWidth) + label.lead + label.foldTail
   // In a plate row the tile's width lands on the device-pixel grid.
   readonly property real extra: (label.rawExtra > 0 && label.root && label.root.labelPlates)
@@ -286,11 +313,43 @@ Item {
     : Math.max(label.style.effect === "glow" ? 0.55 + 0.45 * label.hoverLevel : 0,
                label.hoverEffect === "glow" ? label.hoverLevel : 0)
 
-  // ---- geometry: beside the icon, the whole tile height
+  // ---- geometry: beside the icon, the whole tile height. A hover name draws
+  // nothing in the row: its chip is a popup above the icon.
   x: label.mirror ? label.tileLead : (label.iconBox ? label.iconBox.x + label.iconBox.width : 0)
-  width: label.overlay ? Math.round(label.progress * label.naturalWidth) : label.extra - label.lead
+  width: label.overlay ? 0 : label.extra - label.lead
   height: parent ? parent.height : 0
-  visible: label.width > 0 || label.restingPlate
+  visible: !label.overlay && (label.width > 0 || label.restingPlate)
+
+  // The hover name, above the icon and clear of the bar. Its surface is the
+  // dock window's popup (TooltipWindow): the chip parses no input, so the
+  // pointer keeps hovering the tile underneath it.
+  LazyLoader {
+    id: chipLoader
+    active: label.overlay && label.progress > 0.01
+    TooltipWindow {
+      target: label.iconBox ? label.iconBox : label.parent
+      // Clear of the card's rim, its padding and the wave-lifted artwork: a
+      // magnified icon grows upward out of the bar (artwork * peak, centred on
+      // its box), and the name floats over it, not into it. `chipGap` is the
+      // single owner - the tooltips that accompany the name stack on it.
+      gap: label.chipGap
+      shown: true
+      level: label.progress
+      rises: label.root ? !!label.root.motion && label.root.motion.layout : true
+      body: hoverPlate
+
+      HoverNamePlate {
+        id: hoverPlate
+        rootRef: label.rootRef
+        text: label.drawnText
+        family: label.style ? label.style.family : Style.font.family
+        fontPx: label.style ? label.style.fontPx : Style.font.caption
+        weight: label.style ? label.style.weight : Font.Medium
+        // The box the label reserved above the icon.
+        boxHeight: label.chipBox
+      }
+    }
+  }
 
   // Plate: one surface behind icon and name. The art gets the same margin
   // on its leading side as the name on the trailing one, and the window

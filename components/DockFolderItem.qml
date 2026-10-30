@@ -224,6 +224,9 @@ Item {
     blocked: (!root || !root.showTooltips || root.activeStackFolder !== "")
       || (root && !root.labelTooltipNeeded("folder", false, false, label.shortened))
     target: iconSlot
+    // The name chip floats between this bubble and the bar; the preview
+    // stacks above it in the clear band the name reserved.
+    chipClear: label.overlay ? label.chipClear : 0
     showTooltips: root ? root.showTooltips : true
     tooltipDelay: root ? root.tooltipDelay : 450
     contextAppId: root ? root.contextAppId : ""

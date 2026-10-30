@@ -238,28 +238,25 @@ Item {
 
   // ------------------------------------------------- magnification
 
-  // Raised cosine falloff, the curve Juan Pablo Zamora derived for this effect:
-  //   size = min + ((1 - cos t) / 2) * (max - min)
-  // over an effectWidth-wide window centred on the cursor, which is
-  // 0.5 * (1 + cos(pi * d / R)) for a distance d and half-range R. Flat at the
-  // peak and flat where the effect ends, so icons neither snap at the apex nor
-  // pop into motion at the edge of the range.
+  // Raised cosine falloff, Juan Pablo Zamora's curve for this effect:
+  //   0.5 * (1 + cos(pi * d / R)) for a distance d and half-range R,
+  // carried one step wider by the 0.7 power in DockStyleLogic.magnifyAt: flat
+  // at the peak, exactly 1.0 (no growth at all) at `magnifyReach`, and three
+  // neighbours rising at 3.6 slots, as the macOS dock shows.
   //
-  // Slots grow, and the row grows with them. That is not a stylistic choice:
-  // the displacement an icon needs is the accumulated growth between it and the
-  // cursor, which integrates to (peak - 1) * R / 2 at the range edge — around
-  // 30px per side here. A fixed-width card has nowhere to put that, so nudging
-  // icons by a hand-picked amount instead leaves holes next to the pointer and
-  // crowding further out. Letting the row carry the extra width is what keeps
-  // every gap even.
+  // Slots grow, and the row (with the card) grows with them, as the macOS dock
+  // does: that keeps the gaps even, where scaling icons inside fixed slots
+  // makes them collide. The wave is horizontal only, so the card's height and
+  // padding never move and the icons that rise are drawn inside them.
   //
-  // Distances are measured from each slot's *unmagnified* home centre, in
-  // window coordinates. Nothing that magnification changes feeds back into
-  // those numbers, so the wave cannot chase itself.
-  readonly property real magnifyPeak: 1.4
+  // Distances are measured from each slot's unmagnified home centre, in window
+  // coordinates; nothing magnification changes feeds back into those numbers,
+  // so the wave cannot chase itself.
+  property real magnifyPeak: 1.4
+  property real magnifyReach: 2.2
   // On always-on label plates the zoom stays inside the plate's margin.
   readonly property real zoomPeak: root.labelPlates ? 1.1 : 1.22
-  readonly property real magnifyRange: root.iconSlot * 2.2
+  readonly property real magnifyRange: root.iconSlot * Math.max(1, root.magnifyReach)
   readonly property real baseIconArt: root.iconSize - Style.space(4)
   // Largest size an icon reaches under either hover effect; icons decode at
   // this size once instead of on every animation frame.
@@ -273,17 +270,16 @@ Item {
   // Art and indicators sit this much above the band's centring, so the
   // art's top margin matches the room under the indicators.
   readonly property real indicatorLift: Style.spaceReal(1.5)
-  // Distance from the slot's bottom edge to the bottom of the artwork.
-  // With indicators beside the art on label plates, the art is centred.
-  readonly property real iconArtBottom: root.labelSideMarks ? Math.round((root.iconSlot - root.baseIconArt) / 2)
-    : Math.round(root.indicatorBand + (root.iconSlot - root.indicatorBand - root.baseIconArt) / 2) + root.indicatorLift
+  // The artwork's bottom lift and the marks' bottom offset (DockStyleLogic).
+  readonly property real iconArtBottom: styleLogic.iconArtBottom(root)
+  readonly property real markBottomMargin: styleLogic.markBottomMargin(root)
   // Vertical offset of the artwork's centre from the slot's centre, for
   // things centred on the row (separators, preview tiles).
   readonly property real iconCenterOffset: -root.indicatorBand / 2
 
   // The card's own handler in dockCard-local coordinates.
   readonly property real pointerX: cardHover.hovered
-    ? cardHover.point.position.x - dockCardComp.rowOffset
+    ? styleLogic.wavePointer(root, cardHover.point.position.x, dockCardComp.rowOffset, dockCard.width)
     : -1e6
 
   readonly property int appsSlots: root.showAppsButton ? 1 : 0
@@ -355,7 +351,7 @@ Item {
     + Math.max(0, root.elementTotal - 1) * root.gapWidth
 
   // Where the row starts within the card (card-local coordinates).
-  readonly property real baseRowLeft: dockCard ? dockCard.contentLeftInset : Style.space(5)
+  readonly property real baseRowLeft: dockCard ? dockCard.contentLeftInset : root.dockPadPx
 
   function slotHomeCenter(elementIndex, slotsBefore, sepCount, extraLeftWidth, ownLabel) { return styleLogic.slotHomeCenter(root, elementIndex, slotsBefore, sepCount, extraLeftWidth, ownLabel) }
 
@@ -367,6 +363,7 @@ Item {
   readonly property int tileElements: root.hasTiles ? root.tileCount : 0
 
   function magnifyAt(homeCenter) { return styleLogic.magnifyAt(root, homeCenter) }
+  function floatingBody(fill, opacity, ink) { return styleLogic.floatingBody(root, fill, opacity, ink) }
   function magnifyScaleAt(homeCenter) { return styleLogic.magnifyScaleAt(root, homeCenter) }
   function waveOffsetAt(homeCenter) { return styleLogic.waveOffsetAt(root, homeCenter) }
 
@@ -397,7 +394,8 @@ Item {
   }
 
   function cardRadius(height) { return styleLogic.cardRadius(root, height) }
-
+  function fillOnBackdrop(fill) { return styleLogic.fillOnBackdrop(root, fill) }
+  function surfaceBody(fill, opacity) { return styleLogic.surfaceBody(root, fill, opacity) }
   readonly property color dockForeground: {
     var custom = String(root.dockBgColor || "")
     if (custom.charAt(0) !== "#") return Color.bar.text
@@ -412,7 +410,8 @@ Item {
       console.warn("[omadock] Invalid dock background colour, using theme:", custom, e)
       return Color.bar.text
     }
-    var cardIsLight = root.isLight(customColor)
+    if (root.surfaceStability > 0) return styleLogic.inkOn(root, customColor)
+    var cardIsLight = root.isLight(root.fillOnBackdrop(customColor))
     if (cardIsLight !== root.isLight(Color.bar.text)) return Color.bar.text
     return cardIsLight ? "#12100f" : "#f2efec"
   }
@@ -422,7 +421,7 @@ Item {
   property int configuredIconSize: 0
   readonly property int baseIconSize: root.configuredIconSize > 0 ? root.configuredIconSize : Math.max(28, Math.round(Style.bar.sizeHorizontal * 0.9))
   readonly property int iconSize: fitHost.plan.iconSize > 0 ? Math.min(root.baseIconSize, fitHost.plan.iconSize) : root.baseIconSize
-  readonly property int iconSlot: root.labelPlates ? DockLabels.gridInt(root.iconSize + Style.space(10), root.outputScale) : root.iconSize + Style.space(10)
+  readonly property int iconSlot: root.labelPlates ? DockLabels.gridInt(root.iconSize + Math.round(Style.spaceReal(root.iconMargin)), root.outputScale) : root.iconSize + Math.round(Style.spaceReal(root.iconMargin))
 
   // ------------------------------------------------- model
 
@@ -678,9 +677,17 @@ Item {
     return Math.max(0.0, Math.min(1.0, root.dockOpacity))
   }
   property string dockShape: "rounded"
-  // Corner radius for the "rounded" shape in logical pixels, set by hand in
-  // Settings; negative keeps the automatic one that follows the dock height.
+  // Corner radius in logical pixels, set by hand in Settings; negative keeps
+  // the automatic one that follows the dock height.
   property int cornerRadius: -1
+  // Card padding; the artwork's slot ("dock"/"center"); the glass over the
+  // fill; the material's lightness (surfaceLift), neutrality and stability.
+  property int dockPadding: 5; property real dockPaddingPx: -1; property string iconBaseline: "dock"; property real surfaceGlass: 0
+  readonly property int dockPadPx: root.dockPaddingPx >= 0 ? Math.round(root.dockPaddingPx) : Math.round(root.dockPadding); property real surfaceLift: -1; property real surfaceDesaturate: 0; property real surfaceStability: 0
+  // Running marks: "windows" (one per window) or "app" (one dot per app),
+  // the dot's size in logical px, and its distance above the card's bottom
+  // edge (negative keeps the classic slot-relative placement).
+  property string indicatorMode: "windows"; property int indicatorSize: 5; property real indicatorInset: -1; property real iconMargin: 10
   property string dockBgColor: "theme"
   property bool showBackground: true
   // Background fill: "solid" (dockBgColor) or "gradient" (below).
@@ -744,18 +751,16 @@ Item {
   // With iconHoverOriginal: the original dithers in cell by cell, rising
   // from the bottom, instead of replacing the styled icon at once.
   property bool iconHoverReveal: false
-  // The mono / dots ink, kept readable against what sits behind the icons
-  // (see readableOn): an accent tint over a theme gradient built from that
-  // same accent would otherwise vanish into it. On a label plate: the same against the plate.
+  // The mono / dots ink, kept readable against what sits behind the icons (see
+  // readableOn); on a label plate, the same against the plate.
   readonly property color iconTintColor: root.tintFor(root.iconTint, root.dockForeground, root.iconBackdropColor)
   readonly property color plateIconTintColor: labelLogic.plateIconTint(root)
 
   function tintFor(mode, textColor, backdrop) { return styleLogic.tintFor(root, mode, textColor, backdrop) }
   function blackOrWhiteOn(backdrop) { return styleLogic.blackOrWhiteOn(root, backdrop) }
 
-  // Best guess at the colour behind the icons: the card's fill (for a
-  // gradient, its colours averaged and mixed into the base by the strength
-  // they cover it with), or the theme background when the card is off.
+  // Best guess at the colour behind the icons: the card's fill (for a gradient,
+  // its colours mixed into the base by their strength), or the theme background.
   readonly property color iconBackdropColor: {
     var base = Color.bar.background
     if (!root.showBackground) return Color.background
@@ -772,7 +777,8 @@ Item {
       return Qt.rgba(base.r + (r - base.r) * k, base.g + (g - base.g) * k, base.b + (b - base.b) * k, 1)
     }
     var custom = String(root.dockBgColor || "")
-    return custom.charAt(0) === "#" ? Qt.color(custom) : base
+    var fill = custom.charAt(0) === "#" ? Qt.color(custom) : base
+    return root.surfaceStability > 0 ? root.fillOnBackdrop(fill) : fill
   }
 
   // Divider lines: the backdrop mixed toward black or white, whichever
@@ -1611,30 +1617,21 @@ Item {
   function openDockSettingsMenu(x, y) { return contextLogic.openDockSettingsMenu(root, x, y) }
 
   // ------------------------------------------------- compositor blur
-  // Hyprland blurs layers through layer rules, which can switch blur on or
-  // off per layer but not size it: blur size is one global setting
-  // (decoration.blur.size). So "on" can also carry a size, applied globally,
-  // and the size Hyprland had before (systemBlurSize) is put back when the
-  // dock stops overriding it. The rule lives in a Lua global so a later change
-  // (or "system") can disable it again without reloading the user's config.
-  // One dock applies it: every dock shares the "omadock" namespace.
-  // "" until the first apply, so a rule left behind by an earlier shell
-  // session (the Lua state outlives the shell) is always reconciled.
-  property string _appliedBlurMode: ""
+  // The rule lives in a Lua global so a later change (or "system") can disable
+  // it again; one dock applies it. HyprlandBlur reads the compositor's switch.
+  property int blurSize: 0; property int systemBlurSize: 0; property string _appliedBlurMode: ""
+  property int _appliedBlurSize: 0; property bool systemBlurEnabled: true
+  // Hyprland's own blur switch, read on demand, and whether the dock turned it
+  // on - so leaving "on" can put the user's own value back.
+  property bool _blurEnabledOverride: false; property bool _blurProbed: false
+  readonly property HyprlandBlur hyprBlur: HyprlandBlur { rootRef: root }
 
   function applyBlurRule(force) { return settingsLogic.applyBlurRule(root, force) }
-
-  // Global blur size the dock asks for while blur is "on"; 0 leaves it alone.
-  property int blurSize: 0
-  // Hyprland's own blur size, captured before the first override so it can be
-  // restored; persisted, since the override outlives a shell restart.
-  property int systemBlurSize: 0
-  property int _appliedBlurSize: 0
-
+  function setHyprBlurEnabled(on) { return settingsLogic.setHyprBlurEnabled(root, on) }
+  function ensureHyprBlur(force) { return settingsLogic.ensureHyprBlur(root, force) }
+  function probeHyprBlur() { hyprBlur.request() }
   function setHyprBlurSize(size) { return settingsLogic.setHyprBlurSize(root, size) }
-
   function applyBlurSize(force) { return settingsLogic.applyBlurSize(root, force) }
-
   function setBlurSize(size, currentSize) { return settingsLogic.setBlurSize(root, size, currentSize) }
 
   // ------------------------------------------------- drops from outside

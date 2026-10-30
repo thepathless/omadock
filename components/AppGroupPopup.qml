@@ -22,7 +22,7 @@ BorderSurface {
   z: 100
   color: Color.menu.background
   borderSpec: Border.surfaceSpec("menu", "border", Color.menu.border, 1)
-  radius: Style.cornerRadius
+  radius: (root && root.shape === "rounded" && root.dockRadius > 0) ? Math.min(16, root.dockRadius) : Style.cornerRadius
   padding: Style.space(6)
 
   property bool isEditingName: false

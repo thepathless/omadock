@@ -130,8 +130,10 @@ Item {
 
     ScreencopyView {
       id: tilePreview
-      anchors.fill: parent
-      anchors.margins: 1
+      anchors.centerIn: parent
+      constraintSize: Qt.size(Math.max(1, parent.width - 2), Math.max(1, parent.height - 2))
+      width: implicitWidth > 0 ? implicitWidth : parent.width - 2
+      height: implicitHeight > 0 ? implicitHeight : parent.height - 2
       visible: hasContent
       clip: true
       live: false

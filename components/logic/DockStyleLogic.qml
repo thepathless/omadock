@@ -38,11 +38,27 @@ QtObject {
       + root.iconSlot / 2
   }
 
+  // Where the pointer sits in the row's unmagnified frame, which is the frame
+  // the home centres are measured in. The card grows around its centre as
+  // slots magnify, so its left edge moves out by half that growth and a fixed
+  // pointer reads that much further right - enough to put the peak a slot off
+  // the tile under the cursor.
+  function wavePointer(root, cardX, rowOffset, cardWidth) {
+    var rest = root.baseRowWidth + 2 * root.baseRowLeft
+    var growth = Math.max(0, cardWidth - rest)
+    return cardX - rowOffset - growth / 2
+  }
+
+  // The wave's window: a raised cosine over `magnifyReach` slots, carried one
+  // step wider through the 0.7 power. Both ends stay where the cosine put
+  // them -- flat at the peak, and 1.0 (no scale) exactly at the reach -- while
+  // the shoulder between them widens, so three neighbours rise with the tile
+  // under the pointer instead of the single one the plain cosine lit.
   function magnifyAt(root, homeCenter) {
     if (!root.waveHover) return 0
-    var distance = root.pointerX - homeCenter
-    if (Math.abs(distance) >= root.magnifyRange) return 0
-    return 0.5 * (1 + Math.cos(Math.PI * distance / root.magnifyRange))
+    var t = Math.abs(root.pointerX - homeCenter) / root.magnifyRange
+    if (t >= 1) return 0
+    return Math.pow(0.5 * (1 + Math.cos(Math.PI * t)), 0.7)
   }
 
   function magnifyScaleAt(root, homeCenter) {
@@ -63,6 +79,120 @@ QtObject {
 
   function cardRadius(root, height) {
     return root.effectiveCardRadius
+  }
+
+  // The card's body: the material's own colour, at the look's lightness
+  // (surfaceLift) and pulled toward neutral by surfaceDesaturate. Without a
+  // body a translucent fill is only a film over whatever is behind it, so the
+  // card renders at the wallpaper's brightness and has no tone of its own.
+  // surfaceStability is the share of the card that body fills, and so the only
+  // opacity that matters once a look sets it. Lift -1, no desaturation and no
+  // stability reproduce the fill as written, exactly.
+  function surfaceBody(root, fill, opacity) {
+    var c = Qt.color(fill)
+    var lift = root.surfaceLift
+    var desat = root.surfaceDesaturate
+    var stability = root.surfaceStability
+    if (lift < 0 && desat <= 0 && stability <= 0) return Util.alpha(c, opacity)
+    var l = lift >= 0 ? lift : c.hslLightness
+    var s = c.hslSaturation * (1 - desat)
+    return Qt.hsla(c.hslHue < 0 ? 0 : c.hslHue, s, l, stability > 0 ? stability : opacity)
+  }
+
+  // The body for a surface that floats on its own (the hover name): it sits
+  // over the wallpaper rather than over the card's blurred backdrop, so it
+  // cannot borrow a body from what is behind it - it takes the material's own
+  // body at full stability - and that body is moved away from the ink the
+  // dock chose for it (lighter under dark ink, deeper under light ink) until
+  // the pair reads at the floating floor. Same hue, same chroma: only the
+  // separation grows, so no wallpaper can leave the name under-contrasted.
+  function floatingBody(root, fill, opacity, ink) {
+    var body = surfaceBody(root, fill, opacity)
+    var h = body.hslHue < 0 ? 0 : body.hslHue
+    var sat = body.hslSaturation
+    var l = body.hslLightness
+    // 6.5: WCAG AA for body text is 4.5, and the light end of the band already
+    // held 6.1 through the wallpaper showing in a translucent body; an opaque
+    // body gives every wallpaper that pair, not just the bright ones.
+    var floor = 6.5
+    // The dock's own light/dark test (the one inkOn uses): dark ink lifts the
+    // body, light ink deepens it, so the two always move apart.
+    var dir = root.isLight(ink) ? -1 : 1
+    for (var i = 0; i < 100; i++) {
+      var c = Qt.hsla(h, sat, l, 1)
+      if (root.contrastRatio(c, ink) >= floor) return c
+      l += dir * 0.01
+      if (l <= 0 || l >= 1) break
+    }
+    return Qt.hsla(h, sat, Math.max(0, Math.min(1, l)), 1)
+  }
+
+  // The card as it renders at one end of the backdrop's range: the body over
+  // black (dark) or over white (light). A translucent surface is a band, not a
+  // colour, and the two ends are all an ink choice needs to know.
+  function surfaceAt(root, fill, dark) {
+    var body = surfaceBody(root, fill, root.effectiveDockOpacity)
+    var k = body.a
+    var end = dark ? 0 : 1
+    return Qt.rgba(body.r + (end - body.r) * (1 - k), body.g + (end - body.g) * (1 - k),
+                   body.b + (end - body.b) * (1 - k), 1)
+  }
+
+  // A fill as it actually renders: below full opacity the backdrop shows
+  // through far more than the paint, so anything choosing ink against the card
+  // (its text, its dot) has to judge this rather than the colour as written.
+  // Over a body that backdrop is unknown, so the answer is the middle of the
+  // band the card can land in.
+  function fillOnBackdrop(root, fill) {
+    if (root.surfaceStability > 0) {
+      var lo = surfaceAt(root, fill, true)
+      var hi = surfaceAt(root, fill, false)
+      return Qt.rgba((lo.r + hi.r) / 2, (lo.g + hi.g) / 2, (lo.b + hi.b) / 2, 1)
+    }
+    var a = root.effectiveDockOpacity
+    if (a >= 1) return fill
+    var back = Color.bar.background
+    return Qt.rgba(back.r + (fill.r - back.r) * a, back.g + (fill.g - back.g) * a,
+                   back.b + (fill.b - back.b) * a, 1)
+  }
+
+  // Ink for text, dots and glyphs over the rendered card: the best of the
+  // theme's own ink and the two hard contrast ends. A material with a body does
+  // not follow the theme's background any more, so matching the card's side of
+  // the scale against the theme ink stops being the right question.
+  function inkOn(root, fill) {
+    var lo = surfaceAt(root, fill, true)
+    var hi = surfaceAt(root, fill, false)
+    var cands = [Color.bar.text, Qt.color("#12100f"), Qt.color("#f2efec")]
+    var best = cands[0]
+    var bestMin = -1
+    for (var i = 0; i < cands.length; i++) {
+      // The candidate has to read at both ends: the band, not one sample.
+      var m = Math.min(root.contrastRatio(cands[i], lo), root.contrastRatio(cands[i], hi))
+      if (m > bestMin) { best = cands[i]; bestMin = m }
+    }
+    return best
+  }
+
+  // Distance from the slot's bottom edge to the bottom of the artwork.
+  // "center" (and a label plate's side marks) centres the art in the slot;
+  // otherwise it is lifted clear of the indicator band.
+  function iconArtBottom(root) {
+    if (root.labelSideMarks || root.iconBaseline === "center")
+      return Math.round((root.iconSlot - root.baseIconArt) / 2)
+    return Math.round(root.indicatorBand + (root.iconSlot - root.indicatorBand - root.baseIconArt) / 2) + root.indicatorLift
+  }
+
+  // Bottom offset for the running marks: the classic slot-relative place, or
+  // the look's own distance above the card's bottom edge (negative, drawn in
+  // the card's padding) when it asks for one.
+  function markBottomMargin(root) {
+    if (root.indicatorInset < 0) return Style.space(1) + root.indicatorLift
+    // The look names the dot's distance above the card's bottom edge in
+    // pixels, and the card's padding resolves to pixels too (dockPadPx), so
+    // this lands on that distance whatever the padding is: the two numbers do
+    // not trade against each other.
+    return root.indicatorInset - (root.dockPadPx + root.borderWidth)
   }
 
   // Keys and lookups for the keyed Repeater models (KeyedListModel), which

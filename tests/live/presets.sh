@@ -180,8 +180,8 @@ done < "$WORK/shipped-looks.tsv"
 # The two name looks must land their label keys, not just take the active mark:
 # a preset's label look is applied through DockLabels.pickLabelLook, which keeps
 # a value only when it is one the labels accept.
-echo "-- the two name looks reach the config"
-for spec in "Nameplates:always:plate:theme" "Silkscreen:always:pill:pixel"; do
+echo "-- the shipped looks reach the config"
+for spec in "macOS:hover:pill:theme" "Windows:hover:pill:theme"; do
   IFS=: read -r name mode bg font <<<"$spec"
   out=$(probe_ipc applyPreset "$name")
   [ "$out" = "ok" ] || fail "applyPreset \"$name\" -> $out"

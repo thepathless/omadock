@@ -123,7 +123,7 @@ Item {
       available: host.room(), items: list,
       labels: root.labelMode === "always", labelMax: root.labelMaxWidth, labelMin: 80,
       iconSize: root.baseIconSize, floor: Math.max(24, Math.round(root.baseIconSize / 2)),
-      slotPad: Style.space(10), gapMax: host.gapAt(1), gapMin: host.gapAt(0),
+      slotPad: Math.round(Style.spaceReal(root.iconMargin)), gapMax: host.gapAt(1), gapMin: host.gapAt(0),
       sepMax: host.separatorWidthAt(1), sepMin: host.separatorWidthAt(0),
       tileFactor: 1.5, wave: root.waveHover, dpr: root.labelPlates ? root.outputScale : 0,
       margin: Style.space(8),

@@ -330,7 +330,7 @@ Item {
     id: indicatorBand
     anchors.horizontalCenter: iconSlot.horizontalCenter
     anchors.bottom: parent.bottom
-    anchors.bottomMargin: Style.space(1) + (root ? root.indicatorLift : 0)
+    anchors.bottomMargin: root ? root.markBottomMargin : 0
     width: indicatorRow.width
     height: indicatorRow.height
     // On a plate with side indicators the label draws these as a column.
@@ -422,6 +422,9 @@ Item {
     blocked: (!root || !root.showTooltips || root.activeAppGroupId !== "")
       || (root && !root.labelTooltipNeeded("group", gitem.tooltipWindows.length > 0, false, label.shortened))
     target: iconSlot
+    // The name chip floats between this bubble and the bar; the preview
+    // stacks above it in the clear band the name reserved.
+    chipClear: label.overlay ? label.chipClear : 0
     showTooltips: root ? root.showTooltips : true
     tooltipDelay: root ? root.tooltipDelay : 450
     contextAppId: root ? root.contextAppId : ""

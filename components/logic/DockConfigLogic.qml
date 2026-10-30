@@ -58,6 +58,10 @@ QtObject {
       ? Math.max(0, Math.min(1, parsed.shadowStrength))
       : 0.4
     root.blurMode = (parsed && (parsed.blur === "on" || parsed.blur === "off")) ? parsed.blur : "system"
+    // Blur size the dock asks the compositor for while blur is "on"; 0 leaves
+    // the compositor's own size alone.
+    root.blurSize = parsed && typeof parsed.blurSize === "number" && isFinite(parsed.blurSize)
+      ? Math.max(0, Math.min(20, Math.round(parsed.blurSize))) : 0
     root.iconStyle = (parsed && ["mono", "pixel", "dots"].indexOf(parsed.iconStyle) >= 0) ? parsed.iconStyle : "original"
     root.iconTint = (parsed && (parsed.iconTint === "accent" || parsed.iconTint === "bw")) ? parsed.iconTint : "text"
     root.iconHoverOriginal = parsed ? parsed.iconHoverOriginal === true : false
@@ -67,6 +71,49 @@ QtObject {
     root.iconGrid = parsed && typeof parsed.iconGrid === "number"
       ? Math.max(8, Math.min(32, Math.round(parsed.iconGrid)))
       : 16
+    // Card padding and the artwork's place in its slot: "dock" keeps the
+    // classic lift above the indicator band, "center" centres the artwork in
+    // the slot so the bar carries equal room above and below.
+    root.dockPadding = parsed && typeof parsed.dockPadding === "number" && isFinite(parsed.dockPadding)
+      ? Math.max(0, Math.min(40, Math.round(parsed.dockPadding))) : 5
+    // The padding in pixels, for a look whose measurement is in pixels and
+    // cannot be expressed on the theme's spacing scale; -1 follows dockPadding.
+    root.dockPaddingPx = parsed && typeof parsed.dockPaddingPx === "number" && isFinite(parsed.dockPaddingPx) && parsed.dockPaddingPx >= 0
+      ? Math.min(40, Math.round(parsed.dockPaddingPx)) : -1
+    root.iconBaseline = (parsed && parsed.iconBaseline === "center") ? "center" : "dock"
+    // Spacing units of margin a slot adds around the artwork; the artwork plus
+    // this margin is the icon's pitch (before itemSpacing). Kept to half units:
+    // the scale quantises whole units to whole pixels, and a look that measured
+    // its pitch off a real dock needs the half step to land on it.
+    root.iconMargin = parsed && typeof parsed.iconMargin === "number" && isFinite(parsed.iconMargin)
+      ? Math.max(0, Math.min(24, Math.round(parsed.iconMargin * 2) / 2)) : 10
+    // Specular sheen painted over the card fill: 0 leaves the flat surface.
+    root.surfaceGlass = parsed && typeof parsed.surfaceGlass === "number"
+      ? Math.max(0, Math.min(1, parsed.surfaceGlass)) : 0
+    // The material's body: its own lightness (-1 keeps the fill's), how far its
+    // chroma is pulled to neutral, and how much of the card it is rather than
+    // the backdrop. All three at rest leave the surface exactly as it was.
+    root.surfaceLift = parsed && typeof parsed.surfaceLift === "number" && isFinite(parsed.surfaceLift) && parsed.surfaceLift >= 0
+      ? Math.min(1, parsed.surfaceLift) : -1
+    root.surfaceDesaturate = parsed && typeof parsed.surfaceDesaturate === "number" && isFinite(parsed.surfaceDesaturate)
+      ? Math.max(0, Math.min(1, parsed.surfaceDesaturate)) : 0
+    root.surfaceStability = parsed && typeof parsed.surfaceStability === "number" && isFinite(parsed.surfaceStability)
+      ? Math.max(0, Math.min(1, parsed.surfaceStability)) : 0
+    // Running marks: "windows" draws one per window (the classic dock),
+    // "app" draws one dot per running app whatever its windows do.
+    root.indicatorMode = (parsed && parsed.indicatorMode === "app") ? "app" : "windows"
+    root.indicatorSize = parsed && typeof parsed.indicatorSize === "number" && isFinite(parsed.indicatorSize)
+      ? Math.max(2, Math.min(12, Math.round(parsed.indicatorSize))) : 5
+    // Distance from the card's bottom edge to the marks; negative is the
+    // classic slot-relative placement.
+    root.indicatorInset = parsed && typeof parsed.indicatorInset === "number" && isFinite(parsed.indicatorInset) && parsed.indicatorInset >= 0
+      ? Math.min(20, Math.round(parsed.indicatorInset)) : -1
+    // Hover magnification: the scale under the pointer and how far the wave
+    // reaches, in slot widths.
+    root.magnifyPeak = parsed && typeof parsed.magnifyPeak === "number" && isFinite(parsed.magnifyPeak)
+      ? Math.max(1, Math.min(2.2, parsed.magnifyPeak)) : 1.4
+    root.magnifyReach = parsed && typeof parsed.magnifyReach === "number" && isFinite(parsed.magnifyReach)
+      ? Math.max(1, Math.min(4, parsed.magnifyReach)) : 2.2
     root.showBorder = parsed ? parsed.showBorder !== false : true
     root.indicatorShape = (parsed && (parsed.indicatorShape === "rounded" || parsed.indicatorShape === "square")) ? parsed.indicatorShape : "theme"
     root.borderWidth = parsed && typeof parsed.borderWidth === "number"
@@ -132,7 +179,6 @@ QtObject {
     root.multiMonitor = parsed ? parsed.multiMonitor === true : false
     root.perMonitorApps = parsed ? parsed.perMonitorApps !== false : true
     applyLook(root, parsed)
-    root.blurSize = parsed && typeof parsed.blurSize === "number" ? Math.max(0, Math.min(20, Math.round(parsed.blurSize))) : 0
     root.systemBlurSize = DockModel.boundSystemBlurSize(parsed ? parsed.systemBlurSize : 0)
     root.applyBlurRule(false)
     if (parsed && typeof parsed.minimizeMode === "string") {
@@ -229,6 +275,23 @@ QtObject {
     conf.iconContrast = root.iconContrast
     conf.iconStrength = root.iconStrength
     conf.iconGrid = root.iconGrid
+    conf.dockPadding = root.dockPadding
+    if (root.dockPaddingPx >= 0) conf.dockPaddingPx = root.dockPaddingPx
+    else delete conf.dockPaddingPx
+    conf.iconMargin = root.iconMargin
+    conf.iconBaseline = root.iconBaseline
+    conf.surfaceGlass = root.surfaceGlass
+    if (root.surfaceLift >= 0) conf.surfaceLift = root.surfaceLift
+    else delete conf.surfaceLift
+    if (root.surfaceDesaturate > 0) conf.surfaceDesaturate = root.surfaceDesaturate
+    else delete conf.surfaceDesaturate
+    if (root.surfaceStability > 0) conf.surfaceStability = root.surfaceStability
+    else delete conf.surfaceStability
+    conf.indicatorMode = root.indicatorMode
+    conf.indicatorSize = root.indicatorSize
+    conf.indicatorInset = root.indicatorInset
+    conf.magnifyPeak = root.magnifyPeak
+    conf.magnifyReach = root.magnifyReach
     conf.showBorder = root.showBorder
     conf.indicatorShape = root.indicatorShape
     conf.borderWidth = root.borderWidth

@@ -353,6 +353,18 @@ Item {
         blurEnabled: true
         blur: 1.0
         blurMax: 20
+        // ...and no shadow under the card itself: a translucent fill would
+        // show the blurred rectangle as a grey wash over the glass.
+        maskEnabled: true
+        maskSource: shadowCut
+      }
+
+      CardShadowMask {
+        id: shadowCut
+        anchors.fill: parent
+        inset: cardShadow.pad
+        bottomInset: cardShadow.padBottom
+        radius: dockCard.radius
       }
 
       Rectangle {
@@ -397,7 +409,7 @@ Item {
       ? Border.none()
       : Border.flat("transparent", (root && root.placement.panel) ? dockCard.effectiveBorderWidth + " 0 0 0" : dockCard.effectiveBorderWidth)
     radius: root ? root.cardRadius(height) : Style.cornerRadius
-    padding: dockCard.devSnap(Style.space(5))
+    padding: dockCard.devSnap(root ? root.dockPadPx : Style.space(5))
     // With label plates the sides match the gap between plates.
     leftPadding: (root && root.labelPlates) ? root.plateSpacing.edge : padding
     rightPadding: (root && root.labelPlates) ? root.plateSpacing.edge : padding

@@ -147,6 +147,50 @@ QtObject {
     root.appRecentWindow = root.keepLive(root.appRecentWindow, live, true)
     root.urgentMap = root.keepUrgentLive(root.urgentMap, live)
 
+    // Drop notification badges for closed apps (apps with no live windows)
+    if (root.notificationBadges && Object.keys(root.notificationBadges).length > 0) {
+      var badges = root.notificationBadges
+      var nextBadges = {}
+      var badgeChanged = false
+      var allEntries = root.notifEntries || []
+      var bkeys = Object.keys(badges)
+      for (var bi = 0; bi < bkeys.length; bi++) {
+        var bkey = bkeys[bi]
+        var isLive = false
+        if (root.launchPending && root.launchPending[bkey]) {
+          isLive = true
+        } else {
+          for (var ej = 0; ej < allEntries.length; ej++) {
+            var ent = allEntries[ej]
+            if (!ent) continue
+            var entId = ent.appId || ent.id
+            if (entId === bkey || DockModel.isAppMatch(entId, bkey)) {
+              if (ent.running) {
+                var eWins = ent.windowList || []
+                for (var ew = 0; ew < eWins.length; ew++) {
+                  var ewa = eWins[ew] ? eWins[ew].address : ""
+                  if (ewa && live[ewa]) {
+                    isLive = true
+                    break
+                  }
+                }
+              }
+              break
+            }
+          }
+        }
+        if (isLive) {
+          nextBadges[bkey] = badges[bkey]
+        } else {
+          badgeChanged = true
+        }
+      }
+      if (badgeChanged) {
+        root.notificationBadges = nextBadges
+        root.scheduleBadgeSave()
+      }
+    }
+
     // recentOpenedWindowAddrs entries carry their own expiry; drop the stale ones.
     var now = Date.now()
     var roa = root.recentOpenedWindowAddrs || {}
