@@ -46,11 +46,11 @@ Crafted in the spirit of **Omakase (おまかせ)**: wave magnification, live wi
 
 ### Release status
 
-> **This page documents `main`.** The latest tag, [v4.12.0](https://github.com/thepathless/omadock/releases/tag/v4.12.0), ships the six-category settings panel and the icon-theme picker as a filtering **chip list**; it predates the searchable dropdown, the motion demos and the refreshed hero and stills described below. No newer version has been tagged. The v4.12.0 tag's own README is frozen with that release and does not carry these corrections.
+> **This page documents `main`.** The latest tag, [v4.12.0](https://github.com/thepathless/omadock/releases/tag/v4.12.0), ships the six-category settings panel and the icon-theme picker as a filtering **chip list**; it predates the searchable dropdown, the motion demos and the refreshed hero and stills described below. No newer version has been tagged. The tag itself carries 299 Node + 126 Python; its own README is frozen with that release and quotes 276, while the published v4.12.0 release notes quote 273. Correcting those two surfaces needs a release edit or a new release, which is the maintainer's call; this page records the measured tag.
 
 ### Architecture & Recognition
 
-The current `main` tree is backed by 298 Node.js unit tests, 126 Python checks, and thirteen sandboxed live Wayland integration suites. The v4.12.0 release shipped with 273 Node + 126 Python. OmaDock's atomic asynchronous configuration gate (`CappedFileView.qml` and `tests/unit/test_capped_gate.py`) was independently selected for the **[XERJ Corpus Hub](https://github.com/xerj-org/xerj)** as a verified open-source reference implementation for AI coding agents.
+The current `main` tree is backed by 298 Node.js unit tests, 126 Python checks, and thirteen sandboxed live Wayland integration suites. The v4.12.0 tag carries 299 Node + 126 Python. OmaDock's atomic asynchronous configuration gate (`CappedFileView.qml` and `tests/unit/test_capped_gate.py`) was independently selected for the **[XERJ Corpus Hub](https://github.com/xerj-org/xerj)** as a verified open-source reference implementation for AI coding agents.
 
 ### Highlights
 
@@ -822,7 +822,7 @@ The settings panel got one row contract, and the desktop's icon theme moved into
 - **One row, everywhere** — every indexed setting is now reachable from the search box (88 of them), a row whose prerequisite is unmet stays visible with an explanation and a **Go to prerequisite** button instead of vanishing, and the pages say what they do: **Look**, **Apps & windows**, **Organize dock**.
 - **Icon theme** — the first row under *Look* is a searchable chip list: type to filter the themes in the standard roots (`~/.icons`, `~/.local/share/icons` and `/usr/share/icons`), then click a chip to apply it to the whole desktop (`gsettings`, both GTK settings files, `~/.icons/default` and the KDE/Qt files when they exist). **Install WhiteSur** sits below the list while the macOS Big Sur set is absent; it fetches the icons once into `~/.local/share/icons`, applies them, and WhiteSur then appears as a normal chip.
 - **Theme-first icons** — the dock's icon index now walks the active theme's inheritance chain from its very first scan. Before, the scan that starts at load, before the desktop answers which theme it uses, could leave fallback artwork in the index for the rest of the session.
-- **Verification** — 273 Node + 126 Python unit tests, `qmllint` 0 errors, structure, security, manifest and plugin gates clean; the live settings suite drives all 88 targets, the icon-theme search and the WhiteSur row through the real QML with synthetic Qt keys, and leaves the desktop's config, shell PID and monitor list unchanged.
+- **Verification** — 299 Node + 126 Python unit tests, `qmllint` 0 errors, structure, security, manifest and plugin gates clean; the live settings suite drives all 88 targets, the icon-theme search and the WhiteSur row through the real QML with synthetic Qt keys, and leaves the desktop's config, shell PID and monitor list unchanged.
 
 ### v4.11.0 — 2026-10-30
 
