@@ -32,17 +32,17 @@
 //                          per running app (accent while focused), and the
 //                          window previews its tooltips already carry
 //
-// A shipped look may also carry a `placement` (layout, alignment, autohide),
-// because the taskbar's shape is not a look: a look-only preset would leave a
-// floating, auto-hiding dock that looks nothing like it. Only shipped entries
-// can carry one -- a saved preset is written back through boundPresets, which
-// keeps id/name/look, so applying one never moves the dock. `applyPreset`
-// applies the placement before it saves; every other shipped look leaves the
-// user's placement alone.
+// A shipped look may also carry a `setup` (layout, alignment, autohide and the
+// behavior a look cannot spell), because the taskbar's shape is not a look: a
+// look-only preset would leave a floating, auto-hiding dock that looks nothing
+// like it. Only shipped entries can carry one -- a saved preset is written back
+// through boundPresets, which keeps id/name/look, so applying one never moves
+// the dock. `applyPreset` applies the setup before it saves; every other
+// shipped look leaves the user's placement alone.
 //
 // Deliberately not shipped as presets, and why:
 //   - panel layout (#49) is not a look key -- `LOOK_KEYS` has no `layout`, so a
-//     look cannot hold it; it rides in the preset's `placement` instead.
+//     look cannot hold it; it rides in the preset's `setup` instead.
 //   - #13's "Zen / Arc-style gradient" has no matching gradient: `Dock.qml`'s
 //     `gradientPresets` are the fixed palette (aurora, sunset, ocean, forest,
 //     rose, lavender, ember, citrus, mono) plus the theme.
@@ -84,10 +84,11 @@ var SHIPPED = [
   {
     id: "builtin_windows",
     name: "Windows",
-    // The taskbar's geometry, which a look cannot hold. Always visible (the
-    // taskbar's own default), and a full-width panel on the bottom edge; the
-    // centered row is Windows 11's default alignment.
-    placement: { layout: "panel", alignment: "center", autohide: false, intelligentAutohide: false },
+    // The taskbar's setup, which a look cannot hold: always visible (the
+    // taskbar's own default), a full-width panel on the bottom edge with the
+    // centered row Windows 11 uses, and one tile per app - a minimized window
+    // is its app's dot, never a second tile in the bar.
+    setup: { layout: "panel", alignment: "center", autohide: false, intelligentAutohide: false, showMinimizedTiles: false },
     look: {
       showBackground: true, bgColor: "#202020", bgFill: "solid",
       // Windows 11's acrylic: the desktop blurs through the bar rather than
@@ -102,8 +103,9 @@ var SHIPPED = [
       // for key to mark its row active, so a value the clamp changed would be
       // a preset that can never report active).
       shape: "square", cornerRadius: 0,
-      // 48px bar: a 40px button (29px slot + 10px margin, ~24px artwork) over
-      // 4px of card padding on each side.
+      // A slim bar: 4px of card padding around a slot of iconSize + iconMargin
+      // (11 style units), which lands on 42px buttons and ~24px artwork at this
+      // desktop's UI scale.
       dockPaddingPx: 4, iconBaseline: "center", iconMargin: 11,
       iconSize: 29, itemSpacing: 3, sectionSpacing: 12,
       iconStyle: "original", iconTint: "text", iconContrast: 0, iconStrength: 1,
@@ -157,7 +159,7 @@ function merge(userPresets, fillLook) {
     var row = { id: s.id, name: s.name, look: fillLook(s.look), builtin: true }
     // Only a shipped look can carry one (see the header): saved presets are
     // read back through boundPresets, which keeps id/name/look.
-    if (s.placement) row.placement = s.placement
+    if (s.setup) row.setup = s.setup
     out.push(row)
   }
   for (var k = 0; k < list.length; k++) out.push(list[k])

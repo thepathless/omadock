@@ -442,18 +442,19 @@ QtObject {
     if (i < 0) return false
     var preset = root.presets[i]
     applyLook(root, preset.look)
-    // A shipped look may carry the geometry its shape needs (the Windows
-    // taskbar's full-width, always-visible panel). Only a shipped entry can:
-    // a saved preset is read back with id/name/look, so this never moves the
-    // dock for one the user made.
-    var place = preset.placement
-    if (place && typeof place === "object") {
-      if (place.layout) root.layout = DockLayout.normalizeLayout(place.layout)
-      if (place.alignment) root.alignment = DockLayout.normalizeAlignment(place.alignment)
-      if (typeof place.autohide === "boolean") {
-        root.autohide = place.autohide
-        root.intelligentAutohide = place.autohide ? place.intelligentAutohide === true : false
+    // A shipped look may carry the setup its shape needs (the Windows
+    // taskbar's full-width, always-visible panel, and one tile per app). Only
+    // a shipped entry can: a saved preset is read back with id/name/look, so
+    // this never moves the dock for one the user made.
+    var setup = preset.setup
+    if (setup && typeof setup === "object") {
+      if (setup.layout) root.layout = DockLayout.normalizeLayout(setup.layout)
+      if (setup.alignment) root.alignment = DockLayout.normalizeAlignment(setup.alignment)
+      if (typeof setup.autohide === "boolean") {
+        root.autohide = setup.autohide
+        root.intelligentAutohide = setup.autohide ? setup.intelligentAutohide === true : false
       }
+      if (typeof setup.showMinimizedTiles === "boolean") root.showMinimizedTiles = setup.showMinimizedTiles
       root.syncVisibility()
     }
     root.applyBlurRule(false)
