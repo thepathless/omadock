@@ -473,6 +473,14 @@ class InstallTheme(unittest.TestCase):
         self.assertFalse(self.log.exists())
         self.assertFalse((self.home / ".local/share/icons").exists())
 
+    def test_install_without_flock_refuses_instead_of_racing(self):
+        os.symlink(shutil.which("bash"), self.bin / "bash")
+        os.symlink(shutil.which("git"), self.bin / "git")
+        done = run(["install"], self.home, str(self.bin))
+        self.assertEqual(done.returncode, 8, done.stderr)
+        self.assertIn("flock is required", done.stderr)
+        self.assertFalse((self.home / ".local/share/icons").exists())
+
     def test_install_fetches_the_pinned_release_and_applies_what_it_installed(self):
         self.successful_clone()
         done = self.install()
