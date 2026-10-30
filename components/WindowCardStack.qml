@@ -69,7 +69,7 @@ Item {
 
       function adoptAspect() {
         if (card.depth === 0 && card.capturedAspect > 0)
-          stack.frontAspect = Math.max(1.2, Math.min(2.4, card.capturedAspect))
+          stack.frontAspect = Math.max(1.0, Math.min(2.4, card.capturedAspect))
       }
       onCapturedAspectChanged: adoptAspect()
       onDepthChanged: adoptAspect()
@@ -110,10 +110,16 @@ Item {
         active: card.reached && !!card.win && stack.canCapture
         sourceComponent: ScreencopyView {
           constraintSize: Qt.size(Math.max(1, stack.frameWidth - 2), Math.max(1, stack.frameHeight - 2))
-          width: implicitWidth > 0 ? implicitWidth : (stack.frameWidth - 2)
-          height: implicitHeight > 0 ? implicitHeight : (stack.frameHeight - 2)
-          readonly property real aspect: (implicitWidth > 0 && implicitHeight > 0)
-            ? implicitWidth / implicitHeight : stack.frameWidth / stack.frameHeight
+          // A plain QQuickItem has no implicit size, so the capture was sized
+          // to the card's frame (implicitWidth stays 0) and every window took
+          // the card's shape: a square window came out wide. Fit sourceSize
+          // inside the frame and keep the window's own shape; the bars left
+          // over show the card, as a preview letterbox should.
+          readonly property real frameAspect: constraintSize.width / Math.max(1, constraintSize.height)
+          readonly property real aspect: (sourceSize.width > 0 && sourceSize.height > 0)
+            ? sourceSize.width / sourceSize.height : frameAspect
+          width: aspect >= frameAspect ? constraintSize.width : constraintSize.height * aspect
+          height: width / aspect
           live: true
           captureSource: (card.win && stack.root) ? stack.root.liveToplevelForAddress(card.win.address) : null
           onCaptureSourceChanged: live = true
