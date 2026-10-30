@@ -771,6 +771,19 @@ The pixel label font is [Silkscreen](https://fonts.google.com/specimen/Silkscree
 
 Full release notes, historical changelogs, and upgrade guides across all versions are available on [**GitHub Releases**](https://github.com/thepathless/omadock/releases).
 
+### v4.9.0 — 2026-10-30
+
+Authentic macOS & Windows 11 presets, aspect-ratio preserved window previews, auto-clearing notification badges on window close, and contributor performance & lifecycle fixes.
+
+- **Authentic macOS preset with OmaDock multi-window indicators** — floating 27px squircle shelf with frosted white glass (#ffffff, blur on, 0.5px specular rim, soft ambient shadow), wave fisheye hover magnification, and OmaDock's signature 3-state multi-window indicators (flat accent bar for focused, hollow dot for minimized, distinct mark per window).
+- **Windows 11 Taskbar preset** — centered dark shelf (#202020), flat square geometry, zoom hover, subtle underline indicator bars, and hover tooltips.
+- **Aspect-ratio preserved window previews** — `PreviewTile` (dock minimized window cards) and `WindowCardStack` (hover previews) now respect native window aspect ratios via `constraintSize`, preventing weirdly stretched thumbnails or distorted letterboxes.
+- **Notification badge auto-pruning on window close** — closing an app's window (e.g. Ghostty after an Antigravity CLI run) immediately clears unread notification badges from the dock without requiring the app to be refocused first.
+- **Model performance cache** — contributed by [@Reflectionist](https://github.com/Reflectionist) ([#77](https://github.com/thepathless/omadock/pull/77)): `getCandidates` results are cached and `applyTerminalIdentities` deduplicates title-change rescans, eliminating redundant full dock rebuilds.
+- **Reaped udevadm monitor on removal watch exit** — contributed by [@MikeNoppo](https://github.com/MikeNoppo) ([#79](https://github.com/thepathless/omadock/pull/79)): `scripts/drive-removal-watch.py` now registers `PR_SET_PDEATHSIG` so child `udevadm monitor` processes never orphan when OmaDock stops.
+- **Preset streamlining** — niche showcase presets pruned to highlight OmaDock's signature trio: `thepathless:ristretto`, `macOS`, and `Windows`.
+- **Verification**: 268 Node + 118 Python unit tests, `qmllint` 0 errors, structure-check PASSED, plugin validate and manifest-check clean, smoke PASSED.
+
 ### v4.8.0 — 2026-10-21
 
 OmaDock meets Omarchy 4.5: floating workspaces get one dock, the Omarchy button opens the app grid, and the dock speaks your language.
