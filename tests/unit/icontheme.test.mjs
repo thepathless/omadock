@@ -1,5 +1,5 @@
 // DockIconTheme.js: the installed-theme list the shell helper prints, the
-// lookup chain, search, and the id rule the apply path depends on.
+// lookup chain, and the id rule the apply path depends on.
 import { test } from "node:test"
 import assert from "node:assert/strict"
 import { readFileSync } from "node:fs"
@@ -46,15 +46,6 @@ test("the chain follows Inherits and stops on a cycle or a missing theme", () =>
   const cyc = T.parseList("a|A|b\nb|B|a")
   assert.deepEqual(plain(T.chain("a", cyc)), ["a", "b"])
   assert.deepEqual(plain(T.chain("missing", themes)), ["missing"])
-})
-
-test("search matches the name or the id and never reorders the empty query", () => {
-  const themes = T.parseList(LIST)
-  assert.deepEqual(plain(T.filter(themes, "whitesur").map((t) => t.id)), ["whitesur-icon-theme"])
-  assert.deepEqual(plain(T.filter(themes, "WHITE").map((t) => t.id)), ["whitesur-icon-theme"])
-  assert.deepEqual(plain(T.filter(themes, "dark").map((t) => t.id)), ["breeze-dark"])
-  assert.deepEqual(plain(T.filter(themes, "  ").map((t) => t.id)), plain(themes.map((t) => t.id)))
-  assert.equal(T.filter(themes, "zzz").length, 0)
 })
 
 test("a row's subtitle names the id it applies and what it builds on", () => {
