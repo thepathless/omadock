@@ -23,6 +23,12 @@ Item {
   property string name: ""
   property bool hovered: false
   property Item iconBox: null
+  // The tile's current magnification: the macOS callout is placed over the
+  // icon as it is now, not the resting slot. Every tile grows its artwork
+  // upward from the dock floor (DockItem sizes its icon by the scale; the
+  // group and folder tiles scale their container about its bottom), so one
+  // formula places the callout for all three.
+  property real iconScale: 1
   // Room a drop gap opens at the tile's leading edge: the tile proper
   // (and its plate) starts after it.
   property real tileLead: 0
@@ -155,9 +161,15 @@ Item {
   readonly property bool dragFree: label.root ? !label.root.dockDragActive : true
   readonly property bool wantOpen: label.shown && !label.folded
     && (!label.style.hover || (label.hovered && label.dwelled && label.dragFree))
+  // The macOS callout is a tooltip, so it waits the dock's tooltip delay
+  // (450 ms by default, user-settable) instead of the 150 ms name dwell. A
+  // label already up hands over at once either way, so the delay a fresh
+  // callout uses is kept apart from the hand-over's 1 ms.
+  readonly property int baseDelay: (label.root && label.macChip) ? label.root.tooltipDelay : 150
+  readonly property int hoverDelay: (label.root && label.root.labelsOpen > 0) ? 1 : label.baseDelay
   Timer {
     id: dwell
-    interval: (label.root && label.root.labelsOpen > 0) ? 1 : 150
+    interval: label.hoverDelay
     onTriggered: label.dwelled = true
   }
 
@@ -211,8 +223,23 @@ Item {
     font.pixelSize: label.style ? label.style.fontPx : Style.font.caption
     font.weight: label.style ? label.style.weight : Font.Medium
   }
-  readonly property real chipBox: Math.ceil(chipLine.implicitHeight) + Style.space(4) * 2
-  readonly property real chipClear: label.chipGap + label.chipBox + Style.space(3)
+  readonly property bool macChip: !!label.style && label.style.chip === "macos"
+  readonly property real chipBox: Math.ceil(chipLine.implicitHeight) + Style.space(label.macChip ? 3 : 4) * 2
+  // How far the drawn artwork's top stands above the icon box's top. Signed:
+  // at magnification the artwork is taller than the box and rises past it
+  // (DockItem sizes its icon by the scale; a group or folder scales its
+  // container about its bottom), while at rest it sits a few px inside.
+  readonly property real artRise: (label.root ? label.root.baseIconArt : 0) * label.iconScale
+    + (label.root ? label.root.iconArtBottom : 0) - (label.iconBox ? label.iconBox.height : 0)
+  // The macOS callout's bottom sits a fixed 6 px above the drawn icon's top:
+  // that is the rise, measured up from the box's top, plus the gap. The dock's
+  // own chip keeps its clearance over the bar instead, which reserves room for
+  // the tallest wave the row can reach.
+  readonly property real macGap: label.artRise + Style.space(6)
+  readonly property real chipClear: label.macChip
+    ? label.macGap + label.chipBox + Style.space(3)
+    : label.chipGap + label.chipBox + Style.space(3)
+  onIconScaleChanged: if (chipLoader.item) chipLoader.item.refreshAnchor()
   readonly property real rawExtra: label.overlay ? 0 : Math.round(label.progress * label.naturalWidth) + label.lead + label.foldTail
   // In a plate row the tile's width lands on the device-pixel grid.
   readonly property real extra: (label.rawExtra > 0 && label.root && label.root.labelPlates)
@@ -327,12 +354,16 @@ Item {
     id: chipLoader
     active: label.overlay && label.progress > 0.01
     TooltipWindow {
+      // The macOS callout belongs to the icon it names: its gap measures down
+      // to the drawn (magnified) artwork, so it clears the enlarged icon and
+      // travels with it as the wave moves the tile. The dock's own chip keeps
+      // its clearance over the bar, anchored to the slot.
       target: label.iconBox ? label.iconBox : label.parent
       // Clear of the card's rim, its padding and the wave-lifted artwork: a
       // magnified icon grows upward out of the bar (artwork * peak, centred on
       // its box), and the name floats over it, not into it. `chipGap` is the
       // single owner - the tooltips that accompany the name stack on it.
-      gap: label.chipGap
+      gap: label.macChip ? label.macGap : label.chipGap
       shown: true
       level: label.progress
       rises: label.root ? !!label.root.motion && label.root.motion.layout : true
@@ -341,6 +372,7 @@ Item {
       HoverNamePlate {
         id: hoverPlate
         rootRef: label.rootRef
+        variant: label.macChip ? "macos" : "dock"
         text: label.drawnText
         family: label.style ? label.style.family : Style.font.family
         fontPx: label.style ? label.style.fontPx : Style.font.caption

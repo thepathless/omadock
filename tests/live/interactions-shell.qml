@@ -1,8 +1,8 @@
 // Body for tests/live/interactions.sh (probe.sh's PROBE_BODY hook): the real
 // dock, plus an IPC surface that drives the interactive paths the live suites
 // never touched before - the context menu, the rename field inside it, the app
-// group popup and its menu, and the settings panel - and reports what each one
-// rendered with.
+// group and folder popups and their menus, and the settings panel - and reports
+// what each one rendered with.
 //
 // Why a driver at all: those paths need a pointer. The dock opens them from its
 // tiles' own signals (right-click, click on a group), which a script cannot
@@ -70,6 +70,13 @@
   function sameRgba(a, b) {
     var x = parts(a), y = parts(b)
     return !!x && !!y && x.r === y.r && x.g === y.g && x.b === y.b && x.a === y.a
+  }
+
+  // The same hue at any alpha: secondary rows intentionally use the frame ink
+  // at 70%/45%, and the check is about which ink, not its opacity.
+  function sameRgb(a, b) {
+    var x = parts(a), y = parts(b)
+    return !!x && !!y && x.r === y.r && x.g === y.g && x.b === y.b
   }
 
   function inPalette(c) {
@@ -309,6 +316,40 @@
           apps: data.apps ? data.apps.length : 0, panel: String(d.popupSurface().surface) })
       }
 
+      // A pinned folder's left click: the stack popup, the surface the
+      // background-off material gives it.
+      if (step === "folder-popup") {
+        var f = itemOf(d, "folder")
+        if (!f) return JSON.stringify({ ok: false, why: "no folder item" })
+        d.openFolderStack(f.id, folderName(d, f.id), f.x + f.w / 2)
+        return JSON.stringify({ ok: true, path: f.id, active: d.activeStackFolder,
+          entries: (d.activeStackEntries || []).length,
+          panel: String(d.popupSurface().surface) })
+      }
+
+      // What the open folder popup drew: its entries, and every text using the
+      // same frame ink the collapsed tile paints its plate with.
+      if (step === "folder-read") {
+        var pop = d.folderStackPopover
+        if (!pop) return JSON.stringify({ ok: false, why: "no folder popup" })
+        var ink = String(d.popupSurface().ink)
+        var texts = 0, foreign = []
+        function walk(item, depth) {
+          if (!item || depth > 16) return
+          if (item.text !== undefined && item.color !== undefined) {
+            texts++
+            if (!sameRgb(item.color, ink) && !sameRgb(item.color, C.Color.menu.text))
+              foreign.push(String(item.color))
+          }
+          var ch = item.children || []
+          for (var i = 0; i < ch.length; i++) walk(ch[i], depth + 1)
+        }
+        walk(pop, 0)
+        return JSON.stringify({ ok: true, active: d.activeStackFolder,
+          entries: (d.activeStackEntries || []).length, texts: texts, ink: ink,
+          foreign: foreign, panel: String(d.popupSurface().surface) })
+      }
+
       if (step === "settings-open") {
         d.openSettingsPanel()
         return JSON.stringify({ ok: true, open: d.settingsPanelOpen })
@@ -325,9 +366,10 @@
       if (step === "close") {
         d.closeContext()
         d.closeAppGroup()
+        d.closeFolderStack()
         d.closeSettingsPanel()
         return JSON.stringify({ ok: true, context: d.contextAppId, group: d.activeAppGroupId,
-          settings: d.settingsPanelOpen })
+          folder: d.activeStackFolder, settings: d.settingsPanelOpen })
       }
 
       return JSON.stringify({ ok: false, why: "unknown step " + step })

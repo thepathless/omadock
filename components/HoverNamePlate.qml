@@ -21,12 +21,19 @@ BorderSurface {
   property string family: ""
   property int fontPx: 12
   property int weight: Font.Medium
+  // "dock" (this dock's own chip) or "macos" (the Dock's hover callout).
+  property string variant: "dock"
+  readonly property bool mac: chip.variant === "macos"
   // The box the label reserved above the icon, measured from the same font
   // before this chip exists (DockLabel.chipBox). Zero measures itself.
   property real boxHeight: 0
 
-  readonly property real padX: Style.space(9)
-  readonly property real padY: Style.space(4)
+  // The macOS callout's measured values, not a re-derivation: the Dock's
+  // label is a dark grey chip at 82% over the wallpaper, its ink a fixed
+  // near-white (it is legible whatever the desktop looks like), 5px corners,
+  // 8 x 3px of padding. The dock's own chip keeps its material.
+  readonly property real padX: chip.mac ? Style.space(8) : Style.space(9)
+  readonly property real padY: chip.mac ? Style.space(3) : Style.space(4)
 
   // What the card's body is made of: the look's own fill (or the theme's bar
   // colour), exactly as DockSurface picks it.
@@ -38,11 +45,15 @@ BorderSurface {
     try { return Qt.color(name) } catch (e) { return Color.bar.background }
   }
 
-  // The card's body, opaque, at the separation its own ink needs.
-  readonly property color fill: chip.root
-    ? chip.root.floatingBody(chip.baseFill, chip.root.effectiveDockOpacity, chip.ink)
-    : Qt.rgba(0.09, 0.09, 0.10, 1.0)
-  readonly property color ink: chip.root ? chip.root.dockForeground : Color.bar.text
+  // The card's body, opaque, at the separation its own ink needs. The macOS
+  // callout is the same chip over any desktop, so it does not borrow the
+  // dock's body.
+  readonly property color fill: chip.mac ? Util.alpha("#2b2b2b", 0.82)
+    : chip.root
+      ? chip.root.floatingBody(chip.baseFill, chip.root.effectiveDockOpacity, chip.ink)
+      : Qt.rgba(0.09, 0.09, 0.10, 1.0)
+  readonly property color ink: chip.mac ? "#f5f5f5"
+    : (chip.root ? chip.root.dockForeground : Color.bar.text)
 
   TextMetrics {
     id: measure
@@ -68,17 +79,17 @@ BorderSurface {
 
   width: Math.ceil(measure.advanceWidth) + chip.padX * 2
   height: chip.boxHeight > 0 ? chip.boxHeight : chipText.implicitHeight + chip.padY * 2
-  radius: Math.min(chip.height / 2, Style.space(9))
+  radius: chip.mac ? Style.space(5) : Math.min(chip.height / 2, Style.space(9))
   color: chip.fill
-  borderSpec: Border.flat(Util.alpha(chip.ink, 0.14), 1)
+  borderSpec: chip.mac ? Border.none() : Border.flat(Util.alpha(chip.ink, 0.14), 1)
 
   // Lifted off the wallpaper it floats over.
   layer.enabled: true
   layer.effect: MultiEffect {
     shadowEnabled: true
     shadowColor: "#000000"
-    shadowOpacity: 0.38
-    shadowBlur: 0.55
+    shadowOpacity: chip.mac ? 0.30 : 0.38
+    shadowBlur: chip.mac ? 0.45 : 0.55
     shadowVerticalOffset: 2
     autoPaddingEnabled: true
   }

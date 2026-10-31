@@ -38,15 +38,20 @@
 //                          while focused), plus the window previews its
 //                          tooltips already carry
 //
-// A shipped look may also carry a `setup` (layout, alignment, autohide and the
-// behavior a look cannot spell), because the taskbar's shape is not a look: a
+// A shipped look may also carry a `setup` (layout, alignment, autohide, what
+// the apps button opens and the behavior a look cannot spell), because the
+// taskbar's shape is not a look: a
 // look-only preset would leave a floating, auto-hiding dock that looks nothing
 // like it. Only shipped entries can carry one -- a saved preset is written back
 // through boundPresets, which keeps id/name/look, so applying one never moves
 // the dock. `applyPreset` applies each shipped entry's explicit setup before
 // saving, so switching away from Windows restores a dock instead of a panel.
 // Setup is applied once, not enforced: users can still adjust every control.
-// Tooltip and other optional preferences are deliberately not setup keys.
+// `appsButtonAction` is a setup key because it is part of the look's identity:
+// the Windows taskbar's Start opens an anchored panel over the button, while
+// every other shipped look keeps the Omarchy menu, whatever a config saved on
+// another machine happened to hold. Tooltip and other optional preferences
+// are deliberately not setup keys.
 //
 // Deliberately not shipped as presets, and why:
 //   - panel layout (#49) is not a look key -- `LOOK_KEYS` has no `layout`, so a
@@ -62,7 +67,7 @@ var SHIPPED = [
   {
     id: "builtin_thepathless_ristretto",
     name: "thepathless:ristretto",
-    setup: { layout: "dock", alignment: "center", autohide: true, intelligentAutohide: true, showMinimizedTiles: true, minimizeMode: "active", showAppsButton: true },
+    setup: { layout: "dock", alignment: "center", autohide: true, intelligentAutohide: true, showMinimizedTiles: true, minimizeMode: "active", showAppsButton: true, appsButtonAction: "menu" },
     look: {
       bgFill: "gradient", gradientPreset: "forest", gradientStrength: 0.25, grain: 0.2,
       dividerGeometry: "long", dividerStyle: "custom",
@@ -74,7 +79,7 @@ var SHIPPED = [
     id: "builtin_macos",
     name: "macOS",
     // Focus/cycle on click, with minimized windows in their own tile section.
-    setup: { layout: "dock", alignment: "center", autohide: true, intelligentAutohide: true, showMinimizedTiles: true, minimizeMode: "off", showAppsButton: true },
+    setup: { layout: "dock", alignment: "center", autohide: true, intelligentAutohide: true, showMinimizedTiles: true, minimizeMode: "off", showAppsButton: true, appsButtonAction: "menu" },
     look: {
       showBackground: true, bgColor: "#ffffff", bgFill: "solid",
       blur: "on", blurSize: 12,
@@ -88,8 +93,12 @@ var SHIPPED = [
       indicatorMode: "windows", indicatorSize: 4, indicatorInset: 4, indicatorShape: "rounded",
       hoverEffect: "wave", magnifyPeak: 1.6, magnifyReach: 3.6, launchBounce: true,
       dividerGeometry: "classic", dividerStyle: "custom", dividerWidth: 1.0, dividerHeight: 50, dividerOpacity: 0.18,
-      labelMode: "hover", labelBackground: "pill", labelShape: "pill", labelFont: "theme",
-      labelSize: "medium", labelWeight: "medium", labelReveal: "slide", labelColor: "auto"
+      // The Dock's hover callout: the name in a dark translucent chip that
+      // tracks the magnified icon (DockLabels.LABEL_CHIPS). The system font at
+      // regular weight is the Dock's own label; the other looks keep the
+      // dock's chip and the theme font they always had.
+      labelMode: "hover", labelBackground: "pill", labelShape: "pill", labelChip: "macos", labelFont: "sans",
+      labelSize: "medium", labelWeight: "regular", labelReveal: "slide", labelColor: "auto"
     }
   },
   {
@@ -97,7 +106,7 @@ var SHIPPED = [
     name: "WhiteSur",
     // The same behaviour as the macOS look: focus/cycle on click, minimized
     // windows in their own tiles, a floating centred dock.
-    setup: { layout: "dock", alignment: "center", autohide: true, intelligentAutohide: true, showMinimizedTiles: true, minimizeMode: "off", showAppsButton: true },
+    setup: { layout: "dock", alignment: "center", autohide: true, intelligentAutohide: true, showMinimizedTiles: true, minimizeMode: "off", showAppsButton: true, appsButtonAction: "menu" },
     look: {
       // WhiteSur's panels are near-opaque white, not frosted glass: the blur is
       // off and the fill carries the surface.
@@ -125,7 +134,7 @@ var SHIPPED = [
     // centred Start + app group and a separate right-hand tray, and
     // one tile per app - a minimized window is its app's mark, never a second
     // tile in the bar. Clicking the focused app minimizes it, as on Windows.
-    setup: { layout: "panel", alignment: "taskbar", autohide: false, intelligentAutohide: false, showMinimizedTiles: false, minimizeMode: "active", showAppsButton: true },
+    setup: { layout: "panel", alignment: "taskbar", autohide: false, intelligentAutohide: false, showMinimizedTiles: false, minimizeMode: "active", showAppsButton: true, appsButtonAction: "start" },
     look: {
       showBackground: true, bgColor: "#202020", bgFill: "solid",
       // Windows 11's acrylic: the desktop blurs through the bar rather than

@@ -20,6 +20,7 @@ Item {
   readonly property var rightRowRef: rightRow
 
   property alias dockCard: dockCard
+  readonly property var appsButton: appsButtonSlot.child
   property alias cardHover: cardHover
   property alias dockHitbox: dockHitbox
   property alias hitboxHover: hitboxHover
@@ -495,6 +496,7 @@ Item {
       }
 
       RowSlot {
+        id: appsButtonSlot
         rootRef: cardWrapper.rootRef
         shown: root ? (root.showAppsButton && !root.fitHostRef.hidden["button"]) : true
         DockIconButton {

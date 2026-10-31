@@ -161,10 +161,8 @@ function dependency(key, r) {
     return { key: "layout", text: "Choose Dock layout to use floating dock corners and split sections." }
   if (key === "cornerRadius") return needs(r.dockShape === "rounded", "corners", "Choose Rounded corners to set a radius.")
   if (key === "panelSpacing") return needs(r.placement.split, "splitSections", "Enable Split sections to set panel spacing.")
-  if (key === "appsButtonAction") {
-    if (!r.sharedState || !r.sharedState.appGrid.available) return { key: "", text: "The app grid requires a compatible Omarchy shell." }
+  if (key === "appsButtonAction")
     return needs(r.showAppsButton, "appsButton", "Enable the Omarchy button to choose its action.")
-  }
   if (key === "warnUnsafeRemoval") return needs(r.showRemovableDrives, "removableDrives", "Enable Removable drives to use removal warnings.")
   if (["iconTint", "iconContrast", "iconStrength"].indexOf(key) >= 0)
     return needs(r.iconStyle === "mono" || r.iconStyle === "dots", "iconStyle", "Choose Monochrome or Dot matrix icon style first.")

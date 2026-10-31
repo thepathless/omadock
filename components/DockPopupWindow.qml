@@ -148,9 +148,15 @@ PopupWindow {
                     y - (popup.anchor.rect.y - popup.implicitHeight))
   }
 
+  // Read-only, for the live suite: whether the compositor is routing the
+  // keyboard to this popup right now (the grab is what makes an outside click
+  // or focus change dismiss it).
+  readonly property bool grabActive: focusGrab.active
+
   // A click outside the menu and the dock closes it, as the full-surface
   // dismiss area used to.
   HyprlandFocusGrab {
+    id: focusGrab
     active: popup.visible && !popup.closing
     windows: (popup.dockWindow && !popup.holdsKeyboard) ? [popup, popup.dockWindow] : [popup]
     onCleared: popup.dismissed()

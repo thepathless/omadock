@@ -135,13 +135,17 @@ QtObject {
   function popupSurface(root) {
     if (!root) return { ink: Color.menu.text,
       surface: Color.menu.background, glyph: "#ffffff" }
-    // No card behind the dock means no card behind its popups either: the same
-    // switch that clears DockSurface's fill clears theirs. The ink moves to
-    // the monochrome read of the theme background the dock's own glyphs use,
-    // because there is no fill left to contrast against.
+    // The dock's background-off answer: the same 28% ink plate and 45% rim
+    // the collapsed group/folder tile draws, with the frame ink as text.
+    // Measured readable at 5.9:1 (Tokyo Night) and 8.5:1 (Catppuccin Latte);
+    // 0.16 was the tile weight that vanished, so do not lower it again.
     if (!root.showBackground) {
-      var clear = symbolicColorOn(root, Color.background)
-      return { ink: clear, surface: "transparent", glyph: clear }
+      var ink = root.blackOrWhiteOn(root.iconBackdropColor)
+      var surface = Util.alpha(ink, 0.28)
+      var mode = String(root.folderColor || "")
+      var glyph = (mode === "white" || mode === "black" || mode === "bw")
+        ? symbolicColorOn(root, surface) : ink
+      return { ink: ink, surface: surface, glyph: glyph }
     }
     var name = String(root.dockBgColor || "")
     var fill

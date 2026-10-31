@@ -29,6 +29,10 @@ PopupWindow {
   property real surfaceCenterX: 0
   property real targetCenterX: 0
 
+  // Re-place the popup over the target as it is now (the macOS callout is
+  // anchored to the icon's drawn, magnified box, which moves while it grows).
+  function refreshAnchor() { if (tip.visible) tip.anchor.updateAnchor() }
+
   color: "transparent"
   mask: Region {}
   visible: shown && hostWindow !== null && body !== null

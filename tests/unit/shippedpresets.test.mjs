@@ -23,7 +23,7 @@ const merged = (user) => plain(ctx.merge(user, ctx.pickLook))
 const LABEL_LISTS = {
   labelMode: "LABEL_MODES", labelKind: "LABEL_KINDS", labelFont: "LABEL_FONTS",
   labelSize: "LABEL_SIZES", labelWeight: "LABEL_WEIGHTS", labelColor: "LABEL_COLORS",
-  labelBackground: "LABEL_BACKGROUNDS", labelShape: "LABEL_SHAPES",
+  labelBackground: "LABEL_BACKGROUNDS", labelShape: "LABEL_SHAPES", labelChip: "LABEL_CHIPS",
   labelIndicators: "LABEL_INDICATORS", labelPlateHeight: "LABEL_PLATE_HEIGHTS", labelPinned: "LABEL_PINNED",
   labelReveal: "LABEL_REVEALS", labelEffect: "LABEL_EFFECTS",
 }
@@ -43,6 +43,17 @@ test("every label key a shipped look carries is a value the labels accept", () =
   // macOS shows the name on hover; the Windows taskbar never carries one.
   assert.equal(SHIPPED.find((p) => p.name === "macOS").look.labelMode, "hover")
   assert.equal(SHIPPED.find((p) => p.name === "Windows").look.labelMode, "off")
+  // Only the macOS look takes the Dock's callout: every other look keeps the
+  // dock's own hover chip exactly as before.
+  assert.equal(SHIPPED.find((p) => p.name === "macOS").look.labelChip, "macos")
+  for (const p of SHIPPED) {
+    if (p.name === "macOS") continue
+    assert.equal(p.look.labelChip, undefined, `${p.name} keeps the dock's chip`)
+  }
+  // The Dock's label is its system font at regular weight.
+  const mac = SHIPPED.find((p) => p.name === "macOS").look
+  assert.equal(mac.labelFont, "sans")
+  assert.equal(mac.labelWeight, "regular")
 })
 
 // The taskbar is more than a look: a full-width, always-visible bottom panel
@@ -54,7 +65,10 @@ test("the Windows look is the taskbar, and carries the setup it needs", () => {
   assert.ok(w, "the taskbar look ships")
   assert.deepEqual(plain(w.setup), {
     layout: "panel", alignment: "taskbar", autohide: false, intelligentAutohide: false,
-    showMinimizedTiles: false, minimizeMode: "active", showAppsButton: true
+    showMinimizedTiles: false, minimizeMode: "active", showAppsButton: true,
+    // Start opens the dock's own anchored panel, and the look pins that: a
+    // stale value in a config saved elsewhere cannot pick another surface.
+    appsButtonAction: "start"
   })
   assert.equal(w.look.shape, "square")
   assert.equal(w.look.cornerRadius, 0)
@@ -67,6 +81,26 @@ test("the Windows look is the taskbar, and carries the setup it needs", () => {
   // padding each side lands the bar at ~50px on this desktop's UI scale.
   assert.equal(w.look.iconSize + w.look.iconMargin, 40)
   assert.equal(w.look.dockPaddingPx, 4)
+})
+
+// The apps button's action is part of a look, and each shipped look pins its
+// own: the Windows taskbar opens the anchored Start panel there, every other
+// look keeps the Omarchy menu it has always opened. The value is in setup (not
+// the look), so applying the look alone would leave whatever the config held -
+// which is exactly the stale-value bug this pins.
+test("each shipped look pins what its apps button opens", () => {
+  const actions = new Set(["menu", "grid", "start"])
+  for (const p of SHIPPED) {
+    assert.ok(actions.has(p.setup.appsButtonAction),
+      `${p.name} pins a known apps action, not ${JSON.stringify(p.setup.appsButtonAction)}`)
+    assert.equal(p.look.appsButtonAction, undefined, `${p.name} keeps the action out of its look`)
+  }
+  assert.equal(SHIPPED.find((p) => p.name === "Windows").setup.appsButtonAction, "start")
+  for (const p of SHIPPED) {
+    if (p.name === "Windows") continue
+    assert.equal(p.setup.appsButtonAction, "menu",
+      `${p.name} still opens the Omarchy menu`)
+  }
 })
 
 test("only a shipped look carries setup; a saved preset never does", () => {

@@ -4,8 +4,9 @@ import Quickshell.Io
 import "../DockModel.js" as DockModel
 import "../DockGridDrop.js" as DockGridDrop
 
-// The apps button's launcher: the Omarchy menu, or on Omarchy 4.5+ the app
-// grid of Omarchy's own dock ("appsButtonAction": "grid"). The grid and its
+// The apps button's launcher: the Omarchy menu, on Omarchy 4.5+ the app grid
+// of Omarchy's own dock ("appsButtonAction": "grid"), or the dock's own
+// anchored Start panel over the button ("start", the Windows taskbar's). The grid and its
 // app library are Omarchy's files, loaded on the first open rather than
 // copied, so they keep Omarchy's look, search and menus. They ask the dock
 // for six functions (gridDock below); an app dragged out of the grid lands
@@ -17,7 +18,8 @@ Item {
   property string omarchyPath: ""
   // Returns the docks, the focused monitor's first (DockHost.orderedDocks).
   property var docks: null
-  // Set from omadock.json by DockConfigLogic: "menu" | "grid".
+  // Set from omadock.json (or a shipped preset's setup) by DockConfigLogic:
+  // "menu" | "grid" | "start".
   property string mode: "menu"
 
   property bool available: false
@@ -32,6 +34,12 @@ Item {
   readonly property string libraryPath: gridHost.omarchyPath + "/shell/services/AppLibrary.qml"
 
   function openLauncher() {
+    // The anchored Start panel is the dock's own window, so it needs no
+    // Omarchy files; the button's second press closes it again.
+    if (gridHost.mode === "start") {
+      var d = gridHost.dockList()[0]
+      if (d && d.appsMenuHost) { d.appsMenuHost.toggle(); return }
+    }
     if (gridHost.mode !== "grid" || !gridHost.available || gridHost.failed) {
       Quickshell.execDetached(["omarchy-menu", "toggle", "root"])
     } else if (gridLoader.item) {
