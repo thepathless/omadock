@@ -62,14 +62,17 @@ PY
     return 1
   fi
   # A headless output that took focus would route the owner's typing to a
-  # screen they cannot see: hand focus back, then stop.
-  case "$(headless_monitors)" in
-    *"${HEADLESS_SCREEN}*"*)
-      echo "headless: REGRESSION, the output took the owner's focus" >&2
-      [ -n "$HEADLESS_OWNER_FOCUSED" ] && hyprctl dispatch focusmonitor "$HEADLESS_OWNER_FOCUSED" >/dev/null 2>&1
-      headless_stop >/dev/null 2>&1
-      return 1 ;;
-  esac
+  # screen they cannot see: hand focus back before anything else. The name is
+  # checked by *who* owns the focus, not by matching the requested name:
+  # Hyprland truncates long output names (OMADOCK-HEADLESS-<pid> lands as
+  # `omadock-probe`), which made the old name match miss the theft entirely.
+  local focused
+  focused=$(headless_monitors | tr ' ' '\n' | grep '\*$' | tr -d '*')
+  if [ -n "$focused" ] && [ "$focused" != "$HEADLESS_OWNER_FOCUSED" ]; then
+    echo "headless: the output took focus; returning it to ${HEADLESS_OWNER_FOCUSED:-the owner}" >&2
+    [ -n "$HEADLESS_OWNER_FOCUSED" ] && hyprctl dispatch focusmonitor "$HEADLESS_OWNER_FOCUSED" >/dev/null 2>&1
+    sleep 0.2
+  fi
   PROBE_CFG_SRC="$HEADLESS_SRC"
   PROBE_SCREEN="$HEADLESS_SCREEN"
   export PROBE_CFG_SRC PROBE_SCREEN

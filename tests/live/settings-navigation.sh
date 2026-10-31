@@ -44,6 +44,13 @@ export PROBE_BODY
 probe_start || fail "dock load"
 PROBE_OWNER_CFG="$OWNER_CFG"
 PROBE_OWNER_MD5="$OWNER_MD5"
+# The active theme can live in the owner's ~/.local/share/icons (WhiteSur
+# does). The probe runs under its own HOME, so link that root in: the dock
+# under test must see the same icon roots as the desktop whose theme it reads
+# from gsettings. Only the icon root - the probe's .icons/default is its own,
+# so an apply never writes the owner's file.
+mkdir -p "$PROBE_DIR/home/.local/share"
+ln -sfn "$HOME/.local/share/icons" "$PROBE_DIR/home/.local/share/icons"
 # A disposable installed theme, present before the panel reads the list and
 # removed later to exercise a stale selection without touching the owner.
 mkdir -p "$PROBE_DIR/home/.local/share/icons/ProbeTheme/apps"

@@ -20,7 +20,7 @@
 //   thepathless:ristretto  the owner's own look on the maintainer's desktop
 //                          (dot-matrix icons, forest gradient, grain, long
 //                          custom dividers, glitch hover, no rim or shadow)
-//   macOS                  the modern macOS dock: 53px artwork, floating
+//   macOS                  the modern macOS dock: 47px artwork, floating
 //                          rounded squircle shelf (27px radius) with frosted
 //                          white glass (#ffffff, blur on, 0.5px specular rim,
 //                          soft shadow), wave fisheye hover magnification,
@@ -83,7 +83,7 @@ var SHIPPED = [
       shape: "rounded", cornerRadius: 27,
       dockPaddingPx: 7, iconBaseline: "center", surfaceGlass: 1, iconMargin: 8.5,
       surfaceLift: 0.53, surfaceDesaturate: 1, surfaceStability: 0.87, folderColor: "theme",
-      iconSize: 53, itemSpacing: 0, sectionSpacing: 15,
+      iconSize: 47, itemSpacing: 0, sectionSpacing: 15,
       iconStyle: "original", iconTint: "text", iconContrast: 0, iconStrength: 1,
       indicatorMode: "windows", indicatorSize: 4, indicatorInset: 4, indicatorShape: "rounded",
       hoverEffect: "wave", magnifyPeak: 1.6, magnifyReach: 3.6, launchBounce: true,

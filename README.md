@@ -46,11 +46,11 @@ Crafted in the spirit of **Omakase (おまかせ)**: wave magnification, live wi
 
 ### Release status
 
-> **This page documents `main`.** The latest tag, [v4.12.0](https://github.com/thepathless/omadock/releases/tag/v4.12.0), ships the six-category settings panel and the icon-theme picker as a filtering **chip list**; it predates the searchable dropdown, the motion demos and the refreshed hero and stills described below. No newer version has been tagged. The tag itself carries 299 Node + 126 Python; its own README is frozen with that release and quotes 276, while the published v4.12.0 release notes quote 273. Correcting those two surfaces needs a release edit or a new release, which is the maintainer's call; this page records the measured tag.
+> **This page documents `main`.** The latest tag, [v4.12.1](https://github.com/thepathless/omadock/releases/tag/v4.12.1), ships everything described below: the one-row settings panel with the searchable icon-theme dropdown, the motion clips and refreshed imagery, and the popup, folder-visibility and icon-theme fixes in the changelog. The tag carries 298 Node + 148 Python unit tests.
 
 ### Architecture & Recognition
 
-The current `main` tree is backed by 298 Node.js unit tests, 126 Python checks, and thirteen sandboxed live Wayland integration suites. The v4.12.0 tag carries 299 Node + 126 Python. OmaDock's atomic asynchronous configuration gate (`CappedFileView.qml` and `tests/unit/test_capped_gate.py`) was independently selected for the **[XERJ Corpus Hub](https://github.com/xerj-org/xerj)** as a verified open-source reference implementation for AI coding agents.
+The current `main` tree is backed by 298 Node.js unit tests, 148 Python checks, and thirteen sandboxed live Wayland integration suites. The v4.12.0 tag carries 299 Node + 126 Python. OmaDock's atomic asynchronous configuration gate (`CappedFileView.qml` and `tests/unit/test_capped_gate.py`) was independently selected for the **[XERJ Corpus Hub](https://github.com/xerj-org/xerj)** as a verified open-source reference implementation for AI coding agents.
 
 ### Highlights
 
@@ -396,7 +396,7 @@ Four looks ride with the dock and sit ahead of the presets you save — a fresh 
 | Preset | The look | Built from |
 | :--- | :--- | :--- |
 | `thepathless:ristretto` | Dot-matrix icons on a Forest gradient with film grain, long custom dividers, the Glitch hover, and no rim or shadow | The maintainer's own dock |
-| `macOS` | Floating 27px squircle shelf with frosted white glass (#ffffff, blur on, 0.5px specular rim, soft shadow), 53px artwork, wave fisheye hover magnification, hairline dividers, and OmaDock's multi-window marks (accent bar for focused, hollow dot for minimized) | The modern macOS dock |
+| `macOS` | Floating 27px squircle shelf with frosted white glass (#ffffff, blur on, 0.5px specular rim, soft shadow), 47px artwork, wave fisheye hover magnification, hairline dividers, and OmaDock's multi-window marks (accent bar for focused, hollow dot for minimized) | The modern macOS dock |
 | `WhiteSur` | The WhiteSur Big Sur shelf: near-opaque white glass (#f5f5f7, blur off, hairline rim, soft shadow), 22px corners, 52px artwork, wave hover, no labels and no dividers | [WhiteSur](https://github.com/vinceliuice/WhiteSur-gtk-theme) |
 | `Windows` | The Windows 11 taskbar: full-width bottom panel, always visible, Start and apps centred together with the two-line clock and folders at the right, a slim bar (~50px at this UI scale) with 24px artwork and 42px buttons, no magnification and no labels, acrylic fill (#202020, blur through), a rounded hover wash, one pill per app (short and grey running, wider and accent-focused), no separate minimized tiles, and hover tooltips | The Windows 11 taskbar |
 
@@ -807,13 +807,17 @@ The pixel label font is [Silkscreen](https://fonts.google.com/specimen/Silkscree
 
 Full release notes, historical changelogs, and upgrade guides across all versions are available on [**GitHub Releases**](https://github.com/thepathless/omadock/releases).
 
-### Unreleased on main
+### v4.12.1 — 2026-10-31
 
-No version, tag or release has been cut for these; they are available from `main` only.
+The dock's own switches now reach every surface it draws, and an icon-theme change lands on the dock, not just on the desktop.
 
-- **Searchable icon-theme dropdown** — the v4.12.0 chip list is now one `SearchableDropdown`: it opens from the theme in use, filters as you type, moves with the arrow keys, applies with <kbd>Enter</kbd> and closes with <kbd>Esc</kbd> without applying. The control filters its own options; the old `DockIconTheme.filter()` helper and its test were removed rather than kept as a second search implementation.
-- **Motion demos and refreshed imagery** — four clips recorded from a second Quickshell instance running this repository's own `DockHost.qml` on a headless output: hover, preset switching, settings search, and the icon-theme dropdown narrowing to `yar` and applying Yaru. A fresh hero, close-up and refreshed settings stills replace the older captures.
-- **Verification** — the current `main` tree passes 298 Node + 126 Python unit tests, `qmllint` 0 errors, the structure/security/i18n gates, and the live settings suite for the dropdown (open, filter, arrows, apply, cancel). The v4.12.0 release remains the latest tag.
+- **Searchable icon-theme dropdown** — v4.12.0's chip list is now one `SearchableDropdown`: it opens from the theme in use, filters as you type, moves with the arrow keys, applies with <kbd>Enter</kbd> and closes with <kbd>Esc</kbd> without applying. The control filters its own options; the old `DockIconTheme.filter()` helper and its test were removed rather than kept as a second search implementation.
+- **Motion clips and refreshed imagery** — four clips recorded from a second Quickshell instance running this repository's own `DockHost.qml` on a headless output: hover, preset switching, settings search, and the icon-theme dropdown narrowing to `yar` and applying Yaru. A fresh hero, close-up and refreshed settings stills replace the older captures.
+- **No background means no popup panel** — with *Show background* off, an app group's popup and a folder's popup now drop their fill and rim exactly as the dock's card does, and their text and tiles take the contrast colour the dock uses over the wallpaper. A group popup used to keep the theme's menu panel, so turning the dock's card off left a floating rectangle behind it.
+- **Pinned folders on a transparent dock** — a folder tile's frame takes the theme's contrast end instead of the bar colour, and the icon index prefers a theme's largest artwork for a name. WhiteSur ships a dark 16×16 `places/16/folder.svg` beside its blue scalable folder, and `find` order decided which one a pinned folder drew; `mimes/` is indexed beside `mimetypes/` too.
+- **Icon-theme switches follow through** — one queued re-read after an apply makes the index walk the new theme's inheritance chain. Every theme installed here (27 ids: WhiteSur, WhiteSur-dark, Adwaita, AdwaitaLegacy, HighContrast, breeze, breeze-dark and 20 Yaru variants) resolves its folder, app and file-type artwork from itself or a theme it inherits, about four seconds after the click.
+- **The macOS preset is the dock you already run** — 47px artwork (was 53), the size this desktop is set to. Its zoom is the real dock's shape: the bar widens under the pointer while its height stays put, and the enlarged icons rise above its top edge. macOS does not grow the bar taller under magnification — the bar makes room horizontally and the icons bulge upward.
+- **Verification** — 298 Node + 148 Python unit tests, `qmllint` 0 errors, structure, security, manifest and plugin gates clean; the live `interactions` (headless output, dock background off), `settings-navigation`, `theme-rescan`, `presets`, `label-metrics` and `teardown` suites pass, with the owner's config, shell PID and monitor list unchanged.
 
 ### v4.12.0 — 2026-10-30
 
