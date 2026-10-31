@@ -248,8 +248,17 @@ Item {
         readonly property string tileStyle: root ? root.groupStyle : "rounded"
         anchors.fill: parent
         radius: tileStyle === "rounded" ? Math.round(width * 0.18) : 0
-        color: tileStyle === "none" ? "transparent" : Util.alpha(Color.bar.background, 0.4)
-        border.color: Util.alpha(Color.menu.border, 0.45)
+        // Over a card the tile is a light plate of the bar's own colour. With
+        // the dock's background off there is no plate to sit on, and a light
+        // bar colour vanished into a light theme (and a dark one into a dark
+        // theme): the frame then takes the contrast end of the theme backdrop
+        // instead, so the folder still reads as one tile on any wallpaper.
+        readonly property color frameInk: (root && !root.showBackground)
+          ? root.blackOrWhiteOn(root.iconBackdropColor) : Color.menu.border
+        color: tileStyle === "none" ? "transparent"
+          : (root && !root.showBackground ? Util.alpha(frameInk, 0.16)
+                                          : Util.alpha(Color.bar.background, 0.4))
+        border.color: Util.alpha(frameInk, 0.45)
         border.width: tileStyle === "none" ? 0 : 1
 
         // Empty folder fallback icon

@@ -29,8 +29,9 @@ BorderSurface {
   readonly property color surfaceColor: material ? material.surface : Color.menu.background
 
   color: surfaceColor
-  borderSpec: root ? Border.flat(Util.alpha(ink, 0.14), 1)
-                   : Border.surfaceSpec("menu", "border", Color.menu.border, 1)
+  borderSpec: !root ? Border.surfaceSpec("menu", "border", Color.menu.border, 1)
+    : (root.showBackground && root.showBorder) ? Border.flat(Util.alpha(ink, 0.14), 1)
+    : Border.none()
   radius: root ? root.effectiveCardRadius : Style.cornerRadius
   padding: Style.space(6)
 

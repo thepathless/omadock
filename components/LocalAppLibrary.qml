@@ -191,6 +191,10 @@ import "../DockIconTheme.js" as DockIconTheme
         localAppLibrary.rescanPending = true
         return
       }
+      // The chain is read now, not when the Process was created: a theme
+      // change while a scan is queued would otherwise rescan the old chain.
+      iconIndexScan.command = ["bash", localAppLibrary.helperPath("icon-index.sh")]
+        .concat(localAppLibrary.themeChain())
       iconIndexScan.running = true
     }
 
@@ -217,44 +221,6 @@ import "../DockIconTheme.js" as DockIconTheme
     // DockIconTheme.chain has already rejected anything that is not a plain id,
     // so these can name directories in the scan below.
     function themeChain() { return DockIconTheme.chain(localAppLibrary.iconTheme, localAppLibrary.themes) }
-
-    // The active theme's directories are searched for BOTH formats before any
-    // other theme is consulted, so a theme's PNG beats another theme's SVG;
-    // within each group SVGs come first, which keeps the first hit per name
-    // scalable. awk keeps only that first hit (QML would otherwise parse
-    // ~23 600 lines instead of ~2 300).
-    function iconIndexScanCommand() {
-      var first = []
-      var chain = localAppLibrary.themeChain()
-      for (var i = 0; i < chain.length; i++) {
-        first.push("$HOME/.icons/" + chain[i])
-        first.push("$HOME/.local/share/icons/" + chain[i])
-        // System themes ship here; XDG_DATA_DIRS' extra roots are reached by
-        // the generic pass below.
-        first.push("/usr/share/icons/" + chain[i])
-        first.push("/usr/local/share/icons/" + chain[i])
-      }
-      var all = first.slice()
-      all.push("$HOME/.icons", "$HOME/.local/share/icons")
-      return [
-        'first="' + first.join(" ") + '";',
-        'dirs="' + all.join(" ") + '";',
-        'IFS=":"; for d in ${XDG_DATA_DIRS:-/usr/local/share:/usr/share}; do dirs="$dirs $d/icons"; done; unset IFS;',
-        '{ for base in $first; do',
-        '  [[ -d $base ]] || continue;',
-        '  for ext in svg png; do',
-        '    find "$base" \\( -path "*/apps/*" -o -path "*/devices/*" -o -path "*/places/*" -o -path "*/mimetypes/*" \\) -name "*.$ext" 2>/dev/null;',
-        '  done;',
-        'done;',
-        'for base in $dirs; do',
-        '  [[ -d $base ]] || continue;',
-        '  for ext in svg png; do',
-        '    find "$base" \\( -path "*/apps/*" -o -path "*/devices/*" -o -path "*/places/*" -o -path "*/mimetypes/*" \\) -name "*.$ext" 2>/dev/null;',
-        '  done;',
-        'done;',
-        'for ext in svg png; do find /usr/share/pixmaps -maxdepth 1 -name "*.$ext" 2>/dev/null; done; } | awk -F/ \'{ n = $NF; sub(/\\.[^.]*$/, "", n); if (!(n in seen)) { seen[n] = 1; print } }\''
-      ].join(' ')
-    }
 
     function launch(desktopId, name) {
       var id = String(desktopId || "")
@@ -293,7 +259,6 @@ import "../DockIconTheme.js" as DockIconTheme
     // changes. Nothing polls, so the dock stays at 0% CPU when idle.
     Process {
       id: iconIndexScan
-      command: ["bash", "-c", localAppLibrary.iconIndexScanCommand()]
       // One collected read, parsed once: a callback per line cost ~23 600
       // GUI-thread calls on every start and theme change.
       stdout: StdioCollector { id: iconIndexOut; waitForEnd: true }
@@ -328,7 +293,10 @@ import "../DockIconTheme.js" as DockIconTheme
     }
 
     onIconThemeChanged: localAppLibrary.refreshIcons()
-    Component.onCompleted: localAppLibrary.refreshThemes()
+    // gsettings is the desktop's own answer; the staged icons.theme is only
+    // the fallback for a host that cannot answer, so read it even when that
+    // file is absent (a probe home, a host without Omarchy's staged theme).
+    Component.onCompleted: { localAppLibrary.probeTheme(); localAppLibrary.refreshThemes() }
 
     // Coalesces bursts of app-list changes (one package install touches many
     // entries) into a single rescan.

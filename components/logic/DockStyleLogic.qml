@@ -135,6 +135,14 @@ QtObject {
   function popupSurface(root) {
     if (!root) return { ink: Color.menu.text,
       surface: Color.menu.background, glyph: "#ffffff" }
+    // No card behind the dock means no card behind its popups either: the same
+    // switch that clears DockSurface's fill clears theirs. The ink moves to
+    // the monochrome read of the theme background the dock's own glyphs use,
+    // because there is no fill left to contrast against.
+    if (!root.showBackground) {
+      var clear = symbolicColorOn(root, Color.background)
+      return { ink: clear, surface: "transparent", glyph: clear }
+    }
     var name = String(root.dockBgColor || "")
     var fill
     if (name === "none") fill = Qt.rgba(0, 0, 0, 0.25)

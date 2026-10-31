@@ -122,6 +122,10 @@ else:
     conf["appGroups"] = [{"id": "omadock_probe_group", "name": "Probe Group",
                           "icon": "folder", "apps": [], "cols": 2, "before": ""}]
     print("   config copy added a probe group for the group steps")
+# The group popup follows the dock's material. Pin the path this suite guards:
+# background off makes the popup transparent (no card over the wallpaper), and
+# its ink still draws. A config with the background on cannot test that branch.
+conf["showBackground"] = False
 json.dump(conf, open(sys.argv[2], "w"), indent=2)
 PY
 
@@ -137,14 +141,16 @@ else
   note "headless output up: $(monitor_state)"
 fi
 # A headless output that took focus would route the owner's typing to a screen
-# they cannot see: hand focus back before anything else, then stop.
-OWNER_FOCUSED=$(monitor_state | tr ' ' '\n' | grep '\*$' | tr -d '*')
-case "$(monitor_state)" in
-  *"${SCREEN}*"*)
-    echo "   REGRESSION: the headless output took the owner's focus" >&2
-    [ -n "$OWNER_FOCUSED" ] && hyprctl dispatch focusmonitor "$OWNER_FOCUSED" >/dev/null 2>&1
-    exit 1 ;;
-esac
+# they cannot see: hand focus back before anything else. Who owns the focus is
+# read from the monitor list taken BEFORE the output existed; matching the
+# requested name missed it because Hyprland truncates long output names.
+OWNER_FOCUSED=$(printf '%s\n' "$OWNER_MONITORS" | tr ' ' '\n' | grep '\*$' | tr -d '*')
+focused=$(monitor_state | tr ' ' '\n' | grep '\*$' | tr -d '*')
+if [ -n "$focused" ] && [ "$focused" != "$OWNER_FOCUSED" ]; then
+  note "the headless output took focus; returned it to ${OWNER_FOCUSED:-the owner}"
+  [ -n "$OWNER_FOCUSED" ] && hyprctl dispatch focusmonitor "$OWNER_FOCUSED" >/dev/null 2>&1
+  sleep 0.2
+fi
 
 PROBE_CFG_SRC="$SRC_CFG"
 PROBE_BODY="$PWD/interactions-shell.qml"
@@ -207,7 +213,13 @@ before, after, want, min_changed, min_want = sys.argv[1:6]
 w, h, a = read(before)
 w2, h2, b = read(after)
 assert (w, h) == (w2, h2), "the output size changed mid-run"
-want, translucent = rgb(want)
+# With the dock's background off its popups have no fill at all (the same
+# switch clears DockSurface's fill): there is no expected colour to count,
+# only the ink the menu itself draws.
+if want in ("", "transparent"):
+    want, translucent = None, True
+else:
+    want, translucent = rgb(want)
 changed = hits = 0
 for i in range(0, len(a), 3):
     if a[i:i+3] != b[i:i+3]:
@@ -216,8 +228,9 @@ for i in range(0, len(a), 3):
             hits += 1
 if translucent:
     # A theme whose surface colour has alpha is composited over what is
-    # behind it, so only the amount of ink is a fair question.
-    print("   %d pixels changed; the theme's colour is translucent" % changed)
+    # behind it, so only the amount of ink is a fair question; a transparent
+    # popup has no surface colour to count at all.
+    print("   %d pixels changed; the surface has no colour of its own" % changed)
     sys.exit(0 if changed >= int(min_changed) else 1)
 print("   %d pixels changed, %d of them the expected colour" % (changed, hits))
 sys.exit(0 if changed >= int(min_changed) and hits >= int(min_want) else 1)
