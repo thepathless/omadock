@@ -140,6 +140,7 @@ test("readLabelConfig defaults", () => {
   assert.deepEqual(plain(L.readLabelConfig(null)), {
     labelMode: "off", labelKind: "all", labelFont: "theme", labelSize: "medium",
     labelWeight: "medium", labelColor: "auto", labelBackground: "none", labelShape: "dock",
+    labelChip: "dock",
     labelIndicators: "before", labelPlateHeight: "icon", labelPinned: "always", labelReveal: "slide", labelEffect: "none", labelMaxWidth: 140, labelNames: {}
   })
 })
@@ -240,13 +241,24 @@ test("homeExtra counts the part of a slot's own extra that sits before its icon"
 
 test("pickLabelLook applies a preset's label look and keeps the rest", () => {
   const cur = { labelMode: "always", labelKind: "all", labelFont: "theme", labelSize: "small", labelWeight: "medium", labelColor: "auto",
-    labelBackground: "none", labelShape: "dock", labelIndicators: "before", labelPlateHeight: "icon", labelPinned: "always", labelReveal: "slide", labelEffect: "none", labelMaxWidth: 140 }
+    labelBackground: "none", labelShape: "dock", labelChip: "dock", labelIndicators: "before", labelPlateHeight: "icon", labelPinned: "always", labelReveal: "slide", labelEffect: "none", labelMaxWidth: 140 }
   const out = plain(L.pickLabelLook({ labelFont: "pixel", labelBackground: "plate", labelMaxWidth: 999, labelShape: "blob", iconSize: 40 }, cur))
   assert.deepEqual(out, Object.assign({}, cur, { labelFont: "pixel", labelBackground: "plate", labelMaxWidth: 240 }))
   // A preset saved before label looks existed changes nothing.
   assert.deepEqual(plain(L.pickLabelLook({ iconSize: 40 }, cur)), cur)
   assert.equal(L.pickLabelLook({ labelEffect: "shadow" }, cur).labelEffect, "outline")
   assert.equal(L.pickLabelLook({ labelIndicators: "under" }, cur).labelIndicators, "under")
+})
+
+// The macOS callout is a look key, not a global restyle: a saved config and
+// every look that does not name it keep the dock's own chip.
+test("labelChip is a look key: dock by default, macOS only when a look asks", () => {
+  assert.equal(L.readLabelConfig({}).labelChip, "dock")
+  assert.equal(L.readLabelConfig({ labelChip: "macos" }).labelChip, "macos")
+  assert.equal(L.readLabelConfig({ labelChip: "blob" }).labelChip, "dock")
+  assert.equal(L.pickLabelLook({ labelChip: "macos" }, { labelChip: "dock" }).labelChip, "macos")
+  assert.equal(L.pickLabelLook({ labelChip: "blob" }, { labelChip: "dock" }).labelChip, "dock")
+  assert.equal(L.pickLabelLook({ labelBackground: "pill" }, { labelChip: "macos" }).labelChip, "macos")
 })
 
 test("nameRowsKey changes only when the listed apps change", () => {

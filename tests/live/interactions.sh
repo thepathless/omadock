@@ -20,8 +20,8 @@
 #     anything unless the dock is on the headless output (PROBE_SCREEN).
 #   * each surface is checked twice: the values it draws with (the menus and
 #     the settings panel against the shell's own palette read through a
-#     qualified import; the group popup against the dock's material it now
-#     borrows); and the rendered pixels, cropped from `grim -o <output>`
+#     qualified import; the group and folder popups against the dock's own
+#     background-off material); and the rendered pixels, cropped from `grim -o <output>`
 #     before and after - the colours have to be on the output, not just in
 #     the properties.
 #
@@ -42,13 +42,15 @@ SCREEN="omadock-probe"
 OWNER_CFG="${HOME}/.config/omarchy/omadock.json"
 SRC_CFG=$(mktemp "${TMPDIR:-/tmp}/omadock-interactions-cfg-XXXXXX") || exit 1
 # The folder step's precondition, owned by the suite: a directory a pinned
-# folder can point at. A pin is the only thing that puts a folder tile on the
-# dock (DockConfigLogic's ~/Downloads fallback runs only when the key is absent
-# entirely, not when it holds an empty list), so on a config that pins none the
-# step could never reach its target whatever the code did. The config copy
-# below pins this directory unless the source config already pins one of its
-# own, and the source file itself is never written.
+# folder can point at, holding entries the popup can draw. A pin is the only
+# thing that puts a folder tile on the dock (DockConfigLogic's ~/Downloads
+# fallback runs only when the key is absent entirely); the copy pins this
+# directory instead of the source's pins, because a pinned folder with no
+# entries would make the popup's rows untestable. The source file itself is
+# never written.
 FOLDER_DIR=$(mktemp -d "${TMPDIR:-/tmp}/omadock-interactions-folder-XXXXXX") || exit 1
+printf 'audit note\n' > "$FOLDER_DIR/Audit Note.txt"
+mkdir -p "$FOLDER_DIR/Audit Subfolder"
 HAVE_OUTPUT=""
 fail=0
 fail() { echo "   FAIL: $*" >&2; fail=1; }
@@ -101,16 +103,12 @@ import json, sys
 conf = json.load(open(sys.argv[1]))
 conf["screen"] = sys.argv[3]
 conf["multiMonitor"] = False
-# The copy must carry a pinned folder for the folder-menu step, and it may not
-# borrow one from a desktop that has none. The source config stays the source
-# of everything else - its look, its groups, its app list - so the probe still
-# renders like the owner's dock; only a missing precondition is supplied.
-pins = conf.get("pinnedFolders")
-if isinstance(pins, list) and pins:
-    print("   config copy keeps the %d pinned folder(s) it inherited" % len(pins))
-else:
-    conf["pinnedFolders"] = [{"path": sys.argv[4], "name": "Probe Folder", "icon": "folder"}]
-    print("   config copy pinned %s for the folder-menu step" % sys.argv[4])
+# The copy carries the suite's own pinned folder for the folder-menu and
+# folder-popup steps. The source config stays the source of everything else -
+# its look, its groups, its app list - so the probe still renders like the
+# owner's dock; only the folder precondition is supplied.
+conf["pinnedFolders"] = [{"path": sys.argv[4], "name": "Probe Folder", "icon": "folder"}]
+print("   config copy pinned %s for the folder steps" % sys.argv[4])
 # A group tile needs a group, and the desk's own are used when it has any. The
 # probe group starts empty; the fixture adds an app to it (through the dock's
 # own addAppToGroup) only while it is still empty, so the group popup has tiles
@@ -122,9 +120,9 @@ else:
     conf["appGroups"] = [{"id": "omadock_probe_group", "name": "Probe Group",
                           "icon": "folder", "apps": [], "cols": 2, "before": ""}]
     print("   config copy added a probe group for the group steps")
-# The group popup follows the dock's material. Pin the path this suite guards:
-# background off makes the popup transparent (no card over the wallpaper), and
-# its ink still draws. A config with the background on cannot test that branch.
+# The group and folder popups follow the dock's background-off material: the
+# same 28% ink plate and 45% rim as the collapsed tile, with the frame ink as
+# text. A config with the background on cannot test that branch.
 conf["showBackground"] = False
 json.dump(conf, open(sys.argv[2], "w"), indent=2)
 PY
@@ -213,9 +211,8 @@ before, after, want, min_changed, min_want = sys.argv[1:6]
 w, h, a = read(before)
 w2, h2, b = read(after)
 assert (w, h) == (w2, h2), "the output size changed mid-run"
-# With the dock's background off its popups have no fill at all (the same
-# switch clears DockSurface's fill): there is no expected colour to count,
-# only the ink the menu itself draws.
+# A background-off popup is a translucent ink plate over the wallpaper. Its
+# surface colour is composited, so only the amount of ink is a fair question.
 if want in ("", "transparent"):
     want, translucent = None, True
 else:
@@ -228,9 +225,8 @@ for i in range(0, len(a), 3):
             hits += 1
 if translucent:
     # A theme whose surface colour has alpha is composited over what is
-    # behind it, so only the amount of ink is a fair question; a transparent
-    # popup has no surface colour to count at all.
-    print("   %d pixels changed; the surface has no colour of its own" % changed)
+    # behind it, so only the amount of ink is a fair question.
+    print("   %d pixels changed; the surface is translucent" % changed)
     sys.exit(0 if changed >= int(min_changed) else 1)
 print("   %d pixels changed, %d of them the expected colour" % (changed, hits))
 sys.exit(0 if changed >= int(min_changed) and hits >= int(min_want) else 1)
@@ -372,6 +368,41 @@ log_since "$MARK" "the group popup"
 step close >/dev/null
 sleep 0.4
 
+# ------------------------------------------------------------- folder popup
+echo
+echo "-- a pinned folder's popup (its entries, its labels)"
+MARK=$(errs_now)
+capture before-folder.ppm
+folder=$(step folder-popup) || fail "the folder popup step did not answer"
+if [ "$(jval "$folder" ok)" != "true" ]; then
+  fail "the folder popup did not open ($(jval "$folder" why))"
+else
+  expect_eq "the popup on screen is not the folder that was clicked" "$folder" active "$(jval "$folder" path)"
+  FOLDER_PANEL=$(jstr "$folder" panel)
+  [ -n "$FOLDER_PANEL" ] || fail "the folder popup step named no panel colour"
+  note "folder $(jval "$folder" active), panel $FOLDER_PANEL (the dock's material)"
+fi
+foldread=""
+for i in 1 2 3 4 5 6; do
+  foldread=$(step folder-read) || { foldread=""; break; }
+  [ -n "$foldread" ] || break
+  [ "$(jval "$foldread" entries)" -ge 1 ] && break
+  sleep 0.3
+done
+[ -n "$foldread" ] || fail "the folder popup never reported its contents"
+[ "$(jval "$foldread" ok)" = "true" ] \
+  || fail "the folder popup did not answer ($(jval "$foldread" why))"
+expect_at_least "the folder popup has no entries" "$foldread" entries 1
+expect_at_least "the folder popup drew almost no text" "$foldread" texts 2
+expect_empty "the folder popup drew text in a colour other than the frame ink" "$foldread" foreign
+note "folder rows $(jval "$foldread" entries), texts $(jval "$foldread" texts), ink $(jstr "$foldread" ink)"
+sleep 0.4
+capture after-folder.ppm
+pixels before-folder.ppm after-folder.ppm "$FOLDER_PANEL" 4000 0 "the folder popup"
+log_since "$MARK" "the folder popup"
+step close >/dev/null
+sleep 0.3
+
 # ---------------------------------------------------------- settings panel
 echo
 echo "-- the settings panel, its pages, its overlay"
@@ -429,7 +460,7 @@ note "owner's own dock back to: $(owner_dock_state)"
 echo
 probe_cleanup || exit 1
 if [ "$fail" = "0" ]; then
-  echo "INTERACTIONS PASSED: menus, the rename field, the group popup and the settings panel render with the theme's colours"
+  echo "INTERACTIONS PASSED: menus, the rename field, the group and folder popups and the settings panel render with the theme's colours"
 else
   echo "INTERACTIONS FAILED" >&2
 fi

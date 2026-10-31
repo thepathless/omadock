@@ -465,13 +465,7 @@ Item {
   // running, and foldered (grouped) apps alike.
   readonly property var notifEntries: root.pinnedSection.concat(root.runningSection).concat(root.groupedSection || [])
 
-  // Model rebuilds are also the moment to re-read window rectangles: the tiling
-  // places are computed from them.
-  function refreshDock() {
-    var result = stateLogic.refreshDock(root)
-    root.refreshClientRects()
-    return result
-  }
+  function refreshDock() { return stateLogic.refreshDock(root) }
   function rescanMinimizedWindows() { return stateLogic.rescanMinimizedWindows(root) }
 
   readonly property string activeId: {
@@ -649,7 +643,12 @@ Item {
   property bool autohide: true
   property bool intelligentAutohide: true
   readonly property FloatingDockWatch floatingWatch: FloatingDockWatch { dockRoot: root }
+  // The apps button's anchored launcher ("appsButtonAction": "start"): the
+  // window and its life live in the host, the way AppGridHost holds the grid.
+  readonly property AppsMenuHost appsMenuHost: AppsMenuHost { dockRoot: root }
   property bool showAppsButton: true
+  // What the apps button opens ("menu", "grid", "start"): a preset setup key.
+  readonly property string appsButtonAction: root.sharedState ? String(root.sharedState.appGrid.mode) : "menu"
   property bool showTooltips: true
   property bool showMinimizedTiles: true
   // "zoom" grows only the icon under the pointer and leaves the layout alone —
@@ -865,8 +864,7 @@ Item {
   property real dividerWidth: 1.5
   property real dividerOpacity: 0.4
   property string minimizeMode: "active"
-  // Where a parked window comes back: the workspace you are on, or the one it was
-  // parked from. Windows puts a minimized window back where it was.
+  // Where a parked window comes back: your workspace, or the one it was parked from.
   property string restoreWorkspace: "current"
   // Whether the window also wins back the place it held in the tiling layout.
   property bool restoreSlot: false
@@ -887,6 +885,7 @@ Item {
   property string labelColor: "auto"      // auto | theme | accent
   property string labelBackground: "none" // none | pill | plate
   property string labelShape: "dock"      // dock | pill | rounded | square
+  property string labelChip: "dock"       // dock | macos (the hover name's callout)
   property string labelIndicators: "before" // before | after | under (always-on plates)
   property string labelPlateHeight: "icon"  // icon | dock (always-on plates)
   property string labelPinned: "always"     // always | running (always-on names of pinned apps)

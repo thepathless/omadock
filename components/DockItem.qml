@@ -435,6 +435,7 @@ Item {
     name: item.name
     hovered: area.containsMouse && !item.isDragging
     iconBox: iconBox
+    iconScale: item.magnifyScale
     tileLead: item.dropGap
     slot: item.visible ? item.labelSlot : -1
     marksFrom: indicatorRow

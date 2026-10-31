@@ -10,6 +10,10 @@ var LABEL_WEIGHTS = ["regular", "medium", "bold"]
 var LABEL_COLORS = ["auto", "theme", "accent"]
 var LABEL_BACKGROUNDS = ["none", "pill", "plate"]
 var LABEL_SHAPES = ["dock", "pill", "rounded", "square"]
+// The hover name's presentation: the dock's own chip, or the macOS Dock's
+// callout (a dark translucent label that tracks the magnified icon). A look
+// key, so only a preset that asks for it changes.
+var LABEL_CHIPS = ["dock", "macos"]
 // "nested" was its own choice; square took its look (square between plates,
 // the ends round with the panel), so a stored nested reads as square.
 function _shape(v) { return v === "nested" ? "square" : v }
@@ -25,7 +29,7 @@ var MAX_LABEL_NAMES = 200
 var MAX_LABEL_NAME = 40
 var MAX_LABEL_APP_ID = 128
 var LABEL_CONFIG_KEYS = ["labelMode", "labelKind", "labelFont", "labelSize", "labelWeight",
-  "labelColor", "labelBackground", "labelShape", "labelIndicators", "labelPlateHeight", "labelPinned", "labelReveal", "labelEffect", "labelMaxWidth", "labelNames"]
+  "labelColor", "labelBackground", "labelShape", "labelChip", "labelIndicators", "labelPlateHeight", "labelPinned", "labelReveal", "labelEffect", "labelMaxWidth", "labelNames"]
 // The first label release spelled these; read once, dropped on save.
 var LEGACY_LABEL_KEYS = ["showLabels", "labelPlacement", "labelContrast"]
 var SYMBOL_WORD = /^[&+\-–—|\/·:,.]+$/
@@ -242,6 +246,7 @@ function readLabelConfig(parsed) {
     labelColor: color,
     labelBackground: background,
     labelShape: _pick(_shape(p.labelShape), LABEL_SHAPES, "dock"),
+    labelChip: _pick(p.labelChip, LABEL_CHIPS, "dock"),
     labelIndicators: _pick(p.labelIndicators, LABEL_INDICATORS, "before"),
     labelPlateHeight: _pick(p.labelPlateHeight, LABEL_PLATE_HEIGHTS, "icon"),
     labelPinned: _pick(p.labelPinned, LABEL_PINNED, "always"),
@@ -347,7 +352,7 @@ function plateFitRadius(R, g) {
 }
 
 var LABEL_LOOK_KEYS = ["labelMode", "labelKind", "labelFont", "labelSize", "labelWeight", "labelColor",
-  "labelBackground", "labelShape", "labelIndicators", "labelPlateHeight", "labelPinned", "labelReveal", "labelEffect", "labelMaxWidth"]
+  "labelBackground", "labelShape", "labelChip", "labelIndicators", "labelPlateHeight", "labelPinned", "labelReveal", "labelEffect", "labelMaxWidth"]
 
 // A preset's label look over the current one: known keys with valid
 // values win, anything else keeps its current value. (readLabelConfig
@@ -357,7 +362,7 @@ function pickLabelLook(look, current) {
   var c = current || {}
   var out = {}
   var lists = { labelMode: LABEL_MODES, labelKind: LABEL_KINDS, labelFont: LABEL_FONTS, labelSize: LABEL_SIZES, labelWeight: LABEL_WEIGHTS,
-    labelColor: LABEL_COLORS, labelBackground: LABEL_BACKGROUNDS, labelShape: LABEL_SHAPES, labelIndicators: LABEL_INDICATORS, labelPlateHeight: LABEL_PLATE_HEIGHTS, labelPinned: LABEL_PINNED,
+    labelColor: LABEL_COLORS, labelBackground: LABEL_BACKGROUNDS, labelShape: LABEL_SHAPES, labelChip: LABEL_CHIPS, labelIndicators: LABEL_INDICATORS, labelPlateHeight: LABEL_PLATE_HEIGHTS, labelPinned: LABEL_PINNED,
     labelReveal: LABEL_REVEALS, labelEffect: LABEL_EFFECTS }
   for (var i = 0; i < LABEL_LOOK_KEYS.length; i++) {
     var k = LABEL_LOOK_KEYS[i]

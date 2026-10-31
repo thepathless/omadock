@@ -175,7 +175,8 @@ QtObject {
     root.autohide = parsed && parsed.autohide !== false
     root.intelligentAutohide = parsed && parsed.intelligentAutohide !== false
     root.showAppsButton = parsed && parsed.showAppsButton !== false
-    if (root.sharedState) root.sharedState.appGrid.mode = (parsed && parsed.appsButtonAction === "grid") ? "grid" : "menu"
+    if (root.sharedState) root.sharedState.appGrid.mode = (parsed && (parsed.appsButtonAction === "grid" || parsed.appsButtonAction === "start"))
+      ? parsed.appsButtonAction : "menu"
     root.showTooltips = parsed && parsed.showTooltips !== false
     root.showMinimizedTiles = parsed ? parsed.showMinimizedTiles !== false : true
     root.advancedTooltips = parsed && parsed.advancedTooltips !== false
@@ -456,6 +457,10 @@ QtObject {
       if (typeof setup.showMinimizedTiles === "boolean") root.showMinimizedTiles = setup.showMinimizedTiles
       if (setup.minimizeMode && ["active", "all", "off"].indexOf(setup.minimizeMode) >= 0) root.minimizeMode = setup.minimizeMode
       if (typeof setup.showAppsButton === "boolean") root.showAppsButton = setup.showAppsButton
+      // What the apps button opens is part of a shipped look's identity: the
+      // Windows taskbar's Start panel, the Omarchy menu everywhere else.
+      if (root.sharedState && (setup.appsButtonAction === "menu" || setup.appsButtonAction === "grid" || setup.appsButtonAction === "start"))
+        root.sharedState.appGrid.mode = setup.appsButtonAction
       root.syncVisibility()
     }
     root.applyBlurRule(false)

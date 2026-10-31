@@ -24,12 +24,16 @@ Column {
   ChoiceRow {
     key: "appsButtonAction"
     label: "Omarchy button opens"
-    hint: "The app grid searches every app and lets you drag one onto the dock to pin it."
-    available: !!root && root.showAppsButton && !!root.sharedState && root.sharedState.appGrid.available
-    options: [
-      { value: "menu", label: "Omarchy menu" },
-      { value: "grid", label: "App grid" }
-    ]
+    hint: "The Start panel lists every app in a panel anchored over the button; the app grid also searches and lets you drag an app onto the dock to pin it."
+    available: !!root && root.showAppsButton
+    // The grid is offered only where Omarchy ships its files; Start needs
+    // nothing but the dock itself.
+    options: {
+      var out = [{ value: "menu", label: "Omarchy menu" }]
+      if (root && root.sharedState && root.sharedState.appGrid.available) out.push({ value: "grid", label: "App grid" })
+      out.push({ value: "start", label: "Start panel" })
+      return out
+    }
     value: root && root.sharedState ? root.sharedState.appGrid.mode : "menu"
     onPicked: function(v) { root.sharedState.appGrid.mode = v; root.saveConfig() }
   }

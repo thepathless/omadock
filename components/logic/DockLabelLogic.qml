@@ -14,8 +14,13 @@ QtObject {
     var show = !!root && DockLabels.labelVisible(root.labelMode, root.labelKind, kind)
     var pixel = !!root && root.labelFont === "pixel"
     var base = Style.font.caption
-    // Silkscreen is drawn on an 8 px grid; other fonts follow the theme scale.
-    var sizes = pixel ? { small: 8, medium: 12, large: 16 } : { small: base - 2, medium: base, large: base + 2 }
+    // The macOS callout is the Dock's own label: 13px (Style.font.subtitle)
+    // at its medium setting, regular weight, the system sans. Silkscreen is
+    // drawn on an 8 px grid; the dock chip follows the theme scale.
+    var mac = !!root && root.labelChip === "macos"
+    var sizes = pixel ? { small: 8, medium: 12, large: 16 }
+      : mac ? { small: Math.max(10, Style.font.subtitle - 2), medium: Style.font.subtitle, large: Style.font.subtitle + 2 }
+      : { small: base - 2, medium: base, large: base + 2 }
     // Auto: one black-or-white ink for every label, the one that reads best
     // where the dock is hardest for it (steadyInk over the gradient).
     var ink = root ? steadyInk(root) : Color.bar.text
@@ -39,6 +44,10 @@ QtObject {
       // and a plain accent glow vanishes into it.
       glow: Qt.lighter(Color.accent, 1.6),
       background: background,
+      // The hover name's callout: the dock's own chip, or the macOS Dock's
+      // (HoverNamePlate, variant "macos"): a dark translucent label that
+      // tracks the magnified icon. A look key, so only a preset asks for it.
+      chip: mac ? "macos" : "dock",
       shape: root ? root.labelShape : "dock",
       // Where the tile's window indicators go: beside the art on the plate, or under it.
       marks: (root && root.labelSideMarks) ? root.labelIndicators : "under",

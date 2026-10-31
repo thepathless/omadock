@@ -26,6 +26,9 @@ QtObject {
     root.pruneLaunching()
     root.pruneWindowState()
     root.notificationBadgeTimerRef.restart()
+    // Model rebuilds are also the moment to re-read window rectangles: the
+    // tiling places are computed from them.
+    root.refreshClientRects()
   }
 
   // terminal-hosts.py reruns on every window title change, and an animated
@@ -142,7 +145,7 @@ QtObject {
       return
     }
 
-    var isHovered = (root.cardHover && root.cardHover.hovered) || (root.hitboxHover && root.hitboxHover.hovered) || (root.revealHoverRef && root.revealHoverRef.hovered) || root.contextAppId !== "" || root.dockDragActive || root.activeStackFolder !== "" || root.activeAppGroupId !== "" || root.settingsPanelOpen || root.externalDragOver || root.appDropTargetId !== "" || (root.sharedState && root.sharedState.appGrid.isOver(root))
+    var isHovered = (root.cardHover && root.cardHover.hovered) || (root.hitboxHover && root.hitboxHover.hovered) || (root.revealHoverRef && root.revealHoverRef.hovered) || root.contextAppId !== "" || root.dockDragActive || root.activeStackFolder !== "" || root.activeAppGroupId !== "" || root.settingsPanelOpen || (root.appsMenuHost && root.appsMenuHost.open) || root.externalDragOver || root.appDropTargetId !== "" || (root.sharedState && root.sharedState.appGrid.isOver(root))
 
     // Hovered, Context Menu Open, or Dragging: keep visible
     if (isHovered) {

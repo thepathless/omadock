@@ -103,6 +103,19 @@ Item {
       // Grows upward like the app icons, never over the indicator band.
       transformOrigin: Item.Bottom
 
+      // With no dock card a folder can vanish into the wallpaper; the same
+      // contrast frame the group tile uses keeps it a readable tile.
+      Rectangle {
+        anchors.fill: parent
+        z: -1
+        visible: root ? !root.showBackground : false
+        radius: Math.round(width * 0.18)
+        readonly property color frameInk: root ? root.blackOrWhiteOn(root.iconBackdropColor) : "#ffffff"
+        color: Util.alpha(frameInk, 0.28)
+        border.color: Util.alpha(frameInk, 0.45)
+        border.width: 1
+      }
+
       // Symbolic icons keep their own recolouring in the original style;
       // every other case goes through the dock's icon style.
       readonly property bool themedSymbolic: fitem.isSymbolic && (!root || root.iconStyle === "original" || (root.iconHoverOriginal && area.containsMouse))
@@ -212,6 +225,7 @@ Item {
     name: fitem.name
     hovered: area.containsMouse && !area.dragging
     iconBox: iconSlot
+    iconScale: fitem.magnifyScale
     tileLead: fitem.gapWidth
     slot: fitem.labelSlot
   }

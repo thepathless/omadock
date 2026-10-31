@@ -21,18 +21,27 @@ const qml = readFileSync(new URL("components/logic/DockConfigLogic.qml", base), 
 vm.runInContext(qml.slice(qml.indexOf("QtObject {") + "QtObject {".length, qml.lastIndexOf("}")), ctx)
 
 const expected = {
+  // Every shipped look pins what its apps button opens: the Windows taskbar
+  // its anchored Start panel, the others the Omarchy menu.
   "thepathless:ristretto": { layout: "dock", alignment: "center", autohide: true,
-    intelligentAutohide: true, showMinimizedTiles: true, minimizeMode: "active", showAppsButton: true },
+    intelligentAutohide: true, showMinimizedTiles: true, minimizeMode: "active", showAppsButton: true,
+    appsButtonAction: "menu" },
   macOS: { layout: "dock", alignment: "center", autohide: true,
-    intelligentAutohide: true, showMinimizedTiles: true, minimizeMode: "off", showAppsButton: true },
+    intelligentAutohide: true, showMinimizedTiles: true, minimizeMode: "off", showAppsButton: true,
+    appsButtonAction: "menu" },
   Windows: { layout: "panel", alignment: "taskbar", autohide: false,
-    intelligentAutohide: false, showMinimizedTiles: false, minimizeMode: "active", showAppsButton: true }
+    intelligentAutohide: false, showMinimizedTiles: false, minimizeMode: "active", showAppsButton: true,
+    appsButtonAction: "start" }
 }
 function root(config = {}) {
+  // The real dock reads appsButtonAction off its shared state (Dock.qml); the
+  // fake root gets the same read-only view so active detection is the same.
   const r = { floatingWatch: {}, writes: [], syncs: 0,
+    sharedState: { appGrid: { mode: "menu" } },
     applyBlurRule() {}, syncVisibility() { this.syncs++ },
     saveConfig() { this.writes.push(plain(ctx.buildConfig(this, {}))) } }
   Object.defineProperty(r, "currentLook", { get: () => DockModel.pickLook(ctx.buildConfig(r, {})) })
+  Object.defineProperty(r, "appsButtonAction", { get: () => r.sharedState.appGrid.mode })
   ctx.loadConfig(r, JSON.stringify(config))
   return r
 }
@@ -74,11 +83,15 @@ test("each required setup key participates in active detection without locking t
     const r = root()
     const p = apply(r, name)
     for (const [key, value] of Object.entries(expected[name])) {
-      r[key] = typeof value === "boolean" ? !value : key === "minimizeMode" ? "all" : key === "layout" ? "other" : "right"
+      const other = typeof value === "boolean" ? !value
+        : key === "minimizeMode" ? "all" : key === "layout" ? "other"
+        : key === "appsButtonAction" ? "grid" : "right"
+      if (key === "appsButtonAction") r.sharedState.appGrid.mode = other
+      else r[key] = other
       assert.equal(ctx.activePresetId(r), "", `${name}.${key} clears the active mark`)
-      assert.equal(r[key], typeof value === "boolean" ? !value : key === "minimizeMode" ? "all" : key === "layout" ? "other" : "right",
-        "active detection does not undo a user's adjustment")
-      r[key] = value
+      assert.equal(r[key], other, "active detection does not undo a user's adjustment")
+      if (key === "appsButtonAction") r.sharedState.appGrid.mode = value
+      else r[key] = value
       assert.equal(ctx.activePresetId(r), p.id, `${name}.${key} restored`)
     }
     r.showTooltips = !r.showTooltips

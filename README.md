@@ -46,11 +46,11 @@ Crafted in the spirit of **Omakase (おまかせ)**: wave magnification, live wi
 
 ### Release status
 
-> **This page documents `main`.** The latest tag, [v4.12.1](https://github.com/thepathless/omadock/releases/tag/v4.12.1), ships everything described below: the one-row settings panel with the searchable icon-theme dropdown, the motion clips and refreshed imagery, and the popup, folder-visibility and icon-theme fixes in the changelog. The tag carries 298 Node + 148 Python unit tests.
+> **This page documents `main`.** The latest tag, [v4.13.0](https://github.com/thepathless/omadock/releases/tag/v4.13.0), ships everything described below: the macOS look's hover callout, the Windows taskbar's anchored Start panel, the background-off popup plate, the one-row settings panel with the searchable icon-theme dropdown, and the motion clips and imagery in the changelog. The tag carries 300 Node + 148 Python unit tests.
 
 ### Architecture & Recognition
 
-The current `main` tree is backed by 298 Node.js unit tests, 148 Python checks, and thirteen sandboxed live Wayland integration suites. The v4.12.0 tag carries 299 Node + 126 Python. OmaDock's atomic asynchronous configuration gate (`CappedFileView.qml` and `tests/unit/test_capped_gate.py`) was independently selected for the **[XERJ Corpus Hub](https://github.com/xerj-org/xerj)** as a verified open-source reference implementation for AI coding agents.
+The current `main` tree is backed by 300 Node.js unit tests, 148 Python checks, and sixteen sandboxed live Wayland integration suites. The v4.12.1 tag carries 298 Node + 148 Python. OmaDock's atomic asynchronous configuration gate (`CappedFileView.qml` and `tests/unit/test_capped_gate.py`) was independently selected for the **[XERJ Corpus Hub](https://github.com/xerj-org/xerj)** as a verified open-source reference implementation for AI coding agents.
 
 ### Highlights
 
@@ -58,12 +58,13 @@ The current `main` tree is backed by 298 Node.js unit tests, 148 Python checks, 
 - **🪟 Live window previews** — minimized windows park on the dock as thumbnail cards.
 - **🔘 3-state window dots** — active, visible, and minimized at a glance.
 - **📁 Folders & groups** — folder stacks with recent files, smart app collections, drag-to-group.
+- **🪟 Start panel** — the Windows taskbar's button opens the dock's own launcher: every installed app, alphabetical, in the dock's material, closed by Escape, a second press or a click elsewhere.
 - **🖥️ Multi-monitor** — one dock per monitor, each showing its own monitor's windows.
 - **💾 Removable media** — USB drives dock themselves; safe eject included.
 - **🔔 Attention glow & chimes** — bouncing alerts and audio pings.
 - **🔴 Sticky notification badges** — counts matching notifications on pinned, running, and foldered apps; folder tiles sum their members. Counts stay until the app is focused — through dismissals, expiry, and shell restarts. These are not unread-message counts.
 - **🖥️ CLI app identity** — Antigravity and btop keep their own icons when launched in a terminal; the terminal icon is only a fallback.
-- **🏷️ Name labels** — names beside the icons, always on or slid out on hover, readable on any dock fill; tooltips that would only repeat the name stay away.
+- **🏷️ Name labels** — names beside the icons, always on or slid out on hover, readable on any dock fill; tooltips that would only repeat the name stay away. The macOS look's hover name is the Dock's own callout: a dark translucent chip (#2b2b2b at 82%, no border, 5px corners) with fixed near-white ink (#f5f5f5), 13px system sans at regular weight, 8×3px padding, waiting the dock's tooltip delay, a fixed 6px above the *magnified* icon's top and centred on it, for app tiles, app groups and folders alike.
 - **⌨️ Keybindings & IPC** — wired for `~/.config/hypr/bindings.lua` out of the box.
 
 ---
@@ -396,9 +397,9 @@ Four looks ride with the dock and sit ahead of the presets you save — a fresh 
 | Preset | The look | Built from |
 | :--- | :--- | :--- |
 | `thepathless:ristretto` | Dot-matrix icons on a Forest gradient with film grain, long custom dividers, the Glitch hover, and no rim or shadow | The maintainer's own dock |
-| `macOS` | Floating 27px squircle shelf with frosted white glass (#ffffff, blur on, 0.5px specular rim, soft shadow), 47px artwork, wave fisheye hover magnification, hairline dividers, and OmaDock's multi-window marks (accent bar for focused, hollow dot for minimized) | The modern macOS dock |
+| `macOS` | Floating 27px squircle shelf with frosted white glass (#ffffff, blur on, 0.5px specular rim, soft shadow), 47px artwork, wave fisheye hover magnification, hairline dividers, OmaDock's multi-window marks (accent bar for focused, hollow dot for minimized), and the Dock's hover callout (`labelChip: macos`: dark translucent chip, 5px corners, fixed #f5f5f5 ink, 13px system sans, 6px above the magnified icon) | The modern macOS dock |
 | `WhiteSur` | The WhiteSur Big Sur shelf: near-opaque white glass (#f5f5f7, blur off, hairline rim, soft shadow), 22px corners, 52px artwork, wave hover, no labels and no dividers | [WhiteSur](https://github.com/vinceliuice/WhiteSur-gtk-theme) |
-| `Windows` | The Windows 11 taskbar: full-width bottom panel, always visible, Start and apps centred together with the two-line clock and folders at the right, a slim bar (~50px at this UI scale) with 24px artwork and 42px buttons, no magnification and no labels, acrylic fill (#202020, blur through), a rounded hover wash, one pill per app (short and grey running, wider and accent-focused), no separate minimized tiles, and hover tooltips | The Windows 11 taskbar |
+| `Windows` | The Windows 11 taskbar, whose Start button opens the dock's anchored Start panel (`appsButtonAction: start`): full-width bottom panel, always visible, Start and apps centred together with the two-line clock and folders at the right, a slim bar (~50px at this UI scale) with 24px artwork and 42px buttons, no magnification and no labels, acrylic fill (#202020, blur through), a rounded hover wash, one pill per app (short and grey running, wider and accent-focused), no separate minimized tiles, and hover tooltips | The Windows 11 taskbar |
 
 The same list is scriptable end to end — list it, save the look on screen under a chosen name, remove one by id:
 
@@ -486,6 +487,7 @@ Settings persist in `~/.config/omarchy/omadock.json` and are editable live:
   "labelColor": "auto",
   "labelBackground": "none",
   "labelShape": "dock",
+  "labelChip": "dock",
   "labelIndicators": "before",
   "labelPlateHeight": "icon",
   "labelReveal": "slide",
@@ -569,6 +571,7 @@ Settings persist in `~/.config/omarchy/omadock.json` and are editable live:
 | `labelColor` | `string` | `"auto"` | `"auto"` (black or white for what is behind the icons), `"theme"` or `"accent"`. |
 | `labelBackground` | `string` | `"none"` | `"none"`, `"pill"` (behind the name) or `"plate"` (behind icon and name). |
 | `labelShape` | `string` | `"dock"` | Background corners: `"dock"` (the dock's own corner ratio), `"pill"` (round ends), `"rounded"` or `"square"` (on plates: square between them, the panel's radius less the gap on its edges). A stored `"nested"` reads as `"square"`. |
+| `labelChip` | `string` | `"dock"` | The hover name's presentation: `"dock"` (this dock's own chip over the bar) or `"macos"` (the Dock's callout, anchored 6px above the magnified icon). A look key, so only the macOS preset sets it; it stays unless another look or the file changes it. |
 | `labelIndicators` | `string` | `"before"` | Window marks on always-on plates: `"before"` the icon, `"after"` the name (an upright column), or `"under"` the icon. |
 | `labelPlateHeight` | `string` | `"icon"` | Always-on plates: `"icon"` (around the icon) or `"dock"` (the dock's full height, one gap from its edges). |
 | `labelReveal` | `string` | `"slide"` | How a name appears: `"slide"`, `"typewriter"` or `"scramble"`. |
@@ -576,7 +579,7 @@ Settings persist in `~/.config/omarchy/omadock.json` and are editable live:
 | `labelMaxWidth` | `int` | `140` | Longest label in px (80–240) before the name is shortened. |
 | `labelNames` | `object` | `{}` | Per-app label text, `{ "appId": "Name" }` (up to 200 entries, 40 characters each). |
 | `keepPointer` | `bool` | `true` | Focusing a window from the dock keeps the pointer where it is instead of warping it to the window centre. |
-| `appsButtonAction` | `string` | `"menu"` | What the Omarchy button opens: `"menu"` (the Omarchy menu) or, on Omarchy 4.5+, `"grid"`: Omarchy's own app grid (search, keyboard, Keep in dock), from which an app dragged onto the dock is pinned where it is dropped. Settings → Organize dock → Omarchy button opens. |
+| `appsButtonAction` | `string` | `"menu"` | What the Omarchy button opens: `"menu"` (the Omarchy menu), `"start"` (the dock's own Start panel: every installed app, alphabetically, anchored over the button with the dock's popup material - the Windows taskbar's), or, on Omarchy 4.5+, `"grid"`: Omarchy's own app grid (search, keyboard, Keep in dock), from which an app dragged onto the dock is pinned where it is dropped. Shipped looks pin their own action (Windows `start`, the rest `menu`) so a value saved on another machine cannot pick a different surface. Settings → Organize dock → Omarchy button opens. |
 | `animations` | `string` | `"full"` | How the dock moves: `"full"` (items, dividers, popups, marks and the badge ease in and out), `"reduced"` (short fades only: no movement, bounces or label typing) or `"off"` (everything changes at once). Settings → Look → Animations. |
 | `folderColor` | `string` | `"theme"` | `"theme"`, `"symbolic"`, `"white"`, `"black"`, `"Yaru-blue"`, etc. |
 | `hoverEffect` | `string` | `"zoom"` | Hover mode: magnification `"zoom"` or `"wave"`; effects `"lift"`, `"glow"`, `"glitch"` (shaders); or `"off"`. |
@@ -806,6 +809,15 @@ The pixel label font is [Silkscreen](https://fonts.google.com/specimen/Silkscree
 ## Changelog
 
 Full release notes, historical changelogs, and upgrade guides across all versions are available on [**GitHub Releases**](https://github.com/thepathless/omadock/releases).
+
+### v4.13.0 — 2026-11-01
+
+The macOS look names its icons the way the Dock does, and the Windows taskbar's Start button opens the dock's own panel.
+
+- **The Dock's hover callout** — a new look key, `labelChip` (`dock` by default, `macos` in the macOS preset): the hover name becomes the Dock's dark label (#2b2b2b at 82%, no border, 5px corners, fixed #f5f5f5 ink, 8×3px padding, 13px system sans at regular weight) instead of this dock's chip. It waits the dock's tooltip delay rather than the name's 150 ms dwell, then sits a fixed 6px above the *magnified* icon's drawn top, centred on it, so it clears the enlarged artwork and rides the wave. One rule (`DockLabel.artRise`) places it for app tiles, app groups and pinned folders alike: measured 6.2px above the drawn art and within 0.5px of centre on all three, at 7.9–8.3:1 contrast. Every other look keeps its own chip — WhiteSur still shows the dock's.
+- **The Windows Start panel** — `appsButtonAction` gains `start`, and the Windows preset pins it: the Omarchy button opens a panel anchored over itself with the same 6px gap as the dock's other popups, listing every installed app alphabetically in two columns in the dock's popup material. It scrolls past 560px, closes on <kbd>Esc</kbd>, a second press, another surface taking focus or a click elsewhere, and holds the keyboard grab only while open. The Omarchy grid stays available where Omarchy ships its files, and the Omarchy menu elsewhere. Each shipped look now pins its own action in its setup (Windows `start`, the rest `menu`), so a value saved on another machine cannot choose another surface: a stale `grid` is measured reaching the dock first, then overridden by the preset and saved back as `start`.
+- **Background off keeps its popups readable** — v4.12.1 cleared the folder and group popups' fill along with the dock's card, which left bare text over a busy wallpaper. They now draw the same 28% ink plate and 45% rim as the collapsed group and folder tiles, with the frame ink as their text (5.9:1 on Tokyo Night, 8.5:1 on Catppuccin Latte), and a pinned folder tile takes that contrast frame too. The Start panel takes the same material. 0.16 is the tile weight that vanished, which is why 0.28 is measured rather than chosen.
+- **Verification** — 300 Node + 148 Python unit tests, `qmllint` 0 errors, structure, security, manifest and plugin gates clean; the live `macos-tooltip` (app, group and folder tiles over a headless output), `apps-menu` (anchored, 91 apps, 97% of its box drawn, all four close paths), `interactions` (folder and group popups with the dock's material), `settings-navigation` (all 88 targets), `presets`, `label-metrics` and `teardown` suites pass, with the owner's config, shell PID and monitor list unchanged.
 
 ### v4.12.1 — 2026-10-31
 

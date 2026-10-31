@@ -167,25 +167,25 @@ assert marked == [sys.argv[1]], "active rows after apply: %s" % marked
 done < "$WORK/shipped-looks.tsv"
 
 # The two name looks must land their label keys, not just take the active mark:
-# a preset's label look is applied through DockLabels.pickLabelLook, which keeps
-# a value only when it is one the labels accept.
+# pickLabelLook keeps a value only when the labels accept it. macOS names its
+# callout (labelChip) and the Dock's font; every other look keeps dock/theme.
 echo "-- the shipped looks reach the config"
-for spec in "macOS:hover:pill:theme" "Windows:off:none:theme"; do
-  IFS=: read -r name mode bg font <<<"$spec"
+for spec in "macOS:hover:pill:sans:macos" "Windows:off:none:theme:dock"; do
+  IFS=: read -r name mode bg font chip <<<"$spec"
   out=$(probe_ipc applyPreset "$name")
   [ "$out" = "ok" ] || fail "applyPreset \"$name\" -> $out"
   sleep 1.2
-  python3 - "$CFG" "$name" "$mode" "$bg" "$font" <<'PY' || fail "the $name look did not reach the config"
+  python3 - "$CFG" "$name" "$mode" "$bg" "$font" "$chip" <<'PY' || fail "the $name look did not reach the config"
 import json, sys
 cfg = json.load(open(sys.argv[1]))
-name, mode, bg, font = sys.argv[2], sys.argv[3], sys.argv[4], sys.argv[5]
+name, mode, bg, font, chip = sys.argv[2], sys.argv[3], sys.argv[4], sys.argv[5], sys.argv[6]
 if name == "Windows":
     assert (cfg.get("layout"), cfg.get("alignment"), cfg.get("autohide"), cfg.get("showMinimizedTiles"), cfg.get("hoverEffect"), cfg.get("indicatorMode"), cfg.get("minimizeMode")) == ("panel", "taskbar", False, False, "highlight", "taskbar", "active"), "taskbar setup"
-for field, want in (("labelMode", mode), ("labelBackground", bg), ("labelFont", font)):
+for field, want in (("labelMode", mode), ("labelBackground", bg), ("labelFont", font), ("labelChip", chip)):
     got = cfg.get(field)
     assert got == want, "%s: %s is %r, expected %r" % (name, field, got, want)
-print("   %s applied: labelMode=%s labelBackground=%s labelFont=%s"
-      % (name, mode, bg, font))
+print("   %s applied: labelMode=%s labelBackground=%s labelFont=%s labelChip=%s"
+      % (name, mode, bg, font, chip))
 PY
 done
 

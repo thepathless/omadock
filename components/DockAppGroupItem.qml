@@ -256,7 +256,7 @@ Item {
         readonly property color frameInk: (root && !root.showBackground)
           ? root.blackOrWhiteOn(root.iconBackdropColor) : Color.menu.border
         color: tileStyle === "none" ? "transparent"
-          : (root && !root.showBackground ? Util.alpha(frameInk, 0.16)
+          : (root && !root.showBackground ? Util.alpha(frameInk, 0.28)
                                           : Util.alpha(Color.bar.background, 0.4))
         border.color: Util.alpha(frameInk, 0.45)
         border.width: tileStyle === "none" ? 0 : 1
@@ -415,6 +415,7 @@ Item {
     name: gitem.groupName
     hovered: groupArea.containsMouse && !groupArea.dragging
     iconBox: iconSlot
+    iconScale: gitem.magnifyScale
     tileLead: gitem.dropGap
     slot: gitem.labelSlot
     marksFrom: indicatorRow
