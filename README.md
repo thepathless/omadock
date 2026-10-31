@@ -15,7 +15,7 @@
 <br />
 
 <p align="center">
-  <img src="assets/preview-desktop.png" alt="OmaDock on an Omarchy desktop: the Presets page open over the macOS glass-shelf dock, every shipped look one click away" width="880" style="border-radius: 12px; box-shadow: 0 8px 24px rgba(0,0,0,0.4);" />
+  <img src="assets/preview-desktop.png" alt="OmaDock v4.13.0: the macOS glass row with the Dock's own callout above the magnified YouTube Music icon, and the Windows taskbar strip beneath it" width="880" style="border-radius: 12px; box-shadow: 0 8px 24px rgba(0,0,0,0.4);" />
 </p>
 
 <p align="center">
@@ -179,6 +179,12 @@ Pin directories like `~/Downloads`, `~/Projects`, or custom paths directly to yo
 - **Drop in** — rest a folder from your file manager over the folder section of the dock for a moment, then drop it to pin it (dropping on an app icon opens it with that app instead).
 - **Folder picker** — attach custom folders from Settings through the desktop's file chooser (`omarchy-file-select` / XDG portal).
 
+<div align="center">
+  <a href="assets/showcase-folders.png"><img src="assets/showcase-folders.png" width="1000" alt="The folder stack popup on the vantablack theme: six file rows in the dock's translucent plate, above the dock's folder tile" /></a>
+  <br />
+  <sub><b>Background off, still a folder.</b> The stack keeps the dock's 28% ink plate and 45% rim — no separate popup material.</sub>
+</div>
+
 ---
 
 ### 6. App Group Collections
@@ -190,6 +196,12 @@ Organize applications into intelligent macOS / iOS-style folders directly on you
 - **Drag-to-group, drag-to-pin** — drop one icon on another to make a folder.
 - **Inline renaming**, saved instantly.
 - **Drag-out extraction** — folders auto-dissolve when one app remains.
+
+<div align="center">
+  <a href="assets/showcase-groups.png"><img src="assets/showcase-groups.png" width="1000" alt="The Browsers app group popup with five app tiles in the dock's translucent plate, above the browser group tile" /></a>
+  <br />
+  <sub><b>Background off, still a group.</b> The same 28% plate and 45% rim carry the group's tiles and labels.</sub>
+</div>
 
 ---
 
@@ -410,6 +422,20 @@ omarchy-shell omadock deletePreset <id>             # -> ok | not found
 ```
 
 A name that is already taken — by one of your presets or by a shipped look — falls back to `Preset 1`, `Preset 2` and so on, so the call still returns an id. When you save a copy of a shipped look under a name of your own, the row you saved is the one marked `active`; the shipped row answers only when no preset of yours matches the look on screen and its required setup also matches. Changing a required setup value clears that shipped row's active mark without undoing your adjustment.
+
+<p align="center"><sub>Two of the shipped looks, captured from the dock on an isolated headless output.</sub></p>
+
+<div align="center">
+  <a href="assets/showcase-macos.png"><img src="assets/showcase-macos.png" width="1000" alt="The macOS preset's hover callout above the magnified YouTube Music icon, with the chip measured 6 px above the drawn artwork" /></a>
+  <br />
+  <sub><b>The macOS callout.</b> The Dock draws its own chip — #2b2b2b at 82%, fixed #f5f5f5 ink, 13 px system sans — 6 px above the magnified art.</sub>
+</div>
+
+<div align="center">
+  <a href="assets/showcase-windows.png"><img src="assets/showcase-windows.png" width="1000" alt="The Windows preset's two-column Start panel anchored over the taskbar's Start button, with its 406 × 560 size and 6 px gap annotated" /></a>
+  <br />
+  <sub><b>The Windows taskbar.</b> A full-width 48 px bar; Start opens the Dock's own two-column panel, anchored 6 px above the card.</sub>
+</div>
 
 ## Controls Reference
 
@@ -817,6 +843,7 @@ The macOS look names its icons the way the Dock does, and the Windows taskbar's 
 - **The Dock's hover callout** — a new look key, `labelChip` (`dock` by default, `macos` in the macOS preset): the hover name becomes the Dock's dark label (#2b2b2b at 82%, no border, 5px corners, fixed #f5f5f5 ink, 8×3px padding, 13px system sans at regular weight) instead of this dock's chip. It waits the dock's tooltip delay rather than the name's 150 ms dwell, then sits a fixed 6px above the *magnified* icon's drawn top, centred on it, so it clears the enlarged artwork and rides the wave. One rule (`DockLabel.artRise`) places it for app tiles, app groups and pinned folders alike: measured 6.2px above the drawn art and within 0.5px of centre on all three, at 7.9–8.3:1 contrast. Every other look keeps its own chip — WhiteSur still shows the dock's.
 - **The Windows Start panel** — `appsButtonAction` gains `start`, and the Windows preset pins it: the Omarchy button opens a panel anchored over itself with the same 6px gap as the dock's other popups, listing every installed app alphabetically in two columns in the dock's popup material. It scrolls past 560px, closes on <kbd>Esc</kbd>, a second press, another surface taking focus or a click elsewhere, and holds the keyboard grab only while open. The Omarchy grid stays available where Omarchy ships its files, and the Omarchy menu elsewhere. Each shipped look now pins its own action in its setup (Windows `start`, the rest `menu`), so a value saved on another machine cannot choose another surface: a stale `grid` is measured reaching the dock first, then overridden by the preset and saved back as `start`.
 - **Background off keeps its popups readable** — v4.12.1 cleared the folder and group popups' fill along with the dock's card, which left bare text over a busy wallpaper. They now draw the same 28% ink plate and 45% rim as the collapsed group and folder tiles, with the frame ink as their text (5.9:1 on Tokyo Night, 8.5:1 on Catppuccin Latte), and a pinned folder tile takes that contrast frame too. The Start panel takes the same material. 0.16 is the tile weight that vanished, which is why 0.28 is measured rather than chosen.
+- **Showcase imagery** — the README hero and the four detail plates are composed from frames taken by the live probe on a headless output: the macOS callout, the Windows taskbar and its anchored Start panel, and the background-off group and folder plates. The marketplace preview is the same hero.
 - **Verification** — 300 Node + 148 Python unit tests, `qmllint` 0 errors, structure, security, manifest and plugin gates clean; the live `macos-tooltip` (app, group and folder tiles over a headless output), `apps-menu` (anchored, 91 apps, 97% of its box drawn, all four close paths), `interactions` (folder and group popups with the dock's material), `settings-navigation` (all 88 targets), `presets`, `label-metrics` and `teardown` suites pass, with the owner's config, shell PID and monitor list unchanged.
 
 ### v4.12.1 — 2026-10-31
