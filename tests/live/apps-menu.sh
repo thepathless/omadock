@@ -359,5 +359,5 @@ echo "-- teardown"
 probe_cleanup || fail "teardown left something behind or the owner's side changed"
 headless_stop || fail "the headless output did not go away"
 note "monitors back to: $(hyprctl monitors | grep -c '^Monitor')"
-trap - EXIT
+rm -f "$STALE_CFG"; trap - EXIT
 echo "APPS-MENU PASSED"

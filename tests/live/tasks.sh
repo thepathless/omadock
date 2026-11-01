@@ -18,17 +18,15 @@
 #      state and the tile.
 #   6. The dock's log gains no error line across all of it.
 #
-# `visible` is NOT asserted here, and the reason is structural: Qt Quick
-# cascades `Item.visible` down the tree, and this harness hides the probe dock
-# on purpose (autohide on, hide() called) so it never appears on the owner's
-# screen - so every tile and badge inside it reads visible=false however well it
+# `visible` is not asserted: it says the tile is on screen, not that the badge
 # drew. The badge's OWN rule is asserted instead (`expr`, level > 0.01 with an
-# anchor); a pixel-level visibility proof needs the dock on a headless output,
-# which is what tests/live/interactions.sh does.
+# anchor), and the chip section checks the pixels on the output.
 #
-# Non-intrusive: a hidden second Quickshell instance on a byte-copy of the
-# config under a redirected HOME (tests/live/probe.sh). Nothing is shown on the
-# owner's screen and the owner's own config is only read.
+# Non-intrusive: a second Quickshell instance on a byte-copy of the config under
+# a redirected HOME (tests/live/probe.sh), its dock pinned to a headless output
+# and made visible there - the item tree behind `read items` only exists for a
+# mapped dock. Nothing appears on the owner's screen and the owner's own config
+# is only read.
 
 set -u
 cd "$(dirname "${BASH_SOURCE[0]}")" || exit 1
@@ -41,7 +39,15 @@ export PROBE_BODY
 ROOT="$(cd ../.. && pwd)"
 WRAPPER="$ROOT/scripts/omadock-task.sh"
 TMPD=$(mktemp -d "${TMPDIR:-/tmp}/omadock-tasks-XXXXXX") || exit 1
-trap 'rm -rf "$TMPD"' EXIT
+MAIN_SCREEN="omadock-tasks"
+# A suite that exits mid-way must not leave an output behind, whichever section
+# was running.
+cleanup() {
+  hyprctl output remove "$MAIN_SCREEN" >/dev/null 2>&1
+  hyprctl output remove "omadock-chip" >/dev/null 2>&1
+  rm -rf "$TMPD"
+}
+trap cleanup EXIT
 
 fail=0
 note() { echo "   $*"; }
@@ -54,6 +60,12 @@ errlines() {
   grep -ciE "TypeError|ReferenceError|Unable to assign|is not a|Cannot read property" \
     "$(probe_log)" 2>/dev/null || true
 }
+monitor_list() {
+  hyprctl -j monitors 2>/dev/null | python3 -c '
+import json, sys
+print(" ".join(m["name"] + ("*" if m["focused"] else "") for m in json.load(sys.stdin)))'
+}
+focused_monitor() { monitor_list | tr ' ' '\n' | grep '\*$' | tr -d '*'; }
 
 # The dock's tiles and badges as they are right now, or "" if the call failed.
 read_items() { qs -p "$PROBE_DIR" ipc call omadock-test read items "" 2>/dev/null; }
@@ -135,10 +147,53 @@ fi
 
 echo
 echo "-- task HUD: reportTask -> tile binding -> badge -> clearTask"
+# The suite owns its premise: a headless output, a config copy that pins the dock
+# to it with no autohide and no per-monitor filtering. `read items` walks the
+# item tree, which only exists for a mapped dock, so the dock is made visible
+# on an output with no glass, never on the owner's screen. None of this depends
+# on the owner's config.
+MAIN_SRC="$TMPD/main-cfg.json"
+OWNER_MD5=$(md5sum "$HOME/.config/omarchy/omadock.json" | cut -d' ' -f1)
+OWNER_MONITORS=$(monitor_list)
+OWNER_FOCUSED=$(focused_monitor)
+if hyprctl monitors 2>/dev/null | grep -qE "^(Monitor|  )?${MAIN_SCREEN}\b"; then
+  echo "   REFUSING: an output named $MAIN_SCREEN already exists" >&2
+  exit 1
+fi
+python3 - "$HOME/.config/omarchy/omadock.json" "$MAIN_SRC" "$MAIN_SCREEN" <<'PY' || exit 1
+import json, sys
+conf = json.load(open(sys.argv[1]))
+conf["screen"] = sys.argv[3]
+conf["multiMonitor"] = False
+conf["perMonitorApps"] = False
+conf["autohide"] = False
+conf["intelligentAutohide"] = False
+json.dump(conf, open(sys.argv[2], "w"), indent=2)
+PY
+hyprctl output create headless "$MAIN_SCREEN" >/dev/null 2>&1 \
+  || { echo "   FAIL: this compositor would not create a headless output" >&2; exit 1; }
+sleep 1
+if [ "$(focused_monitor)" != "$OWNER_FOCUSED" ]; then
+  echo "   FAIL: the headless output took the owner's focus" >&2
+  [ -n "$OWNER_FOCUSED" ] && hyprctl dispatch "hl.dsp.focus({ monitor = \"$OWNER_FOCUSED\" })" >/dev/null 2>&1
+  fail=1
+fi
+# probe.sh copies PROBE_OWNER_CFG; point it at the suite's own copy for the
+# start, then back at the real owner's config for its exit re-check.
+PROBE_OWNER_CFG="$MAIN_SRC"
 if ! probe_start; then
   echo "   FAIL: the probe never started" >&2
   probe_cleanup >/dev/null 2>&1
   exit 1
+fi
+PROBE_OWNER_CFG="$HOME/.config/omarchy/omadock.json"
+PROBE_OWNER_MD5="$OWNER_MD5"
+probe_ipc reveal >/dev/null 2>&1
+if qs -p "$PROBE_DIR" ipc call omadock-test read screen "" 2>/dev/null \
+     | python3 -c 'import json,sys; d=json.load(sys.stdin); sys.exit(0 if d.get("screen") == sys.argv[1] else 1)' "$MAIN_SCREEN"; then
+  note "the probe's dock is visible on $MAIN_SCREEN"
+else
+  red "the probe's dock is not on $MAIN_SCREEN"
 fi
 
 target=$(pick_target)
@@ -333,23 +388,26 @@ else
 fi
 
 probe_cleanup || fail=1
+hyprctl output remove "$MAIN_SCREEN" >/dev/null 2>&1
+for _ in $(seq 10); do
+  [ "$(monitor_list)" = "$OWNER_MONITORS" ] && break
+  sleep 0.3
+done
+[ "$(monitor_list)" = "$OWNER_MONITORS" ] \
+  || red "the monitor list did not come back (now: $(monitor_list), was: $OWNER_MONITORS)"
+[ "$(md5sum "$HOME/.config/omarchy/omadock.json" | cut -d' ' -f1)" = "$OWNER_MD5" ] \
+  || red "the owner's omadock.json changed"
+note "owner's monitors and config unchanged, no headless output left"
 
 # -------------------------------------------------- the hover chip, for real
-# The chip sits behind the tooltip's LazyLoader, which the hidden probe can
-# never reach - and a real hover cannot be produced on this host without
-# warping the pointer onto another monitor, which with `input:follow_mouse`
-# set to full would take the owner's focus mid-typing. So the dock is run on a
-# headless output and made visible there, and the tooltip's own life flag is
-# raised so the LazyLoader builds the surface the chip lives in. What is then
-# read back is the real component with its real bindings and theme colours.
-# The hover -> dwell -> tipShown chain is the dock's pre-existing tooltip
-# machinery and is deliberately not what this verifies.
-monitor_list() {
-  hyprctl -j monitors 2>/dev/null | python3 -c '
-import json, sys
-print(" ".join(m["name"] + ("*" if m["focused"] else "") for m in json.load(sys.stdin)))'
-}
-focused_monitor() { monitor_list | tr ' ' '\n' | grep '\*$' | tr -d '*'; }
+# The chip sits behind the tooltip's LazyLoader; a real hover cannot be produced
+# on this host without warping the pointer onto another monitor, which with
+# `input:follow_mouse` set to full would take the owner's focus mid-typing. So
+# the dock is run on a headless output and made visible there, and the tooltip's
+# own life flag is raised so the LazyLoader builds the surface the chip lives
+# in. What is then read back is the real component with its real bindings and
+# theme colours. The hover -> dwell -> tipShown chain is the dock's pre-existing
+# tooltip machinery and is deliberately not what this verifies.
 
 chip_section() {
   local screen=omadock-chip owner_md5="" owner_monitors="" owner_focused="" src out rc
@@ -366,6 +424,11 @@ import json, sys
 conf = json.load(open(sys.argv[1]))
 conf["screen"] = sys.argv[3]
 conf["multiMonitor"] = False
+# Same premise as the HUD section: a visible dock on an empty output, with no
+# per-monitor filtering and no autohide to race the tile read.
+conf["perMonitorApps"] = False
+conf["autohide"] = False
+conf["intelligentAutohide"] = False
 json.dump(conf, open(sys.argv[2], "w"), indent=2)
 PY
   hyprctl output create headless "$screen" >/dev/null 2>&1 \
@@ -402,7 +465,22 @@ if d.get("screen") != sys.argv[1]: raise SystemExit("the dock is on %r, not %s" 
     red "the chip probe's dock is not on the headless output"
   fi
   pt reveal >/dev/null
-  target=$(pick_target)
+  # The model builds from the app library a moment after the dock maps; retry
+  # the tile read rather than measuring the first empty turn.
+  target=""
+  for _ in $(seq 20); do
+    target=$(pick_target)
+    [ -n "$target" ] && break
+    sleep 0.3
+  done
+  if [ -z "$target" ]; then
+    pin_fixture >/dev/null
+    for _ in $(seq 10); do
+      target=$(pick_target)
+      [ -n "$target" ] && break
+      sleep 0.2
+    done
+  fi
   [ -n "$target" ] && note "chip target tile \"$target\"" || red "no tile to raise the chip over"
   sleep 0.6
   timeout 10 grim -o "$screen" -t ppm "$TMPD/chip-off.ppm" 2>/dev/null \

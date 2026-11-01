@@ -68,16 +68,22 @@ class ShellSuites(unittest.TestCase):
     """Rule 5: shell files are capped, and the live suites are ratcheted.
 
     Before this rule the walker took only .qml/.js/.mjs, so the largest test
-    file in the repo (a live suite) could have doubled unnoticed.
+    file in the repo (a live suite) could have doubled unnoticed. Every suite
+    must carry an entry too: the table had fallen behind the newest harnesses
+    while AGENTS.md claimed it covered every `tests/live/*.sh`.
     """
 
-    def build(self, pinned_lines, fresh_lines):
+    def build(self, pinned_lines, fresh_lines, tool_lines=0):
         tmp = tempfile.TemporaryDirectory()
         root = pathlib.Path(tmp.name)
         live = root / "tests" / "live"
         live.mkdir(parents=True)
         (live / "pinned.sh").write_text("# filler\n" * pinned_lines)
         (live / "fresh.sh").write_text("# filler\n" * fresh_lines)
+        if tool_lines:
+            scripts = root / "scripts"
+            scripts.mkdir()
+            (scripts / "tool.sh").write_text("# filler\n" * tool_lines)
         return tmp, root
 
     def run_check(self, module, root, ceilings):
@@ -89,21 +95,32 @@ class ShellSuites(unittest.TestCase):
 
     def test_shell_files_are_capped_and_live_suites_ratcheted(self):
         module = load()
-        tmp, root = self.build(pinned_lines=11, fresh_lines=900)
+        tmp, root = self.build(pinned_lines=11, fresh_lines=3, tool_lines=900)
         with tmp:
-            rc, reported = self.run_check(module, root, {"tests/live/pinned.sh": 10})
+            rc, reported = self.run_check(module, root, {
+                "tests/live/pinned.sh": 10, "tests/live/fresh.sh": 3})
         self.assertEqual(rc, 1)
         self.assertIn("tests/live/pinned.sh: 11 lines exceeds suite ratchet of 10",
                       reported)
-        self.assertIn("tests/live/fresh.sh: 900 lines exceeds file-size cap of 800",
+        self.assertIn("scripts/tool.sh: 900 lines exceeds file-size cap of 800",
                       reported)
 
     def test_a_suite_at_its_ceiling_passes(self):
         module = load()
         tmp, root = self.build(pinned_lines=10, fresh_lines=3)
         with tmp:
-            rc, reported = self.run_check(module, root, {"tests/live/pinned.sh": 10})
+            rc, reported = self.run_check(module, root, {
+                "tests/live/pinned.sh": 10, "tests/live/fresh.sh": 3})
         self.assertEqual(rc, 0, reported)
+
+    def test_a_live_suite_without_a_ratchet_is_reported(self):
+        module = load()
+        tmp, root = self.build(pinned_lines=10, fresh_lines=3)
+        with tmp:
+            rc, reported = self.run_check(module, root, {"tests/live/pinned.sh": 10})
+        self.assertEqual(rc, 1)
+        self.assertIn("tests/live/fresh.sh: live suite has no SHELL_CEILINGS "
+                      "ratchet", reported)
 
 
 if __name__ == "__main__":

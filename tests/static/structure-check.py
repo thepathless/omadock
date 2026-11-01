@@ -13,7 +13,10 @@ Rules enforced:
   5. The live suites (tests/live/*.sh) carry the same ratchet as the
      composition roots: they are the repo's largest shell files, so the size
      each had when the cap reached them is recorded in SHELL_CEILINGS and may
-     only be lowered.
+     only be lowered. Every suite must carry an entry - a suite missing from
+     the table is itself a violation, so the rule cannot quietly stop
+     covering the newest harness (the claim `every tests/live/*.sh` in
+     AGENTS.md is checked, not assumed).
 
 Exit codes: 0 = all rules hold; 1 = violations (printed one per line).
 """
@@ -35,17 +38,30 @@ ROOT_CEILINGS = {
 # Rule 5: the live suites, ratcheted at the size they had when the cap was
 # extended to shell files (they were uncapped before, so the largest test in the
 # repo could have doubled unnoticed). Lower one when a suite shrinks; move code
-# out of a suite rather than raising it.
+# out of a suite rather than raising it. Every suite belongs here: the newest
+# suites had outgrown the 800-line cap while still absent from this table, which
+# made AGENTS.md's "every tests/live/*.sh" claim false. A suite with no entry
+# is reported below, so the table cannot fall behind again.
 SHELL_CEILINGS = {
+    "tests/live/interactions.sh": 617,
+    "tests/live/tasks.sh": 593,
+    "tests/live/macos-tooltip.sh": 451,
+    "tests/live/settings-navigation.sh": 421,
     "tests/live/presets.sh": 380,
-    "tests/live/indicators.sh": 346,
+    "tests/live/apps-menu.sh": 363,
+    "tests/live/indicators.sh": 345,
     "tests/live/probe.sh": 328,
     "tests/live/place-restore.sh": 250,
+    "tests/live/autohide.sh": 210,
+    "tests/live/theme-rescan.sh": 162,
+    "tests/live/preset-contracts.sh": 131,
     "tests/live/teardown.sh": 125,
-    "tests/live/layout.sh": 115,
     "tests/live/ipc-roundtrip.sh": 115,
+    "tests/live/layout.sh": 115,
     "tests/live/label-metrics.sh": 110,
+    "tests/live/headless.sh": 93,
     "tests/live/config-fuzz.sh": 84,
+    "tests/live/presets-support.sh": 28,
     "tests/live/common.sh": 24,
 }
 
@@ -87,6 +103,11 @@ def main():
     violations = []
     for path in source_files():
         rel = path.relative_to(ROOT).as_posix()
+        if rel.startswith("tests/live/") and path.suffix == ".sh" \
+                and rel not in SHELL_CEILINGS:
+            violations.append(
+                f"{rel}: live suite has no SHELL_CEILINGS ratchet "
+                f"(add it at its current size)")
         lines = path.read_text(errors="replace").splitlines()
         cap = ROOT_CEILINGS.get(rel) or SHELL_CEILINGS.get(rel) or MAX_LINES
         if len(lines) > cap:
