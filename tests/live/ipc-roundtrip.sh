@@ -19,7 +19,7 @@ cd "$(dirname "$0")/../.."
 wait_ready || exit 1
 CFG=$HOME/.config/omarchy/omadock.json
 bak=$(mktemp); cp "$CFG" "$bak"
-restore() { omarchy-shell omadock closeSettings >/dev/null 2>&1; cp "$bak" "$CFG"; rm -f "$bak"; }
+restore() { omarchy-shell omadock closeSettings >/dev/null 2>&1; cp "$bak" "$CFG"; rm -f "$bak" "$bak.presets"; }
 trap restore EXIT
 since=$(date '+%Y-%m-%d %H:%M:%S')
 ipc() { omarchy-shell omadock "$@"; }
@@ -69,8 +69,8 @@ assert not any(p['id'] == sys.argv[1] for p in d), d
 # clash is only counted against the shipped rows. Red on a dock that loaded its
 # QML before a change to DockPresets.js: this host disables QML file watching,
 # so the running dock only picks the rule up on the next restart.
-ipc presets > /tmp/omadock-presets.json
-python3 - "$CFG" /tmp/omadock-presets.json <<'PY' || fail "a name is a shipped look and a saved preset at once"
+ipc presets > "$bak.presets"
+python3 - "$CFG" "$bak.presets" <<'PY' || fail "a name is a shipped look and a saved preset at once"
 import json, sys
 key = lambda r: str(r["name"]).strip().lower()
 rows = json.load(open(sys.argv[2]))
