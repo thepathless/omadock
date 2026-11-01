@@ -15,7 +15,7 @@
 <br />
 
 <p align="center">
-  <img src="assets/preview-desktop.png" alt="OmaDock v4.13.1: the macOS glass row with the Dock's own callout above the magnified YouTube Music icon, and the Windows taskbar strip beneath it" width="880" style="border-radius: 12px; box-shadow: 0 8px 24px rgba(0,0,0,0.4);" />
+  <img src="assets/preview-desktop.png" alt="OmaDock v4.13.2: the macOS glass row with the Dock's own callout above the magnified YouTube Music icon, and the Windows taskbar strip beneath it" width="880" style="border-radius: 12px; box-shadow: 0 8px 24px rgba(0,0,0,0.4);" />
 </p>
 
 <p align="center">
@@ -46,11 +46,11 @@ Crafted in the spirit of **Omakase (おまかせ)**: wave magnification, live wi
 
 ### Release status
 
-> **This page documents `main`.** The latest tag, [v4.13.1](https://github.com/thepathless/omadock/releases/tag/v4.13.1), ships everything described below, with the four defect fixes and harness corrections in the changelog. The tag carries 300 Node + 149 Python unit tests.
+> **This page documents `main`.** The latest tag, [v4.13.2](https://github.com/thepathless/omadock/releases/tag/v4.13.2), ships everything described below, with the four defect fixes, the corrections to their live proof, and the harness corrections in the changelog. The tag carries 300 Node + 149 Python unit tests.
 
 ### Architecture & Recognition
 
-The current `main` tree is backed by 300 Node.js unit tests, 149 Python checks, and sixteen sandboxed live Wayland integration suites. The v4.13.0 tag carries 300 Node + 148 Python. OmaDock's atomic asynchronous configuration gate (`CappedFileView.qml` and `tests/unit/test_capped_gate.py`) was independently selected for the **[XERJ Corpus Hub](https://github.com/xerj-org/xerj)** as a verified open-source reference implementation for AI coding agents.
+The current `main` tree is backed by 300 Node.js unit tests, 149 Python checks, and sixteen sandboxed live Wayland integration suites. The v4.13.1 tag carries 300 Node + 149 Python. OmaDock's atomic asynchronous configuration gate (`CappedFileView.qml` and `tests/unit/test_capped_gate.py`) was independently selected for the **[XERJ Corpus Hub](https://github.com/xerj-org/xerj)** as a verified open-source reference implementation for AI coding agents.
 
 ### Highlights
 
@@ -836,18 +836,28 @@ The pixel label font is [Silkscreen](https://fonts.google.com/specimen/Silkscree
 
 Full release notes, historical changelogs, and upgrade guides across all versions are available on [**GitHub Releases**](https://github.com/thepathless/omadock/releases).
 
+### v4.13.2 — 2026-11-01
+
+The proof the previous patch published is now real, and three narrow gaps it left are closed. No feature or default changes.
+
+- **The group-cycle check passes on a per-monitor dock** — `tests/live/interactions.sh` now sets its own premise (`perMonitorApps: false`, original icon style) instead of inheriting the owner's config. A probe dock pinned to an empty headless output otherwise filtered every window out, so the step that removes a group and re-creates one from running apps could never see its running app; it now observes both transitions on the probe's own model. The check still fails when `refreshDock()` is removed, measured against a copy of the tree.
+- **The symbolic folder look shares the broken-icon fallback** — `DockFolderItem`'s symbolic art now draws `DockIconArt.settledSource` instead of its own raw source. One owner settles the decode and substitutes `application-x-executable` when it fails, and the folder tile logs no second `Error decoding` line. A live step pins a zero-byte `*-symbolic.svg` and reads the drawn source and its decode status.
+- **A spelling cannot keep a dead popup open** — `DockFolderLogic.toggleFolderPin` normalises `~/…` and absolute paths on both sides before closing the stack, so pinning `~/Downloads` and unpinning `/home/…/Downloads` no longer leaves the popup floating. A live step pins, opens and unpins through the two spellings.
+- **The v4.13.1 verification note is corrected** — its release page claimed the live `interactions` suite passed the group cycle, which did not reproduce on the promoted tree. The v4.13.1 section below and the GitHub release now say what was actually observed, and this tag carries the green run.
+- **Verification** — 300 Node + 149 Python unit tests, `qmllint` 0 errors, structure, security, i18n, manifest and plugin gates clean; live `interactions` (both icon fallbacks, the unreadable folder, both group transitions, both unpin spellings), `presets`, `label-metrics`, `indicators`, `ipc-roundtrip` and `teardown` pass, with the owner's config byte-identical and no probe process, headless output or scratch directory left. `Dock.qml` stays at its 2 378-line ceiling.
+
 ### v4.13.1 — 2026-11-01
 
 Four corrections, plus the harness assumptions that kept them out of sight. No feature or default changes.
 
 - **An unreadable folder is not an empty one** — `scripts/list-folder.py` now reports `"failed": true` when a path is missing or cannot be opened, and `Dock.qml` carries it into `activeStackFailed`. The stack says **Folder could not be read** instead of drawing an empty list. The scanner used to swallow `OSError` and return `count: 0`, which is exactly what a genuinely empty folder returns; the tests only ever listed readable folders, so the two cases were one.
-- **A broken icon still gets a tile** — `DockIconArt` records a source that failed to decode and draws the generic `application-x-executable` icon instead of a blank slot; changing the source clears the failure. Every folder in the interactions suite had a decodable icon, so a zero-byte SVG was never put on a tile.
+- **A broken icon still gets a tile** — `DockIconArt` records a source that failed to decode and draws the generic `application-x-executable` icon instead of a blank slot; changing the source clears the failure. Every folder in the interactions suite had a decodable icon, so a zero-byte SVG was never put on a tile. The symbolic folder look followed in v4.13.2.
 - **Creating or removing a group rebuilds the model** — `DockGroupsLogic.createAppGroupFromRunning` and `removeAppGroup` now call `refreshDock()`, so a running app moves into the new group immediately and returns to the running row as soon as its group is removed. The tests checked the config, not the rendered row, so a stale model still looked correct on disk.
 - **Unpinning a folder closes its stack** — `DockFolderLogic.toggleFolderPin` closes the open stack when its anchor tile is removed, so no popup floats over nothing and keeps the dock visible. The suite had no case where the folder behind an open stack was unpinned.
 
-**Harness corrections.** `tests/live/indicators.sh` had assumed the configured flat card survived the look's material and that running marks sat in the item's bottom band: the owner's macOS look lifts the card to #808181 (`surfaceLift: 0.53`, `surfaceStability: 0.87`) and `indicatorInset: 4` puts the marks at the card edge, so its contrast cut and crop missed both. It now resets the material and inset and reads its baseline after autohide reveals the dock; all four shapes pass at 0.5 px. `tests/live/tasks.sh` pins a fixture app when every running app is grouped, `tests/live/ipc-roundtrip.sh` reveals the dock before reading `itemGeometry`, and the interactions and unit suites now cover the broken icon, the missing and mode-000 folder, the group cycle and the unpin.
+**Harness corrections.** `tests/live/indicators.sh` had assumed the configured flat card survived the look's material and that running marks sat in the item's bottom band: the owner's macOS look lifts the card to #808181 (`surfaceLift: 0.53`, `surfaceStability: 0.87`) and `indicatorInset: 4` puts the marks at the card edge, so its contrast cut and crop missed both. It now resets the material and inset and reads its baseline after autohide reveals the dock; all four shapes pass at 0.5 px. `tests/live/tasks.sh` pins a fixture app when every running app is grouped, `tests/live/ipc-roundtrip.sh` reveals the dock before reading `itemGeometry`, and the interactions and unit suites now cover the broken icon, the missing and mode-000 folder, the group cycle and the unpin (the group-cycle step was corrected in v4.13.2).
 
-- **Verification** — 300 Node + 149 Python unit tests, `qmllint` 0 errors, structure, security, i18n, manifest and plugin gates clean; live `interactions`, `indicators`, `ipc-roundtrip` and `teardown` pass, with the owner's config and shell unchanged. `Dock.qml` stays at its 2 378-line ceiling.
+- **Verification** — 300 Node + 149 Python unit tests, `qmllint` 0 errors, structure, security, i18n, manifest and plugin gates clean; live `indicators`, `ipc-roundtrip` and `teardown` pass. The group-cycle check this tag added was red under a per-monitor config (the probe copy inherited `perMonitorApps`), so the "live `interactions` pass" line first published here was wrong; v4.13.2 corrects the fixture and carries the green run. `Dock.qml` stays at its 2 378-line ceiling.
 
 ### v4.13.0 — 2026-11-01
 

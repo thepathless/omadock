@@ -149,8 +149,12 @@ Item {
 
         Image {
           id: symbolicImg
+          objectName: "symbolic-art"
           anchors.fill: parent
-          source: fitem.resolvedSource
+          // One owner for a failed source: DockIconArt settles the decode and
+          // carries the generic fallback, so the symbolic look cannot draw a
+          // blank slot (nor repeat a decode that already failed).
+          source: folderIconImg.settledSource
           sourceSize: Qt.size((root ? root.iconSize : 36) * 4, (root ? root.iconSize : 36) * 4)
           fillMode: Image.PreserveAspectFit
           asynchronous: true
