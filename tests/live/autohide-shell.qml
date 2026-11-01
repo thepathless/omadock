@@ -19,6 +19,30 @@
 
   readonly property string mustBeOn: String(Quickshell.env("PROBE_SCREEN") || "")
 
+  // The confirmation's own record: how often it fired after this arm, and
+  // whether it armed another confirmation as its own run settled. Unrelated
+  // Hyprland events restart the same overlap debounce, so a raw snapshot count
+  // cannot answer "one-shot"; the timer's state can, sampled one event-loop
+  // turn after `fired` is consumed - before any later event can arm a fresh
+  // confirmation, and after the settle that would have re-armed it.
+  property var dockRef: null
+  readonly property var confirmTimer: dockRef ? dockRef.overlapConfirmTimer : null
+  property int confirmsFired: 0
+  property bool armedAfterConfirm: false
+
+  Connections {
+    target: confirmTimer
+    function onFiredChanged() {
+      if (confirmTimer && confirmTimer.fired) {
+        confirmsFired += 1
+      } else {
+        Qt.callLater(function() {
+          armedAfterConfirm = confirmTimer ? confirmTimer.armed : true
+        })
+      }
+    }
+  }
+
   function dock() {
     var list = host.orderedDocks ? host.orderedDocks() : []
     return list.length > 0 ? list[0] : null
@@ -50,9 +74,19 @@
         d.intelligentAutohide = true
         d.windowsOverlapDock = false
         d.dockVisible = true
+        d.overlapConfirmTimer.cancel()
+        dockRef = d
+        confirmsFired = 0
+        armedAfterConfirm = false
         d.debounceOverlapTimerRef.stop()
         d.debounceOverlapTimerRef.restart()
         return JSON.stringify({ ok: true, visible: d.dockVisible })
+      }
+
+      if (step === "autohide-state") {
+        var c = d.overlapConfirmTimer
+        return JSON.stringify({ ok: true, armed: c.armed, fired: c.fired,
+          confirms: confirmsFired, armedAfterConfirm: armedAfterConfirm })
       }
 
       if (step === "autohide-read") {

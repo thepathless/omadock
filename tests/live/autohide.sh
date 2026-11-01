@@ -16,16 +16,16 @@
 #   * a hyprctl shim on PATH logs every call, so the suite counts the dock's
 #     own `hyprctl -j clients` snapshots rather than reading a claim. After one
 #     window-event-shaped request there must be a second snapshot ~1.2 s later
-#     (the confirmation) with no pointer and no further event, and no third one
-#     after it (the confirmation is one-shot, not a poll);
+#     (the confirmation) with no pointer and no further event;
+#   * the confirmation timer's own record proves the one-shot rule: its
+#     confirming run must not arm another (event noise rules a raw count out);
 #   * a fresh "overlap" answer must still take the normal hide path.
 #
 # On v4.9.0 only the first snapshot happens, so the suite fails there: it is a
 # regression test for #75, not a description of the fix.
 #
-# The owner's side (config md5, monitors and focus, dock state, shell PID, no
-# surviving process or scratch directory, no headless output) is re-checked at
-# exit, as in the other probe suites.
+# The owner's side (config md5, monitors, focus, dock state, shell PID, no
+# process or scratch dir, no headless output) is re-checked at exit.
 set -u
 cd "$(dirname "${BASH_SOURCE[0]}")" || exit 1
 
@@ -141,9 +141,8 @@ ARM=$(step autohide-arm) || fail "the arm step did not answer"
   || fail "the dock was not visible before the confirmation"
 sleep 3
 # The confirmation timer is 1.2 s; its debounced snapshot lands ~60 ms later.
-# Anchor on the arm time instead of on a gap: the dock's rectangle bookkeeping
-# also runs `-j clients` after a visibility change, so gaps alone are noisy.
-# v4.9.0 has no snapshot in this window at all.
+# Anchor on the arm time instead of a gap: rectangle bookkeeping also runs
+# `-j clients`, so gaps alone are noisy (v4.9.0 has no snapshot here at all).
 if python3 - "$SHIM/log" "$T0" <<'PY'
 import sys
 T0 = int(sys.argv[2])
@@ -157,17 +156,18 @@ then
 else
   fail "no second overlap snapshot arrived: the stale answer was never re-measured (#75)"
 fi
-# One-shot: nothing may be scheduled after the confirmation window.
-if python3 - "$SHIM/log" "$T0" <<'PY'
-import sys
-T0 = int(sys.argv[2])
-ts = [int(l.split(None, 1)[0]) for l in open(sys.argv[1]) if "-j clients" in l]
-sys.exit(0 if [t for t in ts if t - T0 > 1_900_000_000] else 1)
-PY
-then
-  fail "a snapshot ran after the confirmation: it must be one-shot, not a poll"
+# One-shot: the timer's own record, read after its settle - the confirming run
+# must not arm another (unrelated events arming a fresh one is correct).
+STATE=$(step autohide-state)
+if printf '%s' "$STATE" | python3 -c '
+import json, sys
+d = json.load(sys.stdin)
+bad = (not d.get("ok")) or int(d.get("confirms") or 0) < 1 \
+    or d.get("fired") or d.get("armedAfterConfirm")
+sys.exit(1 if bad else 0)' 2>/dev/null; then
+  note "the confirmation fired and never re-armed itself"
 else
-  note "no snapshot after the confirmation"
+  fail "the confirmation is not one-shot: $STATE"
 fi
 [ "$(jplain "$(step autohide-read)" overlap)" = "False" ] \
   || fail "the fresh answer was not 'no overlap' on the empty output"
