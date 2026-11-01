@@ -70,11 +70,25 @@ class ListFolder(unittest.TestCase):
 
     def test_small_folder_is_not_truncated(self):
         self.touch("a")
-        self.assertFalse(self.run_script()["truncated"])
+        out = self.run_script()
+        self.assertFalse(out["truncated"])
+        self.assertFalse(out["failed"])
 
     def test_missing_folder_gives_valid_json(self):
         out = self.run_script(folder=self.base / "nope")
         self.assertEqual((out["count"], out["items"]), (0, []))
+        # A missing folder is unreadable, not empty: the popup must not claim
+        # there is nothing inside a folder it could not open.
+        self.assertTrue(out["failed"])
+
+    def test_unreadable_folder_is_failed_not_empty(self):
+        if os.geteuid() == 0:
+            self.skipTest("root can read a mode-000 directory")
+        self.dir.chmod(0)
+        self.addCleanup(self.dir.chmod, 0o755)
+        out = self.run_script()
+        self.assertEqual((out["count"], out["items"]), (0, []))
+        self.assertTrue(out["failed"])
 
     def test_natural_name_sort_and_hidden_skipped(self):
         for n in ("a10", "a2", "A1", ".hidden"):

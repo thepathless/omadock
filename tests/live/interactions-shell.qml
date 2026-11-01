@@ -350,6 +350,81 @@
           foreign: foreign, panel: String(d.popupSurface().surface) })
       }
 
+      // A folder that is gone or cannot be read: the popup must say so, not
+      // claim the folder is empty. The suite opens a path that never existed.
+      if (step === "folder-missing") {
+        d.openFolderStack("/tmp/omadock-missing-" + Date.now(), "Missing", 0)
+        return JSON.stringify({ ok: true, active: d.activeStackFolder })
+      }
+
+      if (step === "folder-missing-read") {
+        var missingPop = d.folderStackPopover
+        var texts = []
+        function collect(item, depth) {
+          if (!item || depth > 16) return
+          if (item.text !== undefined) texts.push(String(item.text))
+          var kids = item.children || []
+          for (var k = 0; k < kids.length; k++) collect(kids[k], depth + 1)
+        }
+        collect(missingPop, 0)
+        return JSON.stringify({ ok: true, active: d.activeStackFolder,
+          failed: d.activeStackFailed, loading: d.activeStackLoading,
+          entries: (d.activeStackEntries || []).length, texts: texts })
+      }
+
+      // An icon file that exists but cannot be decoded: the tile must fall back
+      // to the generic icon instead of drawing a blank slot. The fixture pins a
+      // folder whose icon is a zero-byte SVG.
+      if (step === "icon-fallback") {
+        var tile = findFirst(d.dockCard, function(o) { return o.folderPath === arg }, 0)
+        if (!tile) return JSON.stringify({ ok: false, why: "no tile for " + arg })
+        var art = findFirst(tile, function(o) { return o.drawnSource !== undefined }, 0)
+        if (!art) return JSON.stringify({ ok: false, why: "no icon art on the tile" })
+        return JSON.stringify({ ok: true, source: String(art.source), drawn: String(art.drawnSource),
+          fallback: String(art.fallbackSource), failed: String(art.failedSource), status: art.status })
+      }
+
+      // Remove a group that currently owns a running app, then make a group
+      // from the running apps again. The model has to follow both changes in
+      // the same turn: after the removal the app is a running tile, and after
+      // the creation it is back inside a group tile and no longer a running app.
+      if (step === "group-cycle") {
+        var grouped = (d.groupedSection || [])[0]
+        var groups = d.appGroups || []
+        var target = null, victim = grouped ? String(grouped.appId) : ""
+        var shared = 0
+        for (var gi = 0; gi < groups.length; gi++) {
+          var apps = groups[gi].apps || []
+          if (apps.indexOf(victim) >= 0 && victim !== "") {
+            if (!target) target = groups[gi]
+            else shared++
+          }
+        }
+        if (!target || shared > 0) return JSON.stringify({ ok: true, skipped: true,
+          why: victim === "" ? "no running app in a group" : "the running app is in several groups" })
+        d.removeAppGroup(target.id)
+        var afterRemoveRunning = (d.runningSection || []).map(function(e) { return String(e.appId) })
+        var afterRemoveGrouped = (d.groupedSection || []).map(function(e) { return String(e.appId) })
+        d.createAppGroupFromRunning()
+        var afterCreateRunning = (d.runningSection || []).map(function(e) { return String(e.appId) })
+        var afterCreateGrouped = (d.groupedSection || []).map(function(e) { return String(e.appId) })
+        return JSON.stringify({ ok: true, skipped: false, group: target.id, app: victim,
+          afterRemoveRunning: afterRemoveRunning, afterRemoveGrouped: afterRemoveGrouped,
+          afterCreateRunning: afterCreateRunning, afterCreateGrouped: afterCreateGrouped,
+          groupsAfterRemove: groups.length - 1, groupsAfterCreate: (d.appGroups || []).length })
+      }
+
+      // Unpinning the folder whose popup is open (a settings/storage edit from
+      // another dock or a hand edit) leaves the popup with no tile to point at.
+      if (step === "folder-unpin") {
+        var unpin = itemOf(d, "folder")
+        if (!unpin) return JSON.stringify({ ok: false, why: "no folder item" })
+        d.openFolderStack(unpin.id, folderName(d, unpin.id), unpin.x + unpin.w / 2)
+        d.toggleFolderPin(unpin.id, folderName(d, unpin.id), "folder")
+        return JSON.stringify({ ok: true, path: unpin.id, stillPinned: d.isFolderPinned(unpin.id),
+          activeAfter: d.activeStackFolder, popupAfter: !!d.folderStackPopover })
+      }
+
       if (step === "settings-open") {
         d.openSettingsPanel()
         return JSON.stringify({ ok: true, open: d.settingsPanelOpen })

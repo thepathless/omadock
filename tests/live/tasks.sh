@@ -57,6 +57,9 @@ errlines() {
 
 # The dock's tiles and badges as they are right now, or "" if the call failed.
 read_items() { qs -p "$PROBE_DIR" ipc call omadock-test read items "" 2>/dev/null; }
+# A desk can have every running app inside a group and no pin, which leaves the
+# probe with no app tile to file a task against. The fixture supplies one.
+pin_fixture() { qs -p "$PROBE_DIR" ipc call omadock-test read pin "" 2>/dev/null; }
 
 # A call that only settles after the dock has processed the change (its model
 # updates on a debounce, and a shared-state change reaches the tiles through
@@ -139,6 +142,14 @@ if ! probe_start; then
 fi
 
 target=$(pick_target)
+if [ -z "$target" ]; then
+  pin_fixture >/dev/null
+  for _ in $(seq 10); do
+    target=$(pick_target)
+    [ -n "$target" ] && break
+    sleep 0.2
+  done
+fi
 if [ -z "$target" ]; then
   red "the dock exposed no stable app tile to report a task against"
   probe_cleanup >/dev/null 2>&1

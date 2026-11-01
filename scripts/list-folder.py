@@ -14,8 +14,9 @@ SORT is one of:
 
 LIMIT caps the items returned (default 16, at most 1000).
 
-Prints {"count": N, "items": [...first LIMIT...], "folder": FOLDER}.
-Hidden entries are skipped. At most MAX_SCAN visible entries are read
+Prints {"count": N, "items": [...first LIMIT...], "folder": FOLDER,
+"failed": BOOL}. `failed` is true when the folder is missing or cannot be
+opened, so a caller never reports it as empty. Hidden entries are skipped. At most MAX_SCAN visible entries are read
 ("truncated": true when the folder holds more). Each file carries "thumb":
 a preview image path, preferring a freedesktop thumbnail a file manager
 already rendered (~/.cache/thumbnails), then the file itself for small
@@ -121,7 +122,8 @@ def main():
 
     entries = []
     truncated = False
-    if folder and os.path.isdir(folder):
+    failed = not (folder and os.path.isdir(folder))
+    if not failed:
         try:
             with os.scandir(folder) as scan:
                 for entry in scan:
@@ -151,7 +153,9 @@ def main():
                         "_ctime": st.st_ctime,
                     })
         except OSError:
-            pass
+            # A missing, moved or unreadable folder is not an empty one: the
+            # popup says so instead of claiming there is nothing inside.
+            failed = True
 
     if sort == "name":
         entries.sort(key=lambda e: natural_key(e["name"]))
@@ -174,7 +178,7 @@ def main():
             item["thumb"] = thumbnail_for(e["path"]) or (e["path"] if previewable else "")
         items.append(item)
     print(json.dumps({"count": len(entries), "items": items, "folder": folder,
-                      "sort": sort, "truncated": truncated}))
+                      "sort": sort, "truncated": truncated, "failed": failed}))
 
 
 if __name__ == "__main__":

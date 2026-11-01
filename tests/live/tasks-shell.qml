@@ -161,6 +161,27 @@
         return JSON.stringify({ ok: true, count: out.items.length, items: out.items, badges: out.badges })
       }
 
+      // The fixture's app tile: a pin from the dock's own list, picked only
+      // when the desk has no app tile of its own (every running app can be in
+      // a group). `togglePin` flips, so the caller pins once.
+      if (step === "pin") {
+        var grouped = {}
+        var groups = d.appGroups || []
+        for (var g = 0; g < groups.length; g++) {
+          var members = groups[g].apps || []
+          for (var m = 0; m < members.length; m++) grouped[String(members[m])] = true
+        }
+        var rows = d.appRows || []
+        for (var r = 0; r < rows.length; r++) {
+          var e = (rows[r] && rows[r].entry) ? rows[r].entry : rows[r]
+          var id = String((e && e.id) || "")
+          if (id === "" || grouped[id] || !d.resolveDesktopEntry(id)) continue
+          d.togglePin(id)
+          return JSON.stringify({ ok: true, appId: id })
+        }
+        return JSON.stringify({ ok: false, why: "no ungrouped installed app to pin" })
+      }
+
       // Raise the tooltip's own life flag on one tile, so the LazyLoader builds
       // the surface the chip lives in. No pointer is used (see the header).
       if (step === "chip-open") {

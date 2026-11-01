@@ -77,6 +77,9 @@ QtObject {
     }
     root.appGroups = (root.appGroups || []).concat([newGroup])
     root.saveConfig()
+    // The model still lists these apps as running: rebuild it so they move
+    // into the group's tile instead of sitting beside it for a turn.
+    root.refreshDock()
   }
 
   function createAppGroupFromDrop(root, targetAppId, draggedAppId) {
@@ -296,6 +299,10 @@ QtObject {
     root.appGroups = next
     root.saveConfig()
     if (root.activeAppGroupId === groupId) root.closeAppGroup()
+    // The removed group's running apps were filtered out of the model while
+    // they belonged to it; without a rebuild they stay off the dock until some
+    // unrelated window event happens to rebuild it.
+    root.refreshDock()
   }
 
   // Move an app group within the pinned run, or a pinned folder among the

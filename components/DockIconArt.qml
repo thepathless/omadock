@@ -1,5 +1,6 @@
 import QtQuick 6.11
 import QtQuick.Effects
+import Quickshell
 import qs.Commons
 
 // One icon, drawn in the dock's icon style:
@@ -30,6 +31,17 @@ Item {
   id: art
 
   property url source
+  // A missing, unreadable or zero-byte icon file still gets a tile: when the
+  // source cannot be decoded the generic app icon is drawn instead of a
+  // blank slot. Callers can replace it; an empty source still draws nothing.
+  readonly property url fallbackSource: Quickshell.iconPath("application-x-executable", true)
+  property url failedSource: ""
+  readonly property url drawnSource: {
+    if (String(art.source) === "") return ""
+    if (art.failedSource === art.source && String(art.fallbackSource) !== "") return art.fallbackSource
+    return art.source
+  }
+  onSourceChanged: art.failedSource = ""
   property string iconStyle: "original"
   property bool showOriginal: false
   // The style actually drawn right now.
@@ -127,7 +139,11 @@ Item {
     Image {
       id: img
       anchors.fill: parent
-      source: art.source
+      source: art.drawnSource
+      onStatusChanged: {
+        if (status === Image.Error && String(art.source) !== "" && art.failedSource !== art.source)
+          art.failedSource = art.source
+      }
       // One decode size for every style, so switching style (or showing the
       // original on hover) never reloads the image.
       sourceSize: Qt.size(Math.max(16, art.renderSize * Screen.devicePixelRatio), Math.max(16, art.renderSize * Screen.devicePixelRatio))
