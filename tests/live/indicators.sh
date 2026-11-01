@@ -180,8 +180,7 @@ for attempt in range(2):  # a second frame when the first caught the row mid-set
     # column marks in the leading strip (art, plate and text start right of it).
     # Both windows are slack, not policy reads: a window grown with the policy
     # would follow a wrong size instead of catching it.
-    band = max(10, round(8 * scale))
-    strip = max(12, round(14 * scale))
+    band, strip = max(10, round(8 * scale)), max(12, round(14 * scale))
     cx, cy, cw, ch = (x, y + h - band, w, band) if mode == "row" else (x, y, w, h)
     raw = {}
     for line in out("magick", shot, "-crop", f"{cw}x{ch}+{cx}+{cy}", "+repage", "txt:-").splitlines()[1:]:
@@ -291,10 +290,10 @@ if [ -z "$TERM_APP" ]; then
   exit 2
 fi
 
-counts > /tmp/omadock-ind-before
 # Flat grain-free card, modal anchored at its colour: busy art can't elect the modal.
 set_cfg autohide=false showBackground=true bgColor=#101010 grain=0 labelMode=off \
-  hoverEffect=off
+  hoverEffect=off surfaceLift=-1 surfaceDesaturate=0 surfaceStability=0 surfaceGlass=0 indicatorInset=-1
+counts > /tmp/omadock-ind-before  # after the dock is visible: itemGeometry is empty while hidden
 open_one
 TARGET=""
 for i in $(seq 40); do

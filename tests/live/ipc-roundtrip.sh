@@ -105,8 +105,8 @@ ipc setAlignment spread; sleep 0.5
 [ "$(st align)" = spread ] || [ "$(st align)" = left ] || fail "setAlignment spread in panel"
 ipc setLayout bogus; sleep 0.5
 [ "$(st layout)" = dock ] || fail "setLayout bogus -> dock"
-ipc setLayout "$layout"; ipc setAlignment "$align"; sleep 0.5
-
+# Autohide may have hidden the dock again (itemGeometry is empty while hidden).
+ipc setLayout "$layout"; ipc setAlignment "$align"; sleep 0.5; ipc reveal; sleep 0.2
 ipc itemGeometry | python3 -c "import json,sys; assert len(json.load(sys.stdin)) > 0" || fail "itemGeometry empty"
 bash tests/smoke-test.sh >/dev/null || fail "smoke test"
 if journalctl --user --since "$since" | grep -iE "omadock/.*(error|TypeError|ReferenceError|is not a)"; then

@@ -1135,7 +1135,7 @@ Item {
           // header, or repopulating after the stack was closed.
           var wanted = String(root.pendingStackPath || "")
           if (parsed.folder !== wanted) return
-          root.applyStackScan(parsed.items || [], parsed.count || 0, parsed.truncated === true, false)
+          root.applyStackScan(parsed.items || [], parsed.count || 0, parsed.truncated === true, parsed.failed === true)
         } catch (e) {
           console.warn("[omadock] Failed parsing folder scan:", e)
           // Empty output: the helper timed out or died (a stalled mount).

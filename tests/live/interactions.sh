@@ -51,6 +51,11 @@ SRC_CFG=$(mktemp "${TMPDIR:-/tmp}/omadock-interactions-cfg-XXXXXX") || exit 1
 FOLDER_DIR=$(mktemp -d "${TMPDIR:-/tmp}/omadock-interactions-folder-XXXXXX") || exit 1
 printf 'audit note\n' > "$FOLDER_DIR/Audit Note.txt"
 mkdir -p "$FOLDER_DIR/Audit Subfolder"
+# A second pinned folder whose icon is a zero-byte SVG: the tile has to fall
+# back to the generic icon instead of drawing a blank slot.
+ICON_DIR=$(mktemp -d "${TMPDIR:-/tmp}/omadock-interactions-icon-XXXXXX") || exit 1
+printf 'icon fixture\n' > "$ICON_DIR/note.txt"
+: > "$ICON_DIR/empty.svg"
 HAVE_OUTPUT=""
 fail=0
 fail() { echo "   FAIL: $*" >&2; fail=1; }
@@ -80,6 +85,7 @@ cleanup() {
   [ -n "$HAVE_OUTPUT" ] && hyprctl output remove "$SCREEN" >/dev/null 2>&1
   rm -f "$SRC_CFG"
   [ -n "$FOLDER_DIR" ] && rm -rf "$FOLDER_DIR"
+  [ -n "$ICON_DIR" ] && rm -rf "$ICON_DIR"
 }
 trap cleanup EXIT
 
@@ -98,7 +104,7 @@ OWNER_DOCK=$(owner_dock_state)
 # The probe's config source: the owner's config, pinned to the headless output
 # and to a single dock. probe.sh copies this file and never reads the owner's
 # again, so the suite re-checks the real one itself at the end.
-python3 - "$OWNER_CFG" "$SRC_CFG" "$SCREEN" "$FOLDER_DIR" <<'PY' || exit 1
+python3 - "$OWNER_CFG" "$SRC_CFG" "$SCREEN" "$FOLDER_DIR" "$ICON_DIR" <<'PY' || exit 1
 import json, sys
 conf = json.load(open(sys.argv[1]))
 conf["screen"] = sys.argv[3]
@@ -106,9 +112,13 @@ conf["multiMonitor"] = False
 # The copy carries the suite's own pinned folder for the folder-menu and
 # folder-popup steps. The source config stays the source of everything else -
 # its look, its groups, its app list - so the probe still renders like the
-# owner's dock; only the folder precondition is supplied.
-conf["pinnedFolders"] = [{"path": sys.argv[4], "name": "Probe Folder", "icon": "folder"}]
-print("   config copy pinned %s for the folder steps" % sys.argv[4])
+# owner's dock; only the folder precondition is supplied. The second pin's icon
+# is a zero-byte SVG: its tile exercises the unreadable-icon fallback.
+conf["pinnedFolders"] = [
+    {"path": sys.argv[4], "name": "Probe Folder", "icon": "folder"},
+    {"path": sys.argv[5], "name": "Broken Icon", "icon": sys.argv[5] + "/empty.svg"},
+]
+print("   config copy pinned %s for the folder steps, plus a broken-icon pin" % sys.argv[4])
 # A group tile needs a group, and the desk's own are used when it has any. The
 # probe group starts empty; the fixture adds an app to it (through the dock's
 # own addAppToGroup) only while it is still empty, so the group popup has tiles
@@ -280,6 +290,22 @@ fi
   || note "still no app tile after the wait ($(jstr "$prepare" why))"
 CFG_MD5=$(md5sum "$CFG" | cut -d' ' -f1)
 
+# ------------------------------------------------------------ broken icon
+echo
+echo "-- a pinned folder whose icon file cannot be decoded"
+MARK=$(errs_now)
+icon=$(step icon-fallback "$ICON_DIR") || fail "the broken-icon step did not answer"
+if [ "$(jval "$icon" ok)" != "true" ]; then
+  fail "the broken-icon tile was not found ($(jval "$icon" why))"
+else
+  expect_eq "the broken icon never fell back to the generic icon" "$icon" drawn "$(jval "$icon" fallback)"
+  [ "$(jstr "$icon" failed)" = "$(jstr "$icon" source)" ] \
+    || fail "the failed icon source was not recorded ($(jstr "$icon" failed))"
+  [ "$(jval "$icon" status)" = "1" ] || fail "the fallback icon did not decode (status $(jval "$icon" status))"
+  note "source $(jstr "$icon" source) fell back to $(jstr "$icon" drawn) (status $(jval "$icon" status))"
+fi
+log_since "$MARK" "the broken icon"
+
 # ------------------------------------------------------------ context menu
 echo
 echo "-- an app's context menu"
@@ -403,6 +429,33 @@ log_since "$MARK" "the folder popup"
 step close >/dev/null
 sleep 0.3
 
+# ------------------------------------------------------- unreadable folder
+echo
+echo "-- a folder that cannot be read says so, not 'empty'"
+MARK=$(errs_now)
+missing=$(step folder-missing) || fail "the missing-folder step did not answer"
+misread=""
+for i in $(seq 20); do
+  misread=$(step folder-missing-read) || { misread=""; break; }
+  [ -n "$misread" ] || break
+  [ "$(jval "$misread" failed)" = "true" ] && [ "$(jval "$misread" loading)" = "false" ] && break
+  sleep 0.2
+done
+[ -n "$misread" ] || fail "the missing folder never reported its state"
+[ "$(jval "$misread" ok)" = "true" ] \
+  || fail "the missing folder did not answer ($(jval "$misread" why))"
+expect_true "a missing folder was not marked failed" "$misread" failed
+expect_eq "a missing folder still reports entries" "$misread" entries "0"
+python3 - "$misread" <<'PY' || fail "the missing-folder popup did not explain itself"
+import json, sys
+d = json.loads(sys.argv[1])
+assert "Folder could not be read" in d["texts"], d["texts"]
+print("   popup says %r" % [t for t in d["texts"] if "could not" in t][0])
+PY
+log_since "$MARK" "the missing folder"
+step close >/dev/null
+sleep 0.3
+
 # ---------------------------------------------------------- settings panel
 echo
 echo "-- the settings panel, its pages, its overlay"
@@ -425,6 +478,45 @@ expect_eq "the settings panel stayed open" "$closed" settings "false"
 log_since "$MARK" "the settings panel"
 [ "$(md5sum "$CFG" | cut -d' ' -f1)" = "$CFG_MD5" ] \
   || fail "opening and closing the surfaces wrote the config copy"
+
+# ------------------------------------------------------ group transitions
+echo
+echo "-- removing a group returns its running app; making a group takes it back"
+MARK=$(errs_now)
+groupcycle=$(step group-cycle) || fail "the group-cycle step did not answer"
+if [ "$(jval "$groupcycle" skipped)" = "true" ]; then
+  note "skipped: $(jstr "$groupcycle" why)"
+else
+  [ "$(jval "$groupcycle" ok)" = "true" ] \
+    || fail "the group cycle did not run ($(jval "$groupcycle" why))"
+  python3 - "$groupcycle" <<'PY' || fail "removing or creating a group did not rebuild the model"
+import json, sys
+d = json.loads(sys.argv[1])
+app = d["app"]
+assert app in d["afterRemoveRunning"], "after removal the app is not a running tile: %s" % d["afterRemoveRunning"]
+assert app not in d["afterRemoveGrouped"], "after removal the app is still marked grouped: %s" % d["afterRemoveGrouped"]
+assert app not in d["afterCreateRunning"], "after creation the app is still a separate running tile: %s" % d["afterCreateRunning"]
+assert app in d["afterCreateGrouped"], "after creation the app is not in the grouped model: %s" % d["afterCreateGrouped"]
+assert d["groupsAfterCreate"] > d["groupsAfterRemove"], d
+print("   %s: group removed -> running; group made -> grouped" % app)
+PY
+fi
+log_since "$MARK" "the group transitions"
+
+# ----------------------------------------------------------- folder unpin
+echo
+echo "-- unpinning the folder whose popup is open closes it"
+MARK=$(errs_now)
+unpin=$(step folder-unpin) || fail "the folder-unpin step did not answer"
+if [ "$(jval "$unpin" ok)" != "true" ]; then
+  fail "the folder unpin did not run ($(jval "$unpin" why))"
+else
+  expect_eq "the folder stayed pinned" "$unpin" stillPinned "false"
+  expect_eq "the popup stayed open on a folder that is no longer pinned" "$unpin" activeAfter '""'
+  note "unpinned $(jstr "$unpin" path), active stack now $(jval "$unpin" activeAfter)"
+fi
+log_since "$MARK" "the folder unpin"
+step close >/dev/null
 
 # ----------------------------------------------------------------- the log
 echo

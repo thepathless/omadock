@@ -15,7 +15,7 @@
 <br />
 
 <p align="center">
-  <img src="assets/preview-desktop.png" alt="OmaDock v4.13.0: the macOS glass row with the Dock's own callout above the magnified YouTube Music icon, and the Windows taskbar strip beneath it" width="880" style="border-radius: 12px; box-shadow: 0 8px 24px rgba(0,0,0,0.4);" />
+  <img src="assets/preview-desktop.png" alt="OmaDock v4.13.1: the macOS glass row with the Dock's own callout above the magnified YouTube Music icon, and the Windows taskbar strip beneath it" width="880" style="border-radius: 12px; box-shadow: 0 8px 24px rgba(0,0,0,0.4);" />
 </p>
 
 <p align="center">
@@ -46,11 +46,11 @@ Crafted in the spirit of **Omakase (おまかせ)**: wave magnification, live wi
 
 ### Release status
 
-> **This page documents `main`.** The latest tag, [v4.13.0](https://github.com/thepathless/omadock/releases/tag/v4.13.0), ships everything described below: the macOS look's hover callout, the Windows taskbar's anchored Start panel, the background-off popup plate, the one-row settings panel with the searchable icon-theme dropdown, and the motion clips and imagery in the changelog. The tag carries 300 Node + 148 Python unit tests.
+> **This page documents `main`.** The latest tag, [v4.13.1](https://github.com/thepathless/omadock/releases/tag/v4.13.1), ships everything described below, with the four defect fixes and harness corrections in the changelog. The tag carries 300 Node + 149 Python unit tests.
 
 ### Architecture & Recognition
 
-The current `main` tree is backed by 300 Node.js unit tests, 148 Python checks, and sixteen sandboxed live Wayland integration suites. The v4.12.1 tag carries 298 Node + 148 Python. OmaDock's atomic asynchronous configuration gate (`CappedFileView.qml` and `tests/unit/test_capped_gate.py`) was independently selected for the **[XERJ Corpus Hub](https://github.com/xerj-org/xerj)** as a verified open-source reference implementation for AI coding agents.
+The current `main` tree is backed by 300 Node.js unit tests, 149 Python checks, and sixteen sandboxed live Wayland integration suites. The v4.13.0 tag carries 300 Node + 148 Python. OmaDock's atomic asynchronous configuration gate (`CappedFileView.qml` and `tests/unit/test_capped_gate.py`) was independently selected for the **[XERJ Corpus Hub](https://github.com/xerj-org/xerj)** as a verified open-source reference implementation for AI coding agents.
 
 ### Highlights
 
@@ -835,6 +835,19 @@ The pixel label font is [Silkscreen](https://fonts.google.com/specimen/Silkscree
 ## Changelog
 
 Full release notes, historical changelogs, and upgrade guides across all versions are available on [**GitHub Releases**](https://github.com/thepathless/omadock/releases).
+
+### v4.13.1 — 2026-11-01
+
+Four corrections, plus the harness assumptions that kept them out of sight. No feature or default changes.
+
+- **An unreadable folder is not an empty one** — `scripts/list-folder.py` now reports `"failed": true` when a path is missing or cannot be opened, and `Dock.qml` carries it into `activeStackFailed`. The stack says **Folder could not be read** instead of drawing an empty list. The scanner used to swallow `OSError` and return `count: 0`, which is exactly what a genuinely empty folder returns; the tests only ever listed readable folders, so the two cases were one.
+- **A broken icon still gets a tile** — `DockIconArt` records a source that failed to decode and draws the generic `application-x-executable` icon instead of a blank slot; changing the source clears the failure. Every folder in the interactions suite had a decodable icon, so a zero-byte SVG was never put on a tile.
+- **Creating or removing a group rebuilds the model** — `DockGroupsLogic.createAppGroupFromRunning` and `removeAppGroup` now call `refreshDock()`, so a running app moves into the new group immediately and returns to the running row as soon as its group is removed. The tests checked the config, not the rendered row, so a stale model still looked correct on disk.
+- **Unpinning a folder closes its stack** — `DockFolderLogic.toggleFolderPin` closes the open stack when its anchor tile is removed, so no popup floats over nothing and keeps the dock visible. The suite had no case where the folder behind an open stack was unpinned.
+
+**Harness corrections.** `tests/live/indicators.sh` had assumed the configured flat card survived the look's material and that running marks sat in the item's bottom band: the owner's macOS look lifts the card to #808181 (`surfaceLift: 0.53`, `surfaceStability: 0.87`) and `indicatorInset: 4` puts the marks at the card edge, so its contrast cut and crop missed both. It now resets the material and inset and reads its baseline after autohide reveals the dock; all four shapes pass at 0.5 px. `tests/live/tasks.sh` pins a fixture app when every running app is grouped, `tests/live/ipc-roundtrip.sh` reveals the dock before reading `itemGeometry`, and the interactions and unit suites now cover the broken icon, the missing and mode-000 folder, the group cycle and the unpin.
+
+- **Verification** — 300 Node + 149 Python unit tests, `qmllint` 0 errors, structure, security, i18n, manifest and plugin gates clean; live `interactions`, `indicators`, `ipc-roundtrip` and `teardown` pass, with the owner's config and shell unchanged. `Dock.qml` stays at its 2 378-line ceiling.
 
 ### v4.13.0 — 2026-11-01
 
