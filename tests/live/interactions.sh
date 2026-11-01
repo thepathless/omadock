@@ -56,6 +56,10 @@ mkdir -p "$FOLDER_DIR/Audit Subfolder"
 ICON_DIR=$(mktemp -d "${TMPDIR:-/tmp}/omadock-interactions-icon-XXXXXX") || exit 1
 printf 'icon fixture\n' > "$ICON_DIR/note.txt"
 : > "$ICON_DIR/empty.svg"
+# The same broken file behind a name that marks it symbolic: that look draws
+# through its own branch, which must take the same fallback.
+SYM_DIR=$(mktemp -d "${TMPDIR:-/tmp}/omadock-interactions-sym-XXXXXX") || exit 1
+: > "$SYM_DIR/empty-symbolic.svg"
 HAVE_OUTPUT=""
 fail=0
 fail() { echo "   FAIL: $*" >&2; fail=1; }
@@ -86,6 +90,7 @@ cleanup() {
   rm -f "$SRC_CFG"
   [ -n "$FOLDER_DIR" ] && rm -rf "$FOLDER_DIR"
   [ -n "$ICON_DIR" ] && rm -rf "$ICON_DIR"
+  [ -n "$SYM_DIR" ] && rm -rf "$SYM_DIR"
 }
 trap cleanup EXIT
 
@@ -104,11 +109,19 @@ OWNER_DOCK=$(owner_dock_state)
 # The probe's config source: the owner's config, pinned to the headless output
 # and to a single dock. probe.sh copies this file and never reads the owner's
 # again, so the suite re-checks the real one itself at the end.
-python3 - "$OWNER_CFG" "$SRC_CFG" "$SCREEN" "$FOLDER_DIR" "$ICON_DIR" <<'PY' || exit 1
+python3 - "$OWNER_CFG" "$SRC_CFG" "$SCREEN" "$FOLDER_DIR" "$ICON_DIR" "$SYM_DIR" <<'PY' || exit 1
 import json, sys
 conf = json.load(open(sys.argv[1]))
 conf["screen"] = sys.argv[3]
 conf["multiMonitor"] = False
+# The probe's dock sits on a headless output that has no windows: with the
+# owner's per-monitor filtering it would see none of the desk's windows either,
+# and the group-cycle step would have no running app to observe. The suite sets
+# this premise itself instead of inheriting whichever value the owner happens
+# to have. The symbolic folder branch only draws at rest in the original icon
+# style, so that is explicit too.
+conf["perMonitorApps"] = False
+conf["iconStyle"] = "original"
 # The copy carries the suite's own pinned folder for the folder-menu and
 # folder-popup steps. The source config stays the source of everything else -
 # its look, its groups, its app list - so the probe still renders like the
@@ -117,8 +130,10 @@ conf["multiMonitor"] = False
 conf["pinnedFolders"] = [
     {"path": sys.argv[4], "name": "Probe Folder", "icon": "folder"},
     {"path": sys.argv[5], "name": "Broken Icon", "icon": sys.argv[5] + "/empty.svg"},
+    {"path": sys.argv[6], "name": "Broken Symbolic", "icon": sys.argv[6] + "/empty-symbolic.svg"},
 ]
-print("   config copy pinned %s for the folder steps, plus a broken-icon pin" % sys.argv[4])
+print("   config copy pinned %s, a broken icon and a broken symbolic icon" % sys.argv[4])
+print("   config copy: per-monitor filtering off, original icon style")
 # A group tile needs a group, and the desk's own are used when it has any. The
 # probe group starts empty; the fixture adds an app to it (through the dock's
 # own addAppToGroup) only while it is still empty, so the group popup has tiles
@@ -248,6 +263,9 @@ echo "-- the probe, its dock pinned to the headless output"
 probe_start || { echo "   FAIL: the probe never started" >&2; exit 1; }
 WORK="$PROBE_DIR/work"
 mkdir -p "$WORK"
+# The spelling step pins, opens and unpins this folder through `~/…` and its
+# absolute form; it has to exist for the scan to have something to read.
+mkdir -p "$PROBE_DIR/home/omadock-audit-folder" || fail "the spelling fixture folder could not be made"
 CFG=$(probe_cfg)
 # probe.sh checked its *source* (the suite's synthetic file); from here on it
 # must re-check the owner's own config, which is the one that must not move.
@@ -305,6 +323,32 @@ else
   note "source $(jstr "$icon" source) fell back to $(jstr "$icon" drawn) (status $(jval "$icon" status))"
 fi
 log_since "$MARK" "the broken icon"
+
+# ---------------------------------------------------- broken symbolic icon
+echo
+echo "-- a symbolic folder whose icon file cannot be decoded"
+MARK=$(errs_now)
+symicon=$(step icon-fallback-symbolic "$SYM_DIR") || fail "the symbolic broken-icon step did not answer"
+if [ "$(jval "$symicon" ok)" != "true" ]; then
+  fail "the symbolic broken-icon tile was not found ($(jval "$symicon" why))"
+else
+  python3 - "$symicon" <<'PY' || fail "the symbolic tile did not draw the generic fallback"
+import json, sys
+d = json.loads(sys.argv[1])
+assert d["source"].endswith("empty-symbolic.svg"), d
+assert "application-x-executable" in d["drawn"], d
+assert d["status"] == 1, d
+print("   symbolic source %s drew the generic fallback (status %d)" % (d["source"], d["status"]))
+PY
+fi
+# The main art is the one that discovers the failure; the symbolic path must
+# not repeat the decode that already failed.
+if grep -q "DockFolderItem.qml.*Error decoding" "$PROBE_DIR/probe.log"; then
+  fail "the symbolic path repeated a decode that had already failed"
+else
+  note "no second decode error from the symbolic path"
+fi
+log_since "$MARK" "the symbolic broken icon"
 
 # ------------------------------------------------------------ context menu
 echo
@@ -516,6 +560,20 @@ else
   note "unpinned $(jstr "$unpin" path), active stack now $(jval "$unpin" activeAfter)"
 fi
 log_since "$MARK" "the folder unpin"
+
+# ------------------------------------------- folder unpin, another spelling
+echo
+echo "-- unpinning the same folder by another spelling of its path closes it"
+MARK=$(errs_now)
+spell=$(step folder-unpin-spelling) || fail "the spelling step did not answer"
+if [ "$(jval "$spell" ok)" != "true" ]; then
+  fail "the spelling unpin did not run ($(jval "$spell" why))"
+else
+  expect_eq "the folder stayed pinned" "$spell" stillPinned "false"
+  expect_eq "the popup stayed open when the path was spelled another way" "$spell" activeAfter '""'
+  note "unpinned by absolute path, active stack now $(jval "$spell" activeAfter)"
+fi
+log_since "$MARK" "the spelling unpin"
 step close >/dev/null
 
 # ----------------------------------------------------------------- the log

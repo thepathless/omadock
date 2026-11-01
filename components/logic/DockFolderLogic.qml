@@ -227,10 +227,12 @@ QtObject {
     }
     if (!found) {
       next.push({ path: path, name: name || "Folder", icon: icon || DockIcons.folderIconFor(path, "") })
-    } else if (root.activeStackFolder === path) {
+    } else {
       // The tile this stack was anchored to is gone; an open popup would
-      // otherwise hover over nothing and keep the dock visible.
-      root.closeFolderStack()
+      // otherwise hover over nothing and keep the dock visible. Both sides
+      // are normalised: `~/…` and its absolute form name the same folder.
+      var open = String(root.activeStackFolder || "").replace(/^~/, Quickshell.env("HOME"))
+      if (open !== "" && open === norm) root.closeFolderStack()
     }
     root.pinnedFolders = next
     root.saveConfig()

@@ -41,6 +41,15 @@ Item {
     if (art.failedSource === art.source && String(art.fallbackSource) !== "") return art.fallbackSource
     return art.source
   }
+  // What another art item may draw *now*: nothing until the first decode
+  // settles, the fallback once it failed. The symbolic folder look binds to
+  // this, so it never repeats a decode that already failed (and logs no second
+  // error) while still drawing the same generic art.
+  readonly property url settledSource: {
+    if (String(art.source) === "") return ""
+    if (art.failedSource === art.source && String(art.fallbackSource) !== "") return art.fallbackSource
+    return art.status === Image.Ready ? art.source : ""
+  }
   onSourceChanged: art.failedSource = ""
   property string iconStyle: "original"
   property bool showOriginal: false

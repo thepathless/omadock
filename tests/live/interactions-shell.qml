@@ -384,6 +384,17 @@
           fallback: String(art.fallbackSource), failed: String(art.failedSource), status: art.status })
       }
 
+      // The same broken file behind the symbolic look: that branch draws its
+      // own Image, which has to take its art from the main art's fallback.
+      if (step === "icon-fallback-symbolic") {
+        var symTile = findFirst(d.dockCard, function(o) { return o.folderPath === arg }, 0)
+        if (!symTile) return JSON.stringify({ ok: false, why: "no tile for " + arg })
+        var symArt = findFirst(symTile, function(o) { return o.objectName === "symbolic-art" }, 0)
+        if (!symArt) return JSON.stringify({ ok: false, why: "no symbolic art on the tile" })
+        return JSON.stringify({ ok: true, source: String(symTile.resolvedSource),
+          drawn: String(symArt.source), status: symArt.status })
+      }
+
       // Remove a group that currently owns a running app, then make a group
       // from the running apps again. The model has to follow both changes in
       // the same turn: after the removal the app is a running tile, and after
@@ -423,6 +434,18 @@
         d.toggleFolderPin(unpin.id, folderName(d, unpin.id), "folder")
         return JSON.stringify({ ok: true, path: unpin.id, stillPinned: d.isFolderPinned(unpin.id),
           activeAfter: d.activeStackFolder, popupAfter: !!d.folderStackPopover })
+      }
+
+      // Pinned and opened as `~/…`, unpinned by its absolute path: the stack
+      // must close whatever spelling either side happens to use.
+      if (step === "folder-unpin-spelling") {
+        var home = Quickshell.env("HOME")
+        var rel = "~/omadock-audit-folder"
+        d.toggleFolderPin(rel, "Audit Folder", "folder")
+        d.openFolderStack(rel, "Audit Folder", 0)
+        d.toggleFolderPin(home + "/omadock-audit-folder", "Audit Folder", "folder")
+        return JSON.stringify({ ok: true, stillPinned: d.isFolderPinned(rel),
+          activeAfter: d.activeStackFolder })
       }
 
       if (step === "settings-open") {
