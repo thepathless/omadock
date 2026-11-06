@@ -893,16 +893,27 @@ function togglePinned(pinnedIds, appId) {
   var arr = toArray(pinnedIds).slice()
   var id = stripDesktop(appId)
   if (!id) return arr
-  var idx = -1
+  // A pin can be stored under a different id than the one a caller hands in:
+  // the pin keeps the id from when it was made, while the menu passes the id
+  // the app's desktop entry has now (see the canonicalId resolution in
+  // DockContextMenu). buildEntries already treats those as one app through
+  // isAppMatch, so a toggle has to as well — matching exactly here left the
+  // old pin in place and appended the new id, which showed up as a second
+  // icon for the same app instead of an unpin.
+  var next = []
+  var removed = false
   for (var i = 0; i < arr.length; i++) {
-    if (stripDesktop(arr[i]) === id) {
-      idx = i
-      break
+    var pinned = stripDesktop(arr[i])
+    if (pinned && (pinned === id || isAppMatch(pinned, id))) {
+      // Drop every matching id, so a list that already holds two ids for one
+      // app (what the old behaviour produced) is cleaned up by one unpin.
+      removed = true
+      continue
     }
+    next.push(arr[i])
   }
-  if (idx >= 0) arr.splice(idx, 1)
-  else arr.push(id)
-  return arr
+  if (!removed) next.push(id)
+  return next
 }
 
 function isPinned(pinnedIds, appId) {
