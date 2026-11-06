@@ -52,7 +52,7 @@ Item {
   }
 
   // No wait while another tooltip is still up: moving along the dock
-  // cross-fades from one to the next.
+  // hands the popup to the next icon.
   Timer {
     id: dwell
     interval: (bubble.dockRoot && bubble.dockRoot.tooltipsAlive > 0) ? 1 : bubble.tooltipDelay
@@ -63,7 +63,7 @@ Item {
     id: life
     dockRoot: bubble.dockRoot
     // A menu opening hides it at once.
-    hideDelay: (bubble.blocked || bubble.contextAppId !== "") ? 0 : 200
+    hideDelay: (bubble.blocked || bubble.contextAppId !== "") ? 0 : 75
     want: bubble.shown && bubble.text !== "" && bubble.showTooltips && !bubble.blocked && bubble.contextAppId === ""
   }
 
