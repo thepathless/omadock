@@ -34,11 +34,9 @@ Item {
 
   readonly property int count: windows ? windows.length : 0
   readonly property real frameWidth: Style.space(240)
-  // The frame takes the front window's shape once its frame arrives, so a
-  // typical window fills the card instead of sitting between bars.
-  property real frontAspect: 16 / 10
-  readonly property real frameHeight: Math.round(frameWidth / frontAspect)
-  Behavior on frontAspect { NumberAnimation { duration: (stack.motion ? stack.motion.fast : 0); easing.type: Easing.OutCubic } }
+  // Keep the card still while screencopy starts. The preview fits inside it
+  // at the window's own aspect ratio.
+  readonly property real frameHeight: Math.round(frameWidth * 10 / 16)
   readonly property real peek: count > 1 ? Style.space(10) : 0
   readonly property int peeking: Math.max(0, Math.min(count - 1, 2))
 
@@ -63,16 +61,6 @@ Item {
       onShownChanged: if (shown) reached = true
       onNearFrontChanged: if (!nearFront) reached = false
       Component.onCompleted: if (shown) reached = true
-      readonly property bool captured: !!(capture.item && capture.item.hasContent)
-      readonly property bool capturing: !!(capture.item && capture.item.live)
-      readonly property real capturedAspect: captured ? capture.item.aspect : 0
-
-      function adoptAspect() {
-        if (card.depth === 0 && card.capturedAspect > 0)
-          stack.frontAspect = Math.max(1.0, Math.min(2.4, card.capturedAspect))
-      }
-      onCapturedAspectChanged: adoptAspect()
-      onDepthChanged: adoptAspect()
 
       width: stack.frameWidth
       height: stack.frameHeight

@@ -432,8 +432,8 @@ Item {
   property var dockModel: ({ pinned: [], running: [] })
   // Height a popup may use above the card: the screen above the dock, less
   // the margin the full-screen layer used to leave (Style.space(36)).
-  // Tooltips currently alive (shown or fading out); see TooltipLife.
   property int tooltipsAlive: 0
+  property var tooltipOwner: null
   readonly property real popupMaxHeight: Math.max(240,
     (root.dockScreen ? root.dockScreen.height : 1080) - Style.space(36)
     - root.edgeGap - (dockCardComp ? dockCardComp.dockCard.height : 0) - Style.space(16))
@@ -924,7 +924,6 @@ Item {
   property int wheelStepDelay: 150
 
   // ------------------------------------------------- autohide state
-
   property bool dockVisible: false
   readonly property int revealHeight: 6
 
