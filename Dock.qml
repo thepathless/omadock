@@ -2158,6 +2158,7 @@ Item {
 
     screen: root.dockScreen
     color: "transparent"
+    visible: !root.floatingWatch.scratchpadOpen
     WlrLayershell.namespace: "omadock"
     WlrLayershell.layer: WlrLayer.Top
     WlrLayershell.keyboardFocus: (root.contextRenaming || (appGroupLoader.item && appGroupLoader.item.body.isEditingName))
