@@ -40,7 +40,17 @@ Item {
       var d = gridHost.dockList()[0]
       if (d && d.appsMenuHost) { d.appsMenuHost.toggle(); return }
     }
-    if (gridHost.mode !== "grid" || !gridHost.available || gridHost.failed) {
+    if (gridHost.mode !== "grid") {
+      Quickshell.execDetached(["omarchy-menu", "toggle", "root"])
+    } else {
+      gridHost.openGrid()
+    }
+  }
+
+  // The native Apps shortcut opens the grid independently of the dock
+  // button's menu/start preference. Older Omarchy keeps the menu fallback.
+  function openGrid() {
+    if (!gridHost.available || gridHost.failed) {
       Quickshell.execDetached(["omarchy-menu", "toggle", "root"])
     } else if (gridLoader.item) {
       gridLoader.item.toggle()
