@@ -1064,12 +1064,14 @@ function buildEntries(pinnedIds, toplevels, appRows, appLibrary, hyprFor, minimi
     })
   }
 
+  var wmClass = Object.create(null) // StartupWMClass ties a pin to windows its name cannot match: Gmail -> chrome-mail.google.com__-Default
+  function claims(t, rid) { if (!(t in wmClass)) wmClass[t] = String((entryFor(appRows, t) || {}).startupClass || "").toLowerCase(); return rid === t || isAppMatch(t, rid) || (wmClass[t] !== "" && wmClass[t] === rid.toLowerCase()) }
   function getWindowsFor(targetId) {
     var out = []
     var seenAddr = {}
     for (var k = 0; k < runningIds.length; k++) {
       var rid = runningIds[k]
-      if (rid === targetId || isAppMatch(targetId, rid)) {
+      if (claims(targetId, rid)) {
         var wlist = winMap[rid] || []
         for (var w = 0; w < wlist.length; w++) {
           var item = wlist[w]
@@ -1121,13 +1123,7 @@ function buildEntries(pinnedIds, toplevels, appRows, appLibrary, hyprFor, minimi
   var runningOut = []
   for (j = 0; j < runningIds.length; j++) {
     var rid = runningIds[j]
-    var alreadyPinned = false
-    for (var p = 0; p < pinned.length; p++) {
-      if (isAppMatch(pinned[p], rid)) {
-        alreadyPinned = true
-        break
-      }
-    }
+    var alreadyPinned = pinned.some(function (pid) { return claims(stripDesktop(pid), rid) })
     var alreadyGrouped = Boolean(groupedMap[rid])
     if (!alreadyGrouped) {
       var rcands = getCandidates(rid)

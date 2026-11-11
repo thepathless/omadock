@@ -278,3 +278,12 @@ test('ungroup retains application order without duplicating existing pins', () =
     { kind: 'app', appId: 'kitty' }, { kind: 'app', appId: 'firefox' },
   ])
 })
+test('pinned web app claims its window through the desktop StartupWMClass', () => {
+  const webRows = [{ id: 'Gmail', name: 'Gmail', icon: 'gmail', startupClass: 'chrome-mail.google.com__-Default',
+    execString: 'omarchy-launch-webapp "https://mail.google.com/"' }]
+  const result = model.buildEntries(['Gmail'], [{ appId: 'chrome-mail.google.com__-Default', title: 'Inbox - Gmail' }],
+    webRows, library, () => ({ address: 'abc', workspace: { name: '1' } }), '', {}, [], {}, {})
+  assert.equal(result.pinned[0].running, true)
+  assert.equal(result.pinned[0].windows, 1)
+  assert.equal(result.running.length, 0)
+})
