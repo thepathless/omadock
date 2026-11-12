@@ -54,6 +54,7 @@ Item {
     if (!gridHost.available || gridHost.failed) {
       Quickshell.execDetached(["omarchy-menu", "toggle", "root"])
     } else if (gridLoader.item) {
+      gridHost.syncIconIndex()
       gridLoader.item.toggle()
     } else {
       gridHost.pendingOpen = true
@@ -66,6 +67,25 @@ Item {
     gridHost.failed = true
     if (gridHost.pendingOpen) Quickshell.execDetached(["omarchy-menu", "toggle", "root"])
     gridHost.pendingOpen = false
+  }
+
+  // Omarchy's AppLibrary keeps the first file each icon name turns up, in
+  // directory order, so an app that ships several PNG sizes can draw from its
+  // 16px one stretched to grid size, and the active icon theme is not
+  // preferred. The dock's own index (icon-index.sh) ranks theme first, then
+  // size, so the grid takes that one: it then shows the same artwork as the
+  // dock. Re-applied whenever Omarchy's library rescans (the grid asks it to
+  // on every open), and whenever the dock's own index changes (it finishes
+  // indexing, or the icon theme changes) while the grid is loaded.
+  property var indexSource: null
+  function syncIconIndex() {
+    var lib = libraryLoader.item
+    var d = gridHost.dockList()[0]
+    gridHost.indexSource = d && d.iconThemeRef ? d.iconThemeRef : null
+    var idx = gridHost.indexSource ? gridHost.indexSource.iconIndex : null
+    if (!lib || !idx || lib.iconIndex === idx) return
+    // An index the dock has not filled yet would blank every grid icon.
+    for (var name in idx) { lib.iconIndex = idx; return }
   }
 
   function dockList() {
@@ -172,6 +192,19 @@ Item {
     active: gridHost.wanted
     source: active ? "file://" + gridHost.libraryPath : ""
     onStatusChanged: if (status === Loader.Error) gridHost.loadFailed("AppLibrary.qml")
+    onLoaded: gridHost.syncIconIndex()
+  }
+
+  Connections {
+    target: libraryLoader.item
+    ignoreUnknownSignals: true
+    function onIconIndexChanged() { gridHost.syncIconIndex() }
+  }
+
+  Connections {
+    target: libraryLoader.item ? gridHost.indexSource : null
+    ignoreUnknownSignals: true
+    function onIconIndexChanged() { gridHost.syncIconIndex() }
   }
 
   Loader {
