@@ -9,6 +9,9 @@ import "../DockFloating.js" as DockFloating
 // mode of its monitor's workspace from the files the layout commands write
 // and yields while it is floating; the primary dock also switches
 // omarchy.dock on or off to match the choice, at start and when it changes.
+// One more monitor state is owned here: whether that monitor shows the
+// scratchpad, because a dock under a full-screen special workspace is in the
+// way (Dock.qml hides its layer on it).
 Item {
   id: watch
 
@@ -31,6 +34,21 @@ Item {
     var name = watch.dockRoot && watch.dockRoot.dockScreen ? String(watch.dockRoot.dockScreen.name || "") : ""
     var monitor = Hyprland.monitors.values.find(function(m) { return m && m.name === name })
     return monitor && monitor.activeWorkspace ? monitor.activeWorkspace.id : -1
+  }
+
+  readonly property var monitor: watch.dockRoot && watch.dockRoot.dockScreen
+    ? Hyprland.monitorFor(watch.dockRoot.dockScreen) : null
+  // Owned here, read by the dock layer's `visible` and by nothing else.
+  readonly property bool scratchpadOpen: DockFloating.scratchpadOpen(watch.monitor)
+
+  // The monitor model does not follow activespecial on its own, and keeping a
+  // copy of the event was a second source of truth that could outlive it:
+  // ask for fresh monitor state instead.
+  Connections {
+    target: Hyprland
+    function onRawEvent(event) {
+      if (event.name === "activespecial") Hyprland.refreshMonitors()
+    }
   }
 
   onYieldDockChanged: if (watch.dockRoot) watch.dockRoot.syncVisibility()

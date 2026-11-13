@@ -1,5 +1,7 @@
-// Behaviour of DockModel.js that the dock relies on (pinning, grouping,
-// app matching, presets). DOCKMODEL overrides the file under test.
+// Behaviour of DockModel.js that the dock relies on (id normalising, app
+// matching, grouping, presets). The pin list's own operations live in
+// DockPins.js and are covered by pins.test.mjs. DOCKMODEL overrides the file
+// under test.
 import { test } from "node:test"
 import assert from "node:assert/strict"
 import { readFileSync } from "node:fs"
@@ -73,28 +75,6 @@ test("serializePinned and parsePinned round-trip", () => {
   const text = M.serializePinned(["a.desktop", "b", "a"])
   assert.deepEqual(JSON.parse(text), { pinned: ["a", "b"] })
   assert.deepEqual(plain(M.parsePinned(text)), ["a", "b"])
-})
-
-test("togglePinned", () => {
-  assert.deepEqual(plain(M.togglePinned(["a", "b"], "a.desktop")), ["b"])
-  assert.deepEqual(plain(M.togglePinned(["a"], "c")), ["a", "c"])
-  assert.deepEqual(plain(M.togglePinned(["a"], "")), ["a"])
-})
-
-test("reorderPinned", () => {
-  assert.deepEqual(plain(M.reorderPinned(["a", "b", "c"], "c", "a")), ["c", "a", "b"])
-  assert.deepEqual(plain(M.reorderPinned(["a", "b", "c"], "a", null)), ["b", "c", "a"])
-  assert.deepEqual(plain(M.reorderPinned(["a", "b", "c"], "b", "b")), ["a", "b", "c"])
-  assert.deepEqual(plain(M.reorderPinned(["a", "b"], "a", "zz")), ["b", "a"])
-})
-
-test("moveBefore", () => {
-  const list = [1, 2, 3]
-  assert.deepEqual(plain(M.moveBefore(list, 0, 3)), [2, 3, 1])
-  assert.deepEqual(plain(M.moveBefore(list, 2, 0)), [3, 1, 2])
-  assert.equal(M.moveBefore(list, 1, 1), list)
-  assert.equal(M.moveBefore(list, 1, 2), list)
-  assert.equal(M.moveBefore(list, 5, 0), list)
 })
 
 const entries = [{ appId: "a" }, { appId: "b" }]

@@ -40,7 +40,13 @@ done; unset IFS
     base=${entry#*:}
     [ -d "$base" ] || continue
     for ext in svg png; do
-      find "$base" \( -path "*/apps/*" -o -path "*/devices/*" -o -path "*/places/*" \
+      # -L: a theme can share another theme's artwork through a symlinked
+      # size directory (WhiteSur-dark/apps/scalable -> ../../WhiteSur/apps/
+      # scalable). find(1) does not follow it, so the active dark theme had no
+      # scalable app icons, and every name it does not ship at 22/16px resolved
+      # from the inherited hicolor/breeze art instead of the artwork it shares
+      # (measured: foot and firefox fell to hicolor's generic files).
+      find -L "$base" \( -path "*/apps/*" -o -path "*/devices/*" -o -path "*/places/*" \
         -o -path "*/mimetypes/*" -o -path "*/mimes/*" \) -name "*.$ext" 2>/dev/null \
         | while IFS= read -r file; do printf "%s\t%s\n" "$group" "$file"; done
     done

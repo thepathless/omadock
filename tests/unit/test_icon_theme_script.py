@@ -68,6 +68,17 @@ class ListThemes(unittest.TestCase):
         done = run(["list"], home)
         self.assertIn("WhiteSur|WhiteSur|", done.stdout)
 
+    def test_artwork_behind_a_symlinked_size_directory_still_counts(self):
+        home = Path(tempfile.mkdtemp())
+        shared = home / ".local/share/icons/Shared/apps"
+        shared.mkdir(parents=True)
+        (shared / "app.svg").write_text("<svg/>")
+        base = write_theme(home, "Linked", complete=False)
+        (base / "apps").symlink_to("../Shared/apps")
+        done = run(["list"], home)
+        self.assertEqual(done.returncode, 0, done.stderr)
+        self.assertIn("Linked|Linked|", done.stdout)
+
     def test_space_and_non_ascii_ids_are_not_offered(self):
         home = Path(tempfile.mkdtemp())
         write_theme(home, "Bad Theme")
@@ -132,6 +143,21 @@ class ApplyTheme(unittest.TestCase):
         self.assertEqual(self.apply("Papirus").returncode, 0)
         self.assertEqual(kde.read_text(), "[General]\nColorScheme=BreezeDark\n\n[Icons]\nTheme=Papirus\n")
         self.assertEqual(qt.read_text(), "[Appearance]\nstyle=kvantum\nicon_theme=Papirus\n")
+
+    def test_the_key_in_another_kde_section_is_preserved(self):
+        write_theme(self.home, "Papirus")
+        kde = self.home / ".config/kdeglobals"
+        kde.parent.mkdir(parents=True)
+        # Every section of a real file, not just one: the old rewrite deleted
+        # each Theme= line in the file and wrote one under [Icons].
+        before = ("# hand-edited\n[General]\nTheme=Breeze\nColorScheme=BreezeDark\n\n"
+                  "[Icons]\nTheme=Adwaita\nAppearance=1\n\n"
+                  "[KDE]\nTheme=BreezeDark-Theme\nSingleClick=false\n\n"
+                  "[Colors:View]\nTheme=Colour-Section-Theme\n\n"
+                  "[Icons-Scale]\nTheme=Scaled-Theme\n")
+        kde.write_text(before)
+        self.assertEqual(self.apply("Papirus").returncode, 0)
+        self.assertEqual(kde.read_text(), before.replace("Theme=Adwaita", "Theme=Papirus"))
 
     def test_a_theme_removed_after_the_list_was_read_is_refused(self):
         base = write_theme(self.home, "Papirus")

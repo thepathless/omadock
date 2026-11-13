@@ -7,6 +7,7 @@ import Quickshell.Services.Mpris
 import qs.Commons
 import qs.Ui
 import "../../DockModel.js" as DockModel
+import "../../DockPins.js" as DockPins
 import "../strings"
 
 // Logic extracted from Dock.qml: stateless functions, the dock root
@@ -314,7 +315,7 @@ QtObject {
     for (var i = 0; i < row.length; i++) {
       if (row[i].kind === "group" && row[i].id === groupId) { from = i; break }
     }
-    var next = DockModel.moveBefore(row, from, insertIndex)
+    var next = DockPins.moveBefore(row, from, insertIndex)
     if (next !== row) root.applyPinnedRow(next)
   }
 }

@@ -7,6 +7,7 @@ import Quickshell.Services.Mpris
 import qs.Commons
 import qs.Ui
 import "../../DockModel.js" as DockModel
+import "../../DockPins.js" as DockPins
 import "../../DockIcons.js" as DockIcons
 import "../../DockLabels.js" as DockLabels
 
@@ -270,7 +271,7 @@ QtObject {
     for (var i = 0; i < list.length; i++) {
       if (list[i] && list[i].path === path) { from = i; break }
     }
-    var next = DockModel.moveBefore(list, from, insertIndex)
+    var next = DockPins.moveBefore(list, from, insertIndex)
     if (next === list) return
     root.pinnedFolders = next
     root.saveConfig()

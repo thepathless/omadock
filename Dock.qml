@@ -924,7 +924,6 @@ Item {
   property int wheelStepDelay: 150
 
   // ------------------------------------------------- autohide state
-
   property bool dockVisible: false
   readonly property int revealHeight: 6
 
@@ -2158,6 +2157,7 @@ Item {
 
     screen: root.dockScreen
     color: "transparent"
+    visible: !root.floatingWatch.scratchpadOpen
     WlrLayershell.namespace: "omadock"
     WlrLayershell.layer: WlrLayer.Top
     WlrLayershell.keyboardFocus: (root.contextRenaming || (appGroupLoader.item && appGroupLoader.item.body.isEditingName))

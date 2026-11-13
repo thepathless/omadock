@@ -278,3 +278,67 @@ test('ungroup retains application order without duplicating existing pins', () =
     { kind: 'app', appId: 'kitty' }, { kind: 'app', appId: 'firefox' },
   ])
 })
+test('a pin claims a running app by id, by spelling, or by the class its entry claims', () => {
+  // The decision itself, not the model it ends up in: same id, the same app
+  // under another spelling (isAppMatch), and StartupWMClass compared lowercased
+  // on the window side because a window class is reported in any case.
+  // "Inbox" shares no token with the window class, so only the class itself can
+  // claim that window - which is what makes each case below about one rule.
+  assert.equal(model.pinClaimsWindow('foot', 'foot', ''), true)
+  assert.equal(model.pinClaimsWindow('hermes', 'com.nousresearch.hermes', ''), true)
+  assert.equal(model.pinClaimsWindow('Inbox', 'chrome-mail.google.com__-Default', 'chrome-mail.google.com__-default'), true)
+  assert.equal(model.pinClaimsWindow('Inbox', 'CHROME-MAIL.GOOGLE.COM__-DEFAULT', 'chrome-mail.google.com__-default'), true)
+  // A pin claims no window when its entry claims no class, and never another
+  // app's window class, however similar the class looks.
+  assert.equal(model.pinClaimsWindow('Inbox', 'chrome-mail.google.com__-Default', ''), false)
+  assert.equal(model.pinClaimsWindow('Inbox', 'chrome-calendar.google.com__-Default', 'chrome-mail.google.com__-default'), false)
+  assert.equal(model.pinClaimsWindow('', 'anything', ''), false)
+})
+
+test('a startup class claims exactly its own window class, not its neighbours', () => {
+  // "Inbox" matches neither window class on its own, so the pinned tile can
+  // only be holding the window its entry's StartupWMClass names.
+  const webRows = [{ id: 'Inbox', name: 'Inbox', icon: 'gmail', startupClass: 'chrome-mail.google.com__-Default',
+    execString: 'omarchy-launch-webapp "https://mail.google.com/"' }]
+  const result = model.buildEntries(['Inbox'], [
+    { appId: 'chrome-mail.google.com__-Default', title: 'Inbox', address: '1' },
+    { appId: 'chrome-calendar.google.com__-Default', title: 'Calendar', address: '2' },
+  ], webRows, library, top => ({ address: top.address, workspace: { name: '1' } }), '', {}, [], {}, {})
+  assert.deepEqual(plain(result.pinned[0].windowList.map(window => window.title)), ['Inbox'])
+  assert.deepEqual(plain(result.running.map(item => item.appId)), ['chrome-calendar.google.com__-Default'])
+})
+
+test('pinned web app claims its window through the desktop StartupWMClass', () => {
+  const webRows = [{ id: 'Gmail', name: 'Gmail', icon: 'gmail', startupClass: 'chrome-mail.google.com__-Default',
+    execString: 'omarchy-launch-webapp "https://mail.google.com/"' }]
+  const result = model.buildEntries(['Gmail'], [{ appId: 'chrome-mail.google.com__-Default', title: 'Inbox - Gmail' }],
+    webRows, library, () => ({ address: 'abc', workspace: { name: '1' } }), '', {}, [], {}, {})
+  assert.equal(result.pinned[0].running, true)
+  assert.equal(result.pinned[0].windows, 1)
+  assert.equal(result.running.length, 0)
+})
+
+test('Steam games keep their own identity and never supply Steam client metadata', () => {
+  const marvel = { id: 'Marvel Rivals', name: 'Marvel Rivals', icon: 'steam_icon_2767030' }
+  const steam = { id: 'com.valvesoftware.Steam', name: 'Steam' }
+  assert.equal(model.entryFor([marvel, steam], 'steam'), steam)
+  assert.equal(model.entryFor([marvel, steam], 'steam_app_2767030'), marvel)
+  assert.equal(model.entryFor([marvel, steam], 'steam_app_2357570'), null)
+  assert.equal(model.isAppMatch('steam', 'steam_app_2357570'), false)
+  assert.equal(model.isAppMatch('steam_app_2767030', 'steam_app_2357570'), false)
+  assert.equal(model.isAppMatch('steam_app_2357570', 'steam_icon_2357570'), true)
+})
+
+test('a Steam shortcut pin owns only the windows for its game ID', () => {
+  const result = model.buildEntries(['Marvel Rivals'], [
+    { appId: 'steam_app_2357570', title: 'Overwatch', address: '1' },
+    { appId: 'steam_app_2767030', title: 'Marvel Rivals', address: '2' },
+    { appId: 'steam', title: 'Steam', address: '3' },
+  ], [
+    { id: 'Marvel Rivals.desktop', name: 'Marvel Rivals', exec: 'flatpak run com.valvesoftware.Steam steam://rungameid/2767030' },
+    { id: 'com.valvesoftware.Steam.desktop', name: 'Steam' },
+  ], library, top => ({ address: top.address }), '', {}, [])
+  assert.deepEqual(plain(result.pinned[0].windowList.map(window => window.appId)), ['steam_app_2767030'])
+  assert.deepEqual(plain(result.running.map(item => [item.appId, item.name])),
+    [['steam_app_2357570', 'Overwatch'], ['steam', 'Steam']])
+})

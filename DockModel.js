@@ -118,10 +118,16 @@ function getCandidates(id) {
   return (candidateCache[id] = computeCandidates(id)).slice()
 }
 
+// A Steam shortcut names its game by number; the client has no number at all.
+function steamGameId(id) { var m = stripDesktop(id).match(/^steam_(?:app|icon)_(\d+)$/i); return m ? m[1] : "" }
+function isSteamClient(id) { return /^(?:steam|com\.valvesoftware\.steam)$/i.test(stripDesktop(id)) }
+
 function computeCandidates(id) {
   // The id as written, plus its canonical name: a candidate set never shrinks.
   var raw = stripDesktop(id).toLowerCase(), canon = cliAppId(id).toLowerCase()
   if (!raw) return []
+  var game = steamGameId(raw)
+  if (game) return ["steam_app_" + game, "steam_icon_" + game]
   var list = [raw]
   if (canon !== raw) list.push(canon)
   function addCandidate(part) { if (part && list.indexOf(part) < 0) list.push(part) }
@@ -156,6 +162,9 @@ function isAppMatch(idA, idB) {
   var a = cliAppId(idA).toLowerCase()
   var b = cliAppId(idB).toLowerCase()
   if (a === b) return true
+  var gameA = steamGameId(a), gameB = steamGameId(b)
+  if (gameA || gameB) return gameA !== "" && gameA === gameB
+  if (isSteamClient(a) || isSteamClient(b)) return isSteamClient(a) && isSteamClient(b)
   // Distinct reverse-DNS apps under one vendor differ even when one app name prefixes another; a -gui window class is the same app.
   var dotA = a.split("."), dotB = b.split("."), appA = dotA.length > 1 ? dotA.pop() : "", appB = dotB.length > 1 ? dotB.pop() : ""
   if (appA && appB && dotA.join(".") === dotB.join(".") && appA.replace(/-gui$/, "") !== appB.replace(/-gui$/, "")) return false
@@ -889,68 +898,20 @@ function serializePinned(pinnedIds) {
   return JSON.stringify({ pinned: cleaned }, null, 2)
 }
 
-function togglePinned(pinnedIds, appId) {
-  var arr = toArray(pinnedIds).slice()
-  var id = stripDesktop(appId)
-  if (!id) return arr
-  var idx = -1
-  for (var i = 0; i < arr.length; i++) {
-    if (stripDesktop(arr[i]) === id) {
-      idx = i
-      break
-    }
-  }
-  if (idx >= 0) arr.splice(idx, 1)
-  else arr.push(id)
-  return arr
+// Whether a pin stands for a running app: the same id, the same app under
+// another spelling (isAppMatch), or the window class its desktop entry claims
+// through StartupWMClass (a Gmail shortcut pins "Gmail" and its window is
+// class chrome-mail.google.com__-Default). The class is a property of the pin,
+// so it is read once by the caller and handed in here.
+function pinClaimsWindow(pin, runningId, startupClass) {
+  if (runningId === pin || isAppMatch(pin, runningId)) return true
+  return startupClass !== "" && startupClass === runningId.toLowerCase()
 }
 
-function isPinned(pinnedIds, appId) {
-  var arr = toArray(pinnedIds)
-  var id = stripDesktop(appId)
-  if (!id) return false
-  for (var i = 0; i < arr.length; i++) {
-    if (stripDesktop(arr[i]) === id) return true
-  }
-  return false
-}
-
-// Reorder pinned apps: move appId from its current position to insertBeforeId.
-// If insertBeforeId is null/empty, move to the end. Dropping onto the dragged
-// item itself is a no-op (prevents the "teleport to end" self-drop bug).
-function reorderPinned(pinnedIds, appId, insertBeforeId) {
-  var arr = toArray(pinnedIds).slice()
-  var id = stripDesktop(appId)
-  if (!id) return arr
-  if (insertBeforeId && stripDesktop(insertBeforeId) === id) return arr
-
-  var fromIdx = arr.indexOf(id)
-  if (fromIdx >= 0) {
-    arr.splice(fromIdx, 1)
-  }
-
-  if (!insertBeforeId) {
-    arr.push(id)
-  } else {
-    var toIdx = arr.indexOf(stripDesktop(insertBeforeId))
-    if (toIdx < 0) arr.push(id)
-    else arr.splice(toIdx, 0, id)
-  }
-  return arr
-}
-
-// A copy of list with the item at from moved before the item now at
-// insertIndex (to the end when insertIndex is past the last item). Returns
-// list itself when nothing moves.
-function moveBefore(list, from, insertIndex) {
-  var arr = toArray(list)
-  if (from < 0 || from >= arr.length) return list
-  var to = Math.max(0, Math.min(arr.length, insertIndex))
-  if (to === from || to === from + 1) return list
-  var next = arr.slice()
-  var moved = next.splice(from, 1)[0]
-  next.splice(to > from ? to - 1 : to, 0, moved)
-  return next
+function desktopGameId(entry) {
+  var uri = String(entry.execString || entry.exec || "").match(/steam:\/\/(?:rungameid|run)\/(\d+)(?=[\s"'/]|$)/i)
+  var icon = String(entry.icon || "").replace(/^.*\//, "").replace(/\.(png|svg|ico)$/i, "")
+  return uri ? uri[1] : (steamGameId(entry.id) || steamGameId(icon))
 }
 
 function entryFor(appRows, appId) {
@@ -1016,6 +977,12 @@ function buildEntries(pinnedIds, toplevels, appRows, appLibrary, hyprFor, minimi
   var list = toArray(toplevels)
   var minWs = minimizedWs || "special:minimized"
   var minOrigins = minimizedOrigins || {}
+  var gamesByDesktopId = Object.create(null) // a Steam shortcut's desktop id -> the game its windows carry
+  toArray(appRows).forEach(function(row) {
+    var entry = row && (row.entry || row), game = entry && desktopGameId(entry)
+    if (game) gamesByDesktopId[stripDesktop(entry.id).toLowerCase()] = "steam_app_" + game
+  })
+  function windowIdentity(id) { return gamesByDesktopId[stripDesktop(id).toLowerCase()] || id }
 
   var groupedMap = {}
   var groups = toArray(appGroups)
@@ -1027,7 +994,7 @@ function buildEntries(pinnedIds, toplevels, appRows, appLibrary, hyprFor, minimi
         var ga = stripDesktop(gapps[a])
         if (ga) {
           groupedMap[ga] = true
-          var gc = getCandidates(ga)
+          var gc = getCandidates(windowIdentity(ga))
           for (var c1 = 0; c1 < gc.length; c1++) groupedMap[gc[c1]] = true
         }
       }
@@ -1040,8 +1007,8 @@ function buildEntries(pinnedIds, toplevels, appRows, appLibrary, hyprFor, minimi
     var toplevel = list[i]
     if (!toplevel) continue
     var h = hyprFor ? hyprFor(toplevel) : null
-    var address = windowAddress(h)
-    var cliApp = terminalApps && address ? terminalApps[address] : ""
+    var addr = windowAddress(h)
+    var cliApp = terminalApps && addr ? terminalApps[addr] : ""
     var appId = cliApp ? stripDesktop(cliApp) : stripDesktop(toplevel.appId)
     var hyprClass = (h && h.lastIpcObject) ? (h.lastIpcObject["class"] || h.lastIpcObject["initialClass"] || "") : ""
     if (!appId && hyprClass) appId = stripDesktop(hyprClass)
@@ -1051,7 +1018,6 @@ function buildEntries(pinnedIds, toplevels, appRows, appLibrary, hyprFor, minimi
       winMap[appId] = []
       runningIds.push(appId)
     }
-    var addr = windowAddress(h)
     var ws = h ? h.workspace : null
     var wsName = ws ? String(ws.name ? ws.name : (ws.id !== undefined && ws.id !== null ? ws.id : "")) : (addr && minOrigins[addr] ? minWs : "")
     var isParked = (wsName === minWs) || Boolean(addr && minOrigins[addr])
@@ -1064,12 +1030,24 @@ function buildEntries(pinnedIds, toplevels, appRows, appLibrary, hyprFor, minimi
     })
   }
 
+  // The class a pin's desktop entry claims, looked up once per pin (entryFor
+  // walks every desktop row) and kept lowercased to compare with a window's.
+  var startupClasses = Object.create(null)
+  function startupClassFor(pin) {
+    if (!(pin in startupClasses))
+      startupClasses[pin] = String((entryFor(appRows, pin) || {}).startupClass || "").toLowerCase()
+    return startupClasses[pin]
+  }
+
   function getWindowsFor(targetId) {
     var out = []
     var seenAddr = {}
+    // The pin's identity and the class it claims do not change inside the scan.
+    var pin = windowIdentity(targetId)
+    var startup = startupClassFor(pin)
     for (var k = 0; k < runningIds.length; k++) {
       var rid = runningIds[k]
-      if (rid === targetId || isAppMatch(targetId, rid)) {
+      if (pinClaimsWindow(pin, rid, startup)) {
         var wlist = winMap[rid] || []
         for (var w = 0; w < wlist.length; w++) {
           var item = wlist[w]
@@ -1090,12 +1068,17 @@ function buildEntries(pinnedIds, toplevels, appRows, appLibrary, hyprFor, minimi
     for (var j = 0; j < list.length; j++) {
       var item = list[j]
       var entry = entryFor(appRows, item.appId)
-      item.name = entry && appLibrary ? appLibrary.entryName(entry) : item.appId
       var windows = item.windowList || []
+      item.name = entry && appLibrary ? appLibrary.entryName(entry)
+        : steamGameId(item.appId) && windows.length ? windows[0].title : item.appId
       var host = terminalHosts && windows.length ? terminalHosts[windows[0].address] : ""
       // Application artwork wins; the actual terminal fills only a generic or missing icon.
       item.icon = resolveAppIcon(appLibrary, appRows, item.appId, host)
     }
+  }
+
+  function dockEntry(id, windows, pinned) {
+    return { id: id, appId: id, pinned: pinned, running: windows.length > 0, windows: windows.length, windowList: windows }
   }
 
   var pinnedOut = []
@@ -1106,28 +1089,17 @@ function buildEntries(pinnedIds, toplevels, appRows, appLibrary, hyprFor, minimi
     var pid = stripDesktop(pinned[j])
     if (!pid || seen[pid]) continue
     seen[pid] = true
-    var wins = getWindowsFor(pid)
-    pinnedOut.push({
-      id: pid,
-      appId: pid,
-      pinned: true,
-      running: wins.length > 0,
-      windows: wins.length,
-      windowList: wins
-    })
+    pinnedOut.push(dockEntry(pid, getWindowsFor(pid), true))
   }
   enrich(pinnedOut)
 
   var runningOut = []
   for (j = 0; j < runningIds.length; j++) {
     var rid = runningIds[j]
-    var alreadyPinned = false
-    for (var p = 0; p < pinned.length; p++) {
-      if (isAppMatch(pinned[p], rid)) {
-        alreadyPinned = true
-        break
-      }
-    }
+    var alreadyPinned = pinned.some(function (pinId) {
+      var pin = windowIdentity(stripDesktop(pinId))
+      return pinClaimsWindow(pin, rid, startupClassFor(pin))
+    })
     var alreadyGrouped = Boolean(groupedMap[rid])
     if (!alreadyGrouped) {
       var rcands = getCandidates(rid)
@@ -1150,14 +1122,7 @@ function buildEntries(pinnedIds, toplevels, appRows, appLibrary, hyprFor, minimi
       }
     }
     var wins = getWindowsFor(rid)
-    runningOut.push({
-      id: rid,
-      appId: rid,
-      pinned: false,
-      running: true,
-      windows: wins.length,
-      windowList: wins
-    })
+    runningOut.push(dockEntry(rid, wins, false))
   }
   enrich(runningOut)
 
@@ -1168,16 +1133,9 @@ function buildEntries(pinnedIds, toplevels, appRows, appLibrary, hyprFor, minimi
     var gwins = getWindowsFor(ga)
     if (gwins.length > 0) {
       seenGrouped[ga] = true
-      var gc = getCandidates(ga)
+      var gc = getCandidates(windowIdentity(ga))
       for (var c = 0; c < gc.length; c++) seenGrouped[gc[c]] = true
-      groupedOut.push({
-        id: ga,
-        appId: ga,
-        pinned: false,
-        running: true,
-        windows: gwins.length,
-        windowList: gwins
-      })
+      groupedOut.push(dockEntry(ga, gwins, false))
     }
   }
   enrich(groupedOut)

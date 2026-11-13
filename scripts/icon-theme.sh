@@ -52,7 +52,10 @@ valid_id() {
 theme_complete() {
   local dir=$1 found
   [ -f "$dir/index.theme" ] || return 1
-  found=$(find "$dir" -type f \( -path '*/apps/*' -o -path '*/places/*' \
+  # -L follows a size directory shared through a symlink, as icon-index.sh
+  # does: a theme can carry another theme's artwork that way, and it is still
+  # complete (WhiteSur-dark/apps/scalable -> ../../WhiteSur/apps/scalable).
+  found=$(find -L "$dir" -type f \( -path '*/apps/*' -o -path '*/places/*' \
     -o -path '*/devices/*' -o -path '*/mimetypes/*' \) -print -quit 2>/dev/null)
   [ -n "$found" ]
 }
@@ -128,9 +131,13 @@ write_kde() {
   local file=$HOME/.config/kdeglobals theme=$1 tmp
   [ -f "$file" ] || return 0
   tmp=$(mktemp "${file}.XXXXXX") || return 1
+  # Only [Icons] owns this key: a Theme= line in another section is somebody
+  # else's setting and must survive (the header promises every other key is
+  # preserved), so the rules track the section they are in.
   awk -v t="$theme" '
-    /^\[Icons\]/ { print; if (!done) { print "Theme=" t; done = 1 } ; next }
-    /^Theme=/ { next }
+    /^\[/ { section = $0 }
+    $0 == "[Icons]" { print; if (!done) { print "Theme=" t; done = 1 } ; next }
+    section == "[Icons]" && /^Theme=/ { if (!done) { print "Theme=" t; done = 1 } ; next }
     { print }
     END { if (!done) print "[Icons]\nTheme=" t }
   ' "$file" > "$tmp" && mv "$tmp" "$file"

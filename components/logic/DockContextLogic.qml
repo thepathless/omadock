@@ -7,6 +7,7 @@ import Quickshell.Services.Mpris
 import qs.Commons
 import qs.Ui
 import "../../DockModel.js" as DockModel
+import "../../DockPins.js" as DockPins
 import "../strings"
 
 // Logic extracted from Dock.qml: stateless functions, the dock root
@@ -272,7 +273,7 @@ QtObject {
       deskEntry = DesktopEntries.heuristicLookup(appId) || DesktopEntries.byId(appId)
     }
     var canonicalId = (deskEntry && deskEntry.id) ? deskEntry.id : appId
-    root.contextPinned = DockModel.isPinned(root.pinnedIds, appId) || (canonicalId !== appId && DockModel.isPinned(root.pinnedIds, canonicalId))
+    root.contextPinned = DockPins.isPinned(root.pinnedIds, appId) || (canonicalId !== appId && DockPins.isPinned(root.pinnedIds, canonicalId))
     root.contextDesktopActions = (deskEntry && deskEntry.actions) ? deskEntry.actions : []
     if (root.appContextMenuColumnRef) root.appContextMenuColumnRef.selectedWindowIdx = -1
     root.contextX = x
@@ -292,8 +293,8 @@ QtObject {
       deskEntry = DesktopEntries.heuristicLookup(appId) || DesktopEntries.byId(appId)
     root.contextTileName = root.labelName(appId, (deskEntry && deskEntry.name) ? deskEntry.name : appId)
     var canonicalId = (deskEntry && deskEntry.id) ? deskEntry.id : appId
-    root.contextTilePinned = DockModel.isPinned(root.pinnedIds, appId)
-      || (canonicalId !== appId && DockModel.isPinned(root.pinnedIds, canonicalId))
+    root.contextTilePinned = DockPins.isPinned(root.pinnedIds, appId)
+      || (canonicalId !== appId && DockPins.isPinned(root.pinnedIds, canonicalId))
     root.contextX = cx
     root.contextY = 0
     root.contextAppId = "__tile_context__"

@@ -15,7 +15,7 @@
 <br />
 
 <p align="center">
-  <img src="assets/preview-desktop.png" alt="OmaDock v4.13.2: the macOS glass row with the Dock's own callout above the magnified YouTube Music icon, and the Windows taskbar strip beneath it" width="880" style="border-radius: 12px; box-shadow: 0 8px 24px rgba(0,0,0,0.4);" />
+  <img src="assets/preview-desktop.png" alt="OmaDock v4.14.0: the macOS glass row with the Dock's own callout above the magnified YouTube Music icon, and the Windows taskbar strip beneath it" width="880" style="border-radius: 12px; box-shadow: 0 8px 24px rgba(0,0,0,0.4);" />
 </p>
 
 <p align="center">
@@ -46,11 +46,11 @@ Crafted in the spirit of **Omakase (おまかせ)**: wave magnification, live wi
 
 ### Release status
 
-> **This page documents `main`.** The latest tag, [v4.13.2](https://github.com/thepathless/omadock/releases/tag/v4.13.2), ships everything described below, with the four defect fixes, the corrections to their live proof, and the harness corrections in the changelog. The tag carries 300 Node + 149 Python unit tests.
+> **This page documents `main`.** [v4.14.0](https://github.com/thepathless/omadock/releases/tag/v4.14.0) ships everything described below, with the four contributions — pin matching, the unpin fix, the scratchpad and the native Apps shortcut — in the changelog. The release carries 321 Node + 154 Python unit tests.
 
 ### Architecture & Recognition
 
-The current `main` tree is backed by 300 Node.js unit tests, 149 Python checks, and sixteen sandboxed live Wayland integration suites. The v4.13.1 tag carries 300 Node + 149 Python. OmaDock's atomic asynchronous configuration gate (`CappedFileView.qml` and `tests/unit/test_capped_gate.py`) was independently selected for the **[XERJ Corpus Hub](https://github.com/xerj-org/xerj)** as a verified open-source reference implementation for AI coding agents.
+The `v4.14.0` tree is backed by 321 Node.js unit tests, 154 Python checks, and seventeen sandboxed live Wayland integration suites. The v4.13.2 tag carries 300 Node + 149 Python. OmaDock's atomic asynchronous configuration gate (`CappedFileView.qml` and `tests/unit/test_capped_gate.py`) was independently selected for the **[XERJ Corpus Hub](https://github.com/xerj-org/xerj)** as a verified open-source reference implementation for AI coding agents.
 
 ### Highlights
 
@@ -672,6 +672,7 @@ o.bind("SUPER + SHIFT + M", "Restore oldest minimized", "exec qs -p /usr/share/o
 ```
 
 Additional IPC methods available:
+- `apps`: Toggle Omarchy's native app grid on Omarchy 4.5+, with the Omarchy menu as a fallback when the grid is unavailable. This is independent of the dock button's menu/start/grid preference.
 - `reveal`: Force dock to slide into view.
 - `hide`: Force dock to slide out of view.
 - `setAlignment("center" | "left" | "right" | "spread" | "taskbar")`: Change dock alignment dynamically.
@@ -687,6 +688,14 @@ Additional IPC methods available:
 
 > [!NOTE]
 > The `-p /usr/share/omarchy/shell` flag is mandatory to target the active Omarchy system shell instance.
+
+On Omarchy 4.5+, the default Apps shortcut (`Super+Alt+Space`) calls the native dock. If OmaDock replaces that dock, preserve the shortcut by adding this override to `~/.config/hypr/bindings.lua`:
+
+```lua
+o.rebind("SUPER + ALT + SPACE", "Apps", "omarchy-shell omadock apps")
+```
+
+This replaces the existing Apps binding; remove the override when returning to the native dock. OmaDock keeps its own IPC target and does not claim `omarchy.dock`, so both docks can still be enabled together.
 
 ---
 
@@ -835,6 +844,21 @@ The pixel label font is [Silkscreen](https://fonts.google.com/specimen/Silkscree
 ## Changelog
 
 Full release notes, historical changelogs, and upgrade guides across all versions are available on [**GitHub Releases**](https://github.com/thepathless/omadock/releases).
+
+### v4.14.0 — 2026-11-13
+
+Four contributions land together: pins that recognise their own windows, an unpin that removes the pin you can see, a dock that steps aside for the scratchpad, and the native Apps shortcut reaching OmaDock's grid.
+
+- **A pinned web app owns its window** — a shortcut pinned by name now matches its window through the desktop entry's `StartupWMClass`, so a pinned Gmail tile is the running Gmail window instead of a duplicate tile beside it, and a window claimed that way is never also listed as a separate running app. ([#85](https://github.com/thepathless/omadock/pull/85) — thank you [@LordMelkor](https://github.com/LordMelkor).)
+- **Unpinning removes the pin you are looking at** — the pin toggle compares pins by app identity rather than the exact id, so an app whose desktop entry has been renamed (`hermes` → `com.nousresearch.hermes`) unpins instead of appearing twice, and a pin list that already holds both spellings is cleaned up by a single unpin. ([#82](https://github.com/thepathless/omadock/pull/82) — thank you [@kingokeke](https://github.com/kingokeke).)
+- **The dock steps aside for the scratchpad** — while a monitor shows the scratchpad, that monitor's dock leaves the screen, and it comes back when the scratchpad closes. The state is one owner reading Hyprland's own monitor object, never a copy of an event, so a lost event or a restarted compositor shows the dock instead of hiding it: every unknown, missing or malformed reading answers "not open". Proven live on a headless output, including a dock that starts with the scratchpad already open and therefore never sees the event at all. ([#80](https://github.com/thepathless/omadock/pull/80) — thank you [@WhoIsCalebBrown](https://github.com/WhoIsCalebBrown).)
+- **Steam keeps its games apart** — the client and each game are separate identities by the game's number, so pinning a Steam shortcut no longer borrows the client's name or absorbs another game's window, and a running game with no desktop entry is named by its window title. ([#80](https://github.com/thepathless/omadock/pull/80).)
+- **The native Apps shortcut reaches OmaDock** — a new `apps` IPC method toggles Omarchy's app grid independently of the dock button's menu/start/grid preference, falls back to the Omarchy menu where the grid is not installed, and the README documents the `o.rebind("SUPER + ALT + SPACE", "Apps", "omarchy-shell omadock apps")` override so the shortcut keeps working when OmaDock replaces the native dock. ([#83](https://github.com/thepathless/omadock/pull/83) — thank you [@LordMelkor](https://github.com/LordMelkor).)
+- **Nothing else moved** — two behaviour changes that came along with the contributions were removed before release: the hover-preview frame keeps the aspect adoption shipped in v4.9.1, and hover tooltips keep the v4.13.2 lifecycle. Previews, tooltips and group cells behave exactly as they did in v4.13.2.
+- **A folder is its icon again** — with *Show background* off, a pinned folder tile drew the translucent contrast frame v4.13.0 gave it, which reads as a stray rectangle around the artwork. The frame is gone; the app-group tile keeps its own, because a 2×2 mini grid needs a plate.
+- **A theme's own artwork behind a symlink counts** — the dock's icon index listed each size directory with `find`, which does not follow a link, so WhiteSur-dark (whose `apps/scalable` is WhiteSur's) contributed none of its scalable app icons and names it does not ship at 22/16 px fell to inherited themes. The index follows links now, and the icon-theme helper's "is this theme installed" test does the same, so such a theme is listed and applicable instead of hidden.
+- **Picking an icon theme keeps the rest of `kdeglobals`** — `apply` promises to preserve every key it does not own, but its rewrite dropped every `Theme=` line and wrote one under `[Icons]`. Only a `Theme=` inside `[Icons]` is replaced now.
+- **Verification** — 321 Node + 154 Python unit tests, `node --check` on every root module, `qmllint` 0 errors, structure, security, manifest and plugin gates clean; **all seventeen live suites run against this tree, sixteen green** — `apps-menu` (the panel anchored over the apps button, its 6px gap, all four close paths), `scratchpad` (the dock's layer unmaps under the special workspace, returns when it closes, and stays away after a restart under the open scratchpad), `interactions`, `presets`, `indicators`, `autohide`, `preset-contracts`, `settings-navigation`, `theme-rescan`, `tasks`, `label-metrics`, `layout`, `place-restore`, `ipc-roundtrip`, `config-fuzz` and `teardown`. The red one, `macos-tooltip`, fails the same 12 assertions on `main`'s own v4.13.2: on Hyprland 0.56.2 the probe's layer surface never receives a pointer enter, measured with the cursor provably on the icon's centre. The owner's config is byte-identical and no probe process, headless output or scratch directory was left. `Dock.qml` stays at its 2 378-line ceiling; the pin list moved to `DockPins.js` so `DockModel.js` fell from 1 326 lines to 1 284 (its ceiling follows it down), and the StartupWMClass rule in `DockModel.js` is a named decision rather than a one-line cache write, shown equivalent to the previous code on 39 model scenarios and 1 083 pin/window/class comparisons.
 
 ### v4.13.2 — 2026-11-01
 

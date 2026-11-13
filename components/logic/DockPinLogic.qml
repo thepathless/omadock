@@ -8,6 +8,7 @@ import Quickshell.Services.Pipewire
 import qs.Commons
 import qs.Ui
 import "../../DockModel.js" as DockModel
+import "../../DockPins.js" as DockPins
 import "../../DockIcons.js" as DockIcons
 
 // Logic extracted from Dock.qml: stateless functions, the dock root
@@ -272,11 +273,11 @@ QtObject {
     // Pin-time validation: never pin an id that no longer resolves to an
     // installed desktop entry — the pin could only ever bounce silently.
     // Unpinning bypasses the check so stale pins can always be removed.
-    if (!DockModel.isPinned(root.pinnedIds, id) && !root.resolveDesktopEntry(id)) {
+    if (!DockPins.isPinned(root.pinnedIds, id) && !root.resolveDesktopEntry(id)) {
       root.notifyAppMissing(id, "pin")
       return
     }
-    root.setPinned(DockModel.togglePinned(root.pinnedIds, id))
+    root.setPinned(DockPins.togglePinned(root.pinnedIds, id, DockModel.isAppMatch))
   }
 
   function resolveDesktopEntry(root, appId) {

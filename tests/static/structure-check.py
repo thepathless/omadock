@@ -31,8 +31,20 @@ MAX_LINES = 800
 
 # Composition roots: single-owner state + wiring must live somewhere, and it
 # lives here. These ceilings are ratchets - see rule 2.
+#
+# DockModel.js: the 4.14.0 batch was paid for by a real split, not a raise. The
+# pin list's own operations (isPinned, togglePinned, reorderPinned, moveBefore)
+# live in DockPins.js, which decides no identity at all - its toggle takes
+# DockModel.isAppMatch as an argument - so DockModel.js fell 1326 -> 1284 and the
+# ceiling follows it down. What stays here (pinClaimsWindow, the cached
+# startupClassFor lookup, the Steam id helpers) is called from inside this
+# module's own candidate and window-scan functions; a root JS module cannot
+# import another (CI parses each with `node --check`, which rejects QML's
+# `.import`, measured), so moving them out would mean handing
+# isAppMatch/entryFor/getCandidates to a sibling as arguments - threading the
+# model through the window scan for no saving the batch needed.
 ROOT_CEILINGS = {
-    "Dock.qml": 2378,    "DockModel.js": 1326,
+    "Dock.qml": 2378,    "DockModel.js": 1284,
 }
 
 # Rule 5: the live suites, ratcheted at the size they had when the cap was
@@ -49,6 +61,7 @@ SHELL_CEILINGS = {
     "tests/live/settings-navigation.sh": 421,
     "tests/live/presets.sh": 380,
     "tests/live/apps-menu.sh": 363,
+    "tests/live/scratchpad.sh": 249,
     "tests/live/indicators.sh": 345,
     "tests/live/probe.sh": 328,
     "tests/live/place-restore.sh": 250,
