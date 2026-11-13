@@ -169,7 +169,9 @@ Item {
     return groupArea.containsMouse ? root.zoomPeak : 1
   }
 
+  // Continuous in the pointer: easing it trails (and retriggers) on every move.
   Behavior on magnifyScale {
+    enabled: !(gitem.root && gitem.root.waveHover && gitem.root.pointerX > -1e5)
     NumberAnimation { duration: (gitem.motion ? gitem.motion.hover : 0); easing.type: Easing.OutQuad }
   }
 

@@ -70,6 +70,20 @@ class IconIndex(unittest.TestCase):
         # Only 16px artwork exists for this name: it must still resolve.
         touch(self.system / "icons/Stranger/apps/16x16/tiny-only.svg")
 
+        # WhiteSur-dark ships its app artwork behind a symlink: apps/scalable
+        # -> ../../WhiteSur/apps/scalable, and WhiteSur is not in the chain (the
+        # dark theme inherits only hicolor,breeze). Without following it the
+        # theme contributes none of its scalable app icons, so the dock draws a
+        # stranger's 16px art - measured on the installed WhiteSur-dark, where
+        # foot and firefox resolved to hicolor's generic files.
+        shared = icons / "Shared"
+        touch(shared / "apps/scalable/linked-app.svg")
+        touch(shared / "apps/scalable/linked-tagged.svg")
+        dark = icons / "ActiveDark"
+        touch(dark / "apps/22x22/own-app.svg")
+        (dark / "apps").mkdir(parents=True, exist_ok=True)
+        os.symlink("../../Shared/apps/scalable", dark / "apps/scalable")
+
     def tearDown(self):
         import shutil
         shutil.rmtree(self.tmp, ignore_errors=True)
@@ -98,6 +112,13 @@ class IconIndex(unittest.TestCase):
     def test_only_small_artwork_still_resolves(self):
         got = self.active("tiny-only")
         self.assertEqual(got["tiny-only"], self.system / "icons/Stranger/apps/16x16/tiny-only.svg")
+
+    def test_a_themes_symlinked_size_directory_is_followed(self):
+        got = self.active("linked-app", ("ActiveDark",))
+        self.assertEqual(got["linked-app"], self.home / ".local/share/icons/ActiveDark/apps/scalable/linked-app.svg")
+        # The theme's own artwork still wins over the link's, and both are ahead
+        # of a stranger's: the link is inside the active theme's group.
+        self.assertEqual(got["own-app"], self.home / ".local/share/icons/ActiveDark/apps/22x22/own-app.svg")
 
     def test_mimes_spelling_is_indexed(self):
         got = self.active("text-x-generic")

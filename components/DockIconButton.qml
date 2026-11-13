@@ -28,7 +28,9 @@ Item {
     return area.containsMouse ? root.zoomPeak : 1
   }
 
+  // Continuous in the pointer: easing it trails (and retriggers) on every move.
   Behavior on magnifyScale {
+    enabled: !(btn.root && btn.root.waveHover && btn.root.pointerX > -1e5)
     NumberAnimation { duration: (btn.motion ? btn.motion.hover : 0); easing.type: Easing.OutQuad }
   }
 
