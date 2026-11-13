@@ -126,6 +126,9 @@ Item {
   IpcHandler {
     target: "omadock"
 
+    // Omarchy's native Apps binding can target OmaDock when its dock is off.
+    function apps(): void { appGridHost.openGrid() }
+
     // Read-only diagnostics for bug reports and live verification.
     function status(): string {
       return JSON.stringify({

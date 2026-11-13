@@ -672,6 +672,7 @@ o.bind("SUPER + SHIFT + M", "Restore oldest minimized", "exec qs -p /usr/share/o
 ```
 
 Additional IPC methods available:
+- `apps`: Toggle Omarchy's native app grid on Omarchy 4.5+, with the Omarchy menu as a fallback when the grid is unavailable. This is independent of the dock button's menu/start/grid preference.
 - `reveal`: Force dock to slide into view.
 - `hide`: Force dock to slide out of view.
 - `setAlignment("center" | "left" | "right" | "spread" | "taskbar")`: Change dock alignment dynamically.
@@ -687,6 +688,14 @@ Additional IPC methods available:
 
 > [!NOTE]
 > The `-p /usr/share/omarchy/shell` flag is mandatory to target the active Omarchy system shell instance.
+
+On Omarchy 4.5+, the default Apps shortcut (`Super+Alt+Space`) calls the native dock. If OmaDock replaces that dock, preserve the shortcut by adding this override to `~/.config/hypr/bindings.lua`:
+
+```lua
+o.rebind("SUPER + ALT + SPACE", "Apps", "omarchy-shell omadock apps")
+```
+
+This replaces the existing Apps binding; remove the override when returning to the native dock. OmaDock keeps its own IPC target and does not claim `omarchy.dock`, so both docks can still be enabled together.
 
 ---
 
