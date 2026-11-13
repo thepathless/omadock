@@ -80,9 +80,7 @@ Item {
   // On a label plate a symbolic icon takes the label's ink, which reads on the plate.
   readonly property color symbolicColor: (label.plate && label.shown) ? label.ink : (root ? root.symbolicIconColor : "#ffffff")
 
-  // Continuous in the pointer: easing it trails (and retriggers) on every move.
   Behavior on magnifyScale {
-    enabled: !(fitem.root && fitem.root.waveHover && fitem.root.pointerX > -1e5)
     NumberAnimation { duration: (fitem.motion ? fitem.motion.hover : 0); easing.type: Easing.OutQuad }
   }
 

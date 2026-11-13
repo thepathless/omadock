@@ -48,9 +48,7 @@ Item {
 
   readonly property bool isSymbolic: resolvedSource.indexOf("symbolic") >= 0
 
-  // Continuous in the pointer: easing it trails (and retriggers) on every move.
   Behavior on magnifyScale {
-    enabled: !(ditem.root && ditem.root.waveHover && ditem.root.pointerX > -1e5)
     NumberAnimation { duration: (ditem.motion ? ditem.motion.hover : 0); easing.type: Easing.OutQuad }
   }
 

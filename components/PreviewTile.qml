@@ -63,9 +63,7 @@ Item {
     if (root.hoverEffect !== "zoom") return 1
     return (tileArea.containsMouse && !tile.tileMenuOpen) ? root.zoomPeak : 1
   }
-  // Continuous in the pointer: easing it trails (and retriggers) on every move.
   Behavior on magnifyScale {
-    enabled: !(tile.root && tile.root.waveHover && tile.root.pointerX > -1e5)
     NumberAnimation { duration: (tile.motion ? tile.motion.hover : 0); easing.type: Easing.OutQuad }
   }
 

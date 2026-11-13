@@ -117,9 +117,7 @@ Item {
     return ((area.containsMouse && !item.isDragging) || item.isFileDropTarget) ? root.zoomPeak : 1
   }
 
-  // Continuous in the pointer: easing it trails (and retriggers) on every move.
   Behavior on magnifyScale {
-    enabled: !(item.root && item.root.waveHover && item.root.pointerX > -1e5)
     NumberAnimation { duration: (item.motion ? item.motion.hover : 0); easing.type: Easing.OutQuad }
   }
 
