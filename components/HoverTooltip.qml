@@ -63,7 +63,7 @@ Item {
     id: life
     dockRoot: bubble.dockRoot
     // A menu opening hides it at once.
-    hideDelay: (bubble.blocked || bubble.contextAppId !== "") ? 0 : 75
+    hideDelay: (bubble.blocked || bubble.contextAppId !== "") ? 0 : 200
     want: bubble.shown && bubble.text !== "" && bubble.showTooltips && !bubble.blocked && bubble.contextAppId === ""
   }
 

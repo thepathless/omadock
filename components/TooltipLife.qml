@@ -11,9 +11,10 @@ Item {
 
   property var dockRoot: null
   property bool want: false
-  property int hideDelay: 75
+  property int hideDelay: 200
   property int fadeMs: dockRoot ? dockRoot.motion.fast : 120
-  readonly property bool rises: false
+  // Whether the tooltip lifts as it fades in (Full only), for TooltipWindow.
+  readonly property bool rises: dockRoot ? dockRoot.motion.rise : true
 
   property bool alive: false
   // 0 = hidden, 1 = shown. Losing ownership resets the fade immediately.

@@ -618,7 +618,7 @@ Item {
       id: itemTooltipLife
       dockRoot: root
       // A menu or a drag hides it at once.
-      hideDelay: (item.isDragging || (root && root.contextAppId !== "")) ? 0 : 75
+      hideDelay: (item.isDragging || (root && root.contextAppId !== "")) ? 0 : 200
       want: itemTooltip.showing
     }
 

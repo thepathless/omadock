@@ -219,7 +219,7 @@ Item {
   TooltipLife {
     id: tileTooltipLife
     dockRoot: root
-    hideDelay: tile.tileMenuOpen ? 0 : 75
+    hideDelay: tile.tileMenuOpen ? 0 : 200
     want: tile.tooltipShown && tile.tileHovered && !tile.tileMenuOpen && tile.tileTitle !== "" && (root ? root.showTooltips : true)
   }
 

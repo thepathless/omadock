@@ -432,8 +432,8 @@ Item {
   property var dockModel: ({ pinned: [], running: [] })
   // Height a popup may use above the card: the screen above the dock, less
   // the margin the full-screen layer used to leave (Style.space(36)).
-  property int tooltipsAlive: 0
-  property var tooltipOwner: null
+  property int tooltipsAlive: 0 // shown or fading out; see TooltipLife
+  property var tooltipOwner: null // the TooltipLife that owns the popup
   readonly property real popupMaxHeight: Math.max(240,
     (root.dockScreen ? root.dockScreen.height : 1080) - Style.space(36)
     - root.edgeGap - (dockCardComp ? dockCardComp.dockCard.height : 0) - Style.space(16))
