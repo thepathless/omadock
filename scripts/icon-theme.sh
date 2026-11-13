@@ -131,9 +131,13 @@ write_kde() {
   local file=$HOME/.config/kdeglobals theme=$1 tmp
   [ -f "$file" ] || return 0
   tmp=$(mktemp "${file}.XXXXXX") || return 1
+  # Only [Icons] owns this key: a Theme= line in another section is somebody
+  # else's setting and must survive (the header promises every other key is
+  # preserved), so the rules track the section they are in.
   awk -v t="$theme" '
-    /^\[Icons\]/ { print; if (!done) { print "Theme=" t; done = 1 } ; next }
-    /^Theme=/ { next }
+    /^\[/ { section = $0 }
+    $0 == "[Icons]" { print; if (!done) { print "Theme=" t; done = 1 } ; next }
+    section == "[Icons]" && /^Theme=/ { if (!done) { print "Theme=" t; done = 1 } ; next }
     { print }
     END { if (!done) print "[Icons]\nTheme=" t }
   ' "$file" > "$tmp" && mv "$tmp" "$file"
