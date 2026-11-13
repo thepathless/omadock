@@ -109,8 +109,7 @@ wait_open() {
   for i in $(seq 30); do
     read_state
     python3 - "$WORK/state.json" <<'PY' && return 0
-import json, sys
-s = json.load(open(sys.argv[1]))
+import json, sys; s = json.load(open(sys.argv[1]))
 sys.exit(0 if s.get("open") and s.get("hasBody") and (s.get("win") or {}).get("level") == 1 else 1)
 PY
     sleep 0.1
@@ -219,32 +218,34 @@ PY
 # between it and the card are compared before and after opening.
 capture() { timeout 10 grim -o "$SCREEN" -t ppm "$WORK/$1" || fail "grim could not capture $SCREEN"; }
 
-# The dock window spans the output, so the panel's dock-window-space box maps
-# to screen pixels by shifting it down past the window's top and scaling.
+# The panel's dock-window-space box maps to screen pixels from the omadock
+# layer's real place (another dock can reserve an exclusive zone and lift it).
 assert_pixels() {
-  python3 - "$WORK/before.ppm" "$WORK/after.ppm" "$WORK/state.json" <<'PY' || fail "the panel is not on the output where the dock says it is"
+  hyprctl -j layers > "$WORK/layers.json"
+  hyprctl -j monitors > "$WORK/monitors.json"
+  python3 - "$WORK/before.ppm" "$WORK/after.ppm" "$WORK/state.json" "$WORK/layers.json" "$WORK/monitors.json" "$SCREEN" <<'PY' || fail "the panel is not on the output where the dock says it is"
 import json, sys
 
 def read_ppm(path):
-    with open(path, "rb") as f:
-        assert f.readline().strip() == b"P6", "not a P6 ppm"
-        line = f.readline()
-        while line.startswith(b"#"):
-            line = f.readline()
-        w, h = map(int, line.split())
-        assert int(f.readline()) == 255, "unexpected ppm range"
-        return w, h, f.read()
+    f = open(path, "rb"); assert f.readline().strip() == b"P6", "not a P6 ppm"
+    line = f.readline()
+    while line.startswith(b"#"): line = f.readline()
+    w, h = map(int, line.split()); assert int(f.readline()) == 255, "unexpected ppm range"
+    return w, h, f.read()
 
 w, h, a = read_ppm(sys.argv[1])
 w2, h2, b = read_ppm(sys.argv[2])
 assert (w, h) == (w2, h2), "the captures differ in size"
 s = json.load(open(sys.argv[3]))
-scale = w / float(s["windowWidth"])
-top = h - round(s["windowHeight"] * scale)
-bx = round(s["bodyScreen"]["x"] * scale)
+layers, monitors = json.load(open(sys.argv[4])), json.load(open(sys.argv[5]))
+mon = next(m for m in monitors if m["name"] == sys.argv[6])
+scale = w / float(mon["width"])
+layer = next(e for e in [e for lvl in layers[mon["name"]]["levels"].values() for e in lvl]
+             if e["namespace"] == "omadock" and e["h"] == s["windowHeight"] and e["w"] == s["windowWidth"])
+top = round((layer["y"] - mon["y"]) * scale)
+bx = round((layer["x"] - mon["x"]) * scale) + round(s["bodyScreen"]["x"] * scale)
 by = top + round(s["bodyScreen"]["y"] * scale)
-bw = round(s["bodyScreen"]["w"] * scale)
-bh = round(s["bodyScreen"]["h"] * scale)
+bw, bh = round(s["bodyScreen"]["w"] * scale), round(s["bodyScreen"]["h"] * scale)
 assert bx >= 0 and by >= 0 and bx + bw <= w and by + bh <= h, "the panel's box leaves the output"
 
 def changed(x, y):
@@ -269,8 +270,7 @@ for y in range(gy0, gy1):
         gap_total += 1
         gap_changed += 1 if changed(x, y) else 0
 assert gap_total == 0 or gap_changed == 0, "the %dpx gap strip was covered by the surface" % gap_px
-print("   %.0f%% of the panel's %dx%d box drawn over the wallpaper; the %dpx gap strip is untouched"
-      % (ratio * 100, bw, bh, gap_px))
+print("   %.0f%% of the panel's %dx%d box drawn over the wallpaper; the %dpx gap strip is untouched" % (ratio * 100, bw, bh, gap_px))
 PY
 }
 
