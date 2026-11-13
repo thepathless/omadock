@@ -915,6 +915,16 @@ function togglePinned(pinnedIds, appId) {
   return next
 }
 
+// Whether a pin stands for a running app: the same id, the same app under
+// another spelling (isAppMatch), or the window class its desktop entry claims
+// through StartupWMClass (a Gmail shortcut pins "Gmail" and its window is
+// class chrome-mail.google.com__-Default). The class is a property of the pin,
+// so it is read once by the caller and handed in here.
+function pinClaimsWindow(pin, runningId, startupClass) {
+  if (runningId === pin || isAppMatch(pin, runningId)) return true
+  return startupClass !== "" && startupClass === runningId.toLowerCase()
+}
+
 function isPinned(pinnedIds, appId) {
   var arr = toArray(pinnedIds)
   var id = stripDesktop(appId)
@@ -1085,14 +1095,24 @@ function buildEntries(pinnedIds, toplevels, appRows, appLibrary, hyprFor, minimi
     })
   }
 
-  var wmClass = Object.create(null) // StartupWMClass ties a pin to windows its name cannot match: Gmail -> chrome-mail.google.com__-Default
-  function claims(t, rid) { if (!(t in wmClass)) wmClass[t] = String((entryFor(appRows, t) || {}).startupClass || "").toLowerCase(); return rid === t || isAppMatch(t, rid) || (wmClass[t] !== "" && wmClass[t] === rid.toLowerCase()) }
+  // The class a pin's desktop entry claims, looked up once per pin (entryFor
+  // walks every desktop row) and kept lowercased to compare with a window's.
+  var startupClasses = Object.create(null)
+  function startupClassFor(pin) {
+    if (!(pin in startupClasses))
+      startupClasses[pin] = String((entryFor(appRows, pin) || {}).startupClass || "").toLowerCase()
+    return startupClasses[pin]
+  }
+
   function getWindowsFor(targetId) {
     var out = []
     var seenAddr = {}
+    // The pin's identity and the class it claims do not change inside the scan.
+    var pin = windowIdentity(targetId)
+    var startup = startupClassFor(pin)
     for (var k = 0; k < runningIds.length; k++) {
       var rid = runningIds[k]
-      if (claims(windowIdentity(targetId), rid)) {
+      if (pinClaimsWindow(pin, rid, startup)) {
         var wlist = winMap[rid] || []
         for (var w = 0; w < wlist.length; w++) {
           var item = wlist[w]
@@ -1141,7 +1161,10 @@ function buildEntries(pinnedIds, toplevels, appRows, appLibrary, hyprFor, minimi
   var runningOut = []
   for (j = 0; j < runningIds.length; j++) {
     var rid = runningIds[j]
-    var alreadyPinned = pinned.some(function (pid) { return claims(windowIdentity(stripDesktop(pid)), rid) })
+    var alreadyPinned = pinned.some(function (pinId) {
+      var pin = windowIdentity(stripDesktop(pinId))
+      return pinClaimsWindow(pin, rid, startupClassFor(pin))
+    })
     var alreadyGrouped = Boolean(groupedMap[rid])
     if (!alreadyGrouped) {
       var rcands = getCandidates(rid)

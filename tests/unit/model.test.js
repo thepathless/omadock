@@ -278,6 +278,36 @@ test('ungroup retains application order without duplicating existing pins', () =
     { kind: 'app', appId: 'kitty' }, { kind: 'app', appId: 'firefox' },
   ])
 })
+test('a pin claims a running app by id, by spelling, or by the class its entry claims', () => {
+  // The decision itself, not the model it ends up in: same id, the same app
+  // under another spelling (isAppMatch), and StartupWMClass compared lowercased
+  // on the window side because a window class is reported in any case.
+  // "Inbox" shares no token with the window class, so only the class itself can
+  // claim that window - which is what makes each case below about one rule.
+  assert.equal(model.pinClaimsWindow('foot', 'foot', ''), true)
+  assert.equal(model.pinClaimsWindow('hermes', 'com.nousresearch.hermes', ''), true)
+  assert.equal(model.pinClaimsWindow('Inbox', 'chrome-mail.google.com__-Default', 'chrome-mail.google.com__-default'), true)
+  assert.equal(model.pinClaimsWindow('Inbox', 'CHROME-MAIL.GOOGLE.COM__-DEFAULT', 'chrome-mail.google.com__-default'), true)
+  // A pin claims no window when its entry claims no class, and never another
+  // app's window class, however similar the class looks.
+  assert.equal(model.pinClaimsWindow('Inbox', 'chrome-mail.google.com__-Default', ''), false)
+  assert.equal(model.pinClaimsWindow('Inbox', 'chrome-calendar.google.com__-Default', 'chrome-mail.google.com__-default'), false)
+  assert.equal(model.pinClaimsWindow('', 'anything', ''), false)
+})
+
+test('a startup class claims exactly its own window class, not its neighbours', () => {
+  // "Inbox" matches neither window class on its own, so the pinned tile can
+  // only be holding the window its entry's StartupWMClass names.
+  const webRows = [{ id: 'Inbox', name: 'Inbox', icon: 'gmail', startupClass: 'chrome-mail.google.com__-Default',
+    execString: 'omarchy-launch-webapp "https://mail.google.com/"' }]
+  const result = model.buildEntries(['Inbox'], [
+    { appId: 'chrome-mail.google.com__-Default', title: 'Inbox', address: '1' },
+    { appId: 'chrome-calendar.google.com__-Default', title: 'Calendar', address: '2' },
+  ], webRows, library, top => ({ address: top.address, workspace: { name: '1' } }), '', {}, [], {}, {})
+  assert.deepEqual(plain(result.pinned[0].windowList.map(window => window.title)), ['Inbox'])
+  assert.deepEqual(plain(result.running.map(item => item.appId)), ['chrome-calendar.google.com__-Default'])
+})
+
 test('pinned web app claims its window through the desktop StartupWMClass', () => {
   const webRows = [{ id: 'Gmail', name: 'Gmail', icon: 'gmail', startupClass: 'chrome-mail.google.com__-Default',
     execString: 'omarchy-launch-webapp "https://mail.google.com/"' }]
