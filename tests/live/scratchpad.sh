@@ -188,7 +188,6 @@ pin_owner() {
 }
 
 command -v hyprctl >/dev/null || fail "no hyprctl on PATH"
-command -v jq >/dev/null || true
 probe_monitor >/dev/null || fail "the headless output is not in Hyprland's monitor list"
 
 probe_start || fail "the probe dock did not start on $SCREEN"

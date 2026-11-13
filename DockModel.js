@@ -898,23 +898,6 @@ function serializePinned(pinnedIds) {
   return JSON.stringify({ pinned: cleaned }, null, 2)
 }
 
-function togglePinned(pinnedIds, appId) {
-  var arr = toArray(pinnedIds).slice()
-  var id = stripDesktop(appId)
-  if (!id) return arr
-  // A pin keeps the id it was made with while the menu passes the entry's
-  // current id; buildEntries calls those one app (isAppMatch), so the toggle
-  // must too — exact matching appended a second pin instead of unpinning.
-  var next = [], removed = false
-  for (var i = 0; i < arr.length; i++) {
-    var p = stripDesktop(arr[i])
-    if (p && (p === id || isAppMatch(p, id))) removed = true
-    else next.push(arr[i])
-  }
-  if (!removed) next.push(id)
-  return next
-}
-
 // Whether a pin stands for a running app: the same id, the same app under
 // another spelling (isAppMatch), or the window class its desktop entry claims
 // through StartupWMClass (a Gmail shortcut pins "Gmail" and its window is
@@ -923,54 +906,6 @@ function togglePinned(pinnedIds, appId) {
 function pinClaimsWindow(pin, runningId, startupClass) {
   if (runningId === pin || isAppMatch(pin, runningId)) return true
   return startupClass !== "" && startupClass === runningId.toLowerCase()
-}
-
-function isPinned(pinnedIds, appId) {
-  var arr = toArray(pinnedIds)
-  var id = stripDesktop(appId)
-  if (!id) return false
-  for (var i = 0; i < arr.length; i++) {
-    if (stripDesktop(arr[i]) === id) return true
-  }
-  return false
-}
-
-// Reorder pinned apps: move appId from its current position to insertBeforeId.
-// If insertBeforeId is null/empty, move to the end. Dropping onto the dragged
-// item itself is a no-op (prevents the "teleport to end" self-drop bug).
-function reorderPinned(pinnedIds, appId, insertBeforeId) {
-  var arr = toArray(pinnedIds).slice()
-  var id = stripDesktop(appId)
-  if (!id) return arr
-  if (insertBeforeId && stripDesktop(insertBeforeId) === id) return arr
-
-  var fromIdx = arr.indexOf(id)
-  if (fromIdx >= 0) {
-    arr.splice(fromIdx, 1)
-  }
-
-  if (!insertBeforeId) {
-    arr.push(id)
-  } else {
-    var toIdx = arr.indexOf(stripDesktop(insertBeforeId))
-    if (toIdx < 0) arr.push(id)
-    else arr.splice(toIdx, 0, id)
-  }
-  return arr
-}
-
-// A copy of list with the item at from moved before the item now at
-// insertIndex (to the end when insertIndex is past the last item). Returns
-// list itself when nothing moves.
-function moveBefore(list, from, insertIndex) {
-  var arr = toArray(list)
-  if (from < 0 || from >= arr.length) return list
-  var to = Math.max(0, Math.min(arr.length, insertIndex))
-  if (to === from || to === from + 1) return list
-  var next = arr.slice()
-  var moved = next.splice(from, 1)[0]
-  next.splice(to > from ? to - 1 : to, 0, moved)
-  return next
 }
 
 function desktopGameId(entry) {

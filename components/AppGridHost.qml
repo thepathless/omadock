@@ -2,6 +2,7 @@ import QtQuick
 import Quickshell
 import Quickshell.Io
 import "../DockModel.js" as DockModel
+import "../DockPins.js" as DockPins
 import "../DockGridDrop.js" as DockGridDrop
 
 // The apps button's launcher: the Omarchy menu, on Omarchy 4.5+ the app grid
@@ -123,7 +124,7 @@ Item {
     gridHost.endDrag()
     var id = DockModel.stripDesktop(key)
     if (!d || idx === null || !id) return
-    var pinned = DockModel.isPinned(d.pinnedIds, id)
+    var pinned = DockPins.isPinned(d.pinnedIds, id)
     // togglePin refuses an app that is not installed, and says so.
     if (!pinned && !d.resolveDesktopEntry(id)) { d.togglePin(id); return }
     var landing = DockGridDrop.gridDrop(d.pinnedRow, id, pinned, idx, DockModel.stripDesktop)
@@ -141,11 +142,11 @@ Item {
     }
     function isPinned(key) {
       var d = gridHost.dockList()[0]
-      return !!d && DockModel.isPinned(d.pinnedIds, key)
+      return !!d && DockPins.isPinned(d.pinnedIds, key)
     }
     function setPinned(key, pinned) {
       var d = gridHost.dockList()[0]
-      if (d && DockModel.isPinned(d.pinnedIds, key) !== pinned) d.togglePin(key)
+      if (d && DockPins.isPinned(d.pinnedIds, key) !== pinned) d.togglePin(key)
     }
     function moveExternalDrag(screen, x, y) { gridHost.moveDrag(screen, x, y) }
     function dropExternalDrag(screen, x, y, key) { gridHost.dropDrag(screen, x, y, key) }

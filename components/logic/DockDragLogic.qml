@@ -2,6 +2,7 @@ import QtQuick
 import Quickshell
 import qs.Commons
 import "../../DockModel.js" as DockModel
+import "../../DockPins.js" as DockPins
 
 // Logic extracted from DockCard.qml: stateless functions taking the
 // dock root and the card wrapper. Bodies are verbatim.
@@ -72,7 +73,7 @@ QtObject {
 
     // Only a pin can be taken off, by pulling it up off the dock or over to
     // the running apps; a running app that is not pinned stays.
-    root.dragRemoveArmed = root.dragSourceGroupId === "" && DockModel.isPinned(root.pinnedIds, aid)
+    root.dragRemoveArmed = root.dragSourceGroupId === "" && DockPins.isPinned(root.pinnedIds, aid)
       && (cardWrapper.offDockAt(my) || cardWrapper.overRunningAt(mx - card.row.x))
     if (root.dragRemoveArmed) {
       if (lift) lift.dwell("")
@@ -110,7 +111,7 @@ QtObject {
     // the last item only while the pointer stays next to it: further right
     // it is over the running apps, its own place, where letting go does
     // nothing.
-    if (idx === n && !DockModel.isPinned(root.pinnedIds, aid)) {
+    if (idx === n && !DockPins.isPinned(root.pinnedIds, aid)) {
       var last = n > 0 ? slots[n - 1] : null
       if (!last || rx > last.x + last.width + root.iconSlot / 2) idx = -1
     }
@@ -233,7 +234,7 @@ QtObject {
         if (sourceGroupId !== "") {
           // Out of an open group: the group has just changed under the drag,
           // so place the app by pin order alone.
-          root.setPinned(DockModel.reorderPinned(root.pinnedIds, dragId, beforeId))
+          root.setPinned(DockPins.reorderPinned(root.pinnedIds, dragId, beforeId))
         } else if (rowIdx >= 0) {
           // A pinned app moves within the run; a running one dropped in it
           // gets pinned there. Groups keep their places.
@@ -243,7 +244,7 @@ QtObject {
           }
           var nextRow
           if (from >= 0) {
-            nextRow = DockModel.moveBefore(rowNow, from, rowIdx)
+            nextRow = DockPins.moveBefore(rowNow, from, rowIdx)
           } else {
             nextRow = rowNow.slice()
             nextRow.splice(rowIdx, 0, { kind: "app", appId: dragId })
@@ -261,7 +262,7 @@ QtObject {
     }
     if (lift) {
       if (intoKey !== "") lift.settle(intoKey, false, true)
-      else lift.settle(DockModel.isPinned(root.pinnedIds, aid) ? "pin:app:" + aid : "run:" + aid, fade)
+      else lift.settle(DockPins.isPinned(root.pinnedIds, aid) ? "pin:app:" + aid : "run:" + aid, fade)
     }
     root.syncVisibility()
   }
