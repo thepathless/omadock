@@ -287,3 +287,28 @@ test('pinned web app claims its window through the desktop StartupWMClass', () =
   assert.equal(result.pinned[0].windows, 1)
   assert.equal(result.running.length, 0)
 })
+
+test('Steam games keep their own identity and never supply Steam client metadata', () => {
+  const marvel = { id: 'Marvel Rivals', name: 'Marvel Rivals', icon: 'steam_icon_2767030' }
+  const steam = { id: 'com.valvesoftware.Steam', name: 'Steam' }
+  assert.equal(model.entryFor([marvel, steam], 'steam'), steam)
+  assert.equal(model.entryFor([marvel, steam], 'steam_app_2767030'), marvel)
+  assert.equal(model.entryFor([marvel, steam], 'steam_app_2357570'), null)
+  assert.equal(model.isAppMatch('steam', 'steam_app_2357570'), false)
+  assert.equal(model.isAppMatch('steam_app_2767030', 'steam_app_2357570'), false)
+  assert.equal(model.isAppMatch('steam_app_2357570', 'steam_icon_2357570'), true)
+})
+
+test('a Steam shortcut pin owns only the windows for its game ID', () => {
+  const result = model.buildEntries(['Marvel Rivals'], [
+    { appId: 'steam_app_2357570', title: 'Overwatch', address: '1' },
+    { appId: 'steam_app_2767030', title: 'Marvel Rivals', address: '2' },
+    { appId: 'steam', title: 'Steam', address: '3' },
+  ], [
+    { id: 'Marvel Rivals.desktop', name: 'Marvel Rivals', exec: 'flatpak run com.valvesoftware.Steam steam://rungameid/2767030' },
+    { id: 'com.valvesoftware.Steam.desktop', name: 'Steam' },
+  ], library, top => ({ address: top.address }), '', {}, [])
+  assert.deepEqual(plain(result.pinned[0].windowList.map(window => window.appId)), ['steam_app_2767030'])
+  assert.deepEqual(plain(result.running.map(item => [item.appId, item.name])),
+    [['steam_app_2357570', 'Overwatch'], ['steam', 'Steam']])
+})

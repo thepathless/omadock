@@ -33,6 +33,30 @@ Item {
     return monitor && monitor.activeWorkspace ? monitor.activeWorkspace.id : -1
   }
 
+  readonly property var monitor: watch.dockRoot && watch.dockRoot.dockScreen
+    ? Hyprland.monitorFor(watch.dockRoot.dockScreen) : null
+  property var scratchpadByMonitor: ({})
+  readonly property bool scratchpadOpen: {
+    if (!watch.monitor) return false
+    var name = watch.monitor.name
+    if (Object.prototype.hasOwnProperty.call(watch.scratchpadByMonitor, name)) return watch.scratchpadByMonitor[name]
+    var ipc = watch.monitor.lastIpcObject
+    return !!(ipc && ipc.specialWorkspace && ipc.specialWorkspace.name === "special:scratchpad")
+  }
+  onScratchpadOpenChanged: if (watch.dockRoot) watch.dockRoot.syncVisibility()
+
+  Connections {
+    target: Hyprland
+    function onRawEvent(event) {
+      if (event.name !== "activespecial" || !watch.monitor) return
+      var fields = String(event.data || "").split(",")
+      if (fields.length !== 2 || fields[1] !== watch.monitor.name) return
+      var next = Object.assign({}, watch.scratchpadByMonitor)
+      next[watch.monitor.name] = fields[0] === "special:scratchpad" || fields[0] === "scratchpad"
+      watch.scratchpadByMonitor = next
+    }
+  }
+
   onYieldDockChanged: if (watch.dockRoot) watch.dockRoot.syncVisibility()
   onWatchingChanged: if (watch.watching && !watch.dirReady) mkdirProc.running = true
   onChoiceChanged: watch.scheduleReconcile()
