@@ -65,7 +65,11 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Install qmllint and qsb (qt6-declarative, qt6-shadertools)
-        run: pacman -Sy --noconfirm qt6-declarative qt6-shadertools
+        # Full upgrade, not just a sync: Arch's qt6-base is built against the
+        # repo's current openssl, so `pacman -Sy` against a base image holding
+        # an older openssl installs a qmllint that cannot load libcrypto.so.4
+        # (exit 127, 2026-11-13). `-Syu` moves the container with the packages.
+        run: pacman -Syu --noconfirm qt6-declarative qt6-shadertools
 
       # Hard syntax gate: parse errors exit non-zero (255 on broken QML).
       # Typed checking against the Omarchy shell and Quickshell modules only
