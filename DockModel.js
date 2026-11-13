@@ -118,14 +118,9 @@ function getCandidates(id) {
   return (candidateCache[id] = computeCandidates(id)).slice()
 }
 
-function steamGameId(id) {
-  var match = stripDesktop(id).match(/^steam_(?:app|icon)_(\d+)$/i)
-  return match ? match[1] : ""
-}
-
-function isSteamClient(id) {
-  return /^(?:steam|com\.valvesoftware\.steam)$/i.test(stripDesktop(id))
-}
+// A Steam shortcut names its game by number; the client has no number at all.
+function steamGameId(id) { var m = stripDesktop(id).match(/^steam_(?:app|icon)_(\d+)$/i); return m ? m[1] : "" }
+function isSteamClient(id) { return /^(?:steam|com\.valvesoftware\.steam)$/i.test(stripDesktop(id)) }
 
 function computeCandidates(id) {
   // The id as written, plus its canonical name: a candidate set never shrinks.
@@ -907,15 +902,12 @@ function togglePinned(pinnedIds, appId) {
   var arr = toArray(pinnedIds).slice()
   var id = stripDesktop(appId)
   if (!id) return arr
-  // A pin keeps the id it was made with while the menu passes the id its
-  // desktop entry has now; buildEntries treats those as one app through
-  // isAppMatch, so the toggle must too — exact matching left the old pin in
-  // place and appended the new one, showing the app twice instead of unpinning.
-  var next = []
-  var removed = false
+  // A pin keeps the id it was made with while the menu passes the entry's
+  // current id; buildEntries calls those one app (isAppMatch), so the toggle
+  // must too — exact matching appended a second pin instead of unpinning.
+  var next = [], removed = false
   for (var i = 0; i < arr.length; i++) {
     var p = stripDesktop(arr[i])
-    // Every matching id goes, so a list that already holds both is cleaned up.
     if (p && (p === id || isAppMatch(p, id))) removed = true
     else next.push(arr[i])
   }
@@ -978,35 +970,54 @@ function desktopGameId(entry) {
 }
 
 function entryFor(appRows, appId) {
-  var want = cliAppId(appId).toLowerCase()
+  var want = cliAppId(appId)
   if (!want || !appRows) return null
-  var entries = toArray(appRows).map(function(row) { return row && (row.entry || row) }).filter(Boolean)
-  var exact = entries.find(function(entry) { return stripDesktop(entry.id).toLowerCase() === want })
-  if (exact) return exact
+  var wantLower = want.toLowerCase()
 
-  // Steam launchers share an executable. Keep the client and each numeric game ID distinct.
-  var game = steamGameId(want)
-  if (game) return entries.find(function(entry) { return desktopGameId(entry) === game }) || null
-  if (isSteamClient(want)) return entries.find(function(entry) { return isSteamClient(entry.id) }) || null
+  // 1. Exact ID match
+  for (var i = 0; i < appRows.length; i++) {
+    var row = appRows[i]
+    var entry = (row && row.entry) ? row.entry : row
+    if (!entry) continue
+    if (stripDesktop(entry.id) === want || stripDesktop(entry.id).toLowerCase() === wantLower) return entry
+  }
 
-  var candidates = getCandidates(want)
-  var alias = entries.find(function(entry) {
-    var tokens = getCandidates(entry.id).concat(getCandidates(entry.name),
-      getCandidates(String(entry.icon || "").replace(/^.*\//, "")))
-    return candidates.some(function(candidate) { return tokens.indexOf(candidate) >= 0 })
-  })
-  if (alias) return alias
+  // 2. Multi-token candidate match (e.g. chrome-x.com__-Default -> X.desktop, org.localsend.localsend_app -> localsend.desktop)
+  var wantCands = getCandidates(want)
+  for (var i = 0; i < appRows.length; i++) {
+    var entry = (appRows[i] && appRows[i].entry) ? appRows[i].entry : appRows[i]
+    if (!entry) continue
+    var entryCands = getCandidates(entry.id)
+      .concat(getCandidates(entry.name))
+      .concat(getCandidates(String(entry.icon || "").replace(/^.*\//, "")))
+    for (var k = 0; k < wantCands.length; k++) {
+      var cand = wantCands[k]
+      if (entryCands.indexOf(cand) >= 0) return entry
+    }
+  }
 
-  var webApp = entries.find(function(entry) {
-    var exec = String(entry.execString || entry.exec || "").toLowerCase()
-    return /https?:\/\/|--app/.test(exec) && candidates.some(function(candidate) {
-      return candidate.length >= 4 && !IGNORED_TOKENS[candidate] && exec.indexOf(candidate) >= 0
-    })
-  })
-  return webApp || entries.find(function(entry) {
+  // 3. Webapp Exec URL Match (if entry.exec contains candidate domain or URL)
+  for (var i = 0; i < appRows.length; i++) {
+    var entry = (appRows[i] && appRows[i].entry) ? appRows[i].entry : appRows[i]
+    if (!entry) continue
+    var execStr = String(entry.execString || entry.exec || "").toLowerCase()
+    if (execStr && (execStr.indexOf("http://") >= 0 || execStr.indexOf("https://") >= 0 || execStr.indexOf("--app") >= 0)) {
+      for (var k = 0; k < wantCands.length; k++) {
+        var cand = wantCands[k]
+        if (cand.length >= 4 && !IGNORED_TOKENS[cand] && execStr.indexOf(cand) >= 0) return entry
+      }
+    }
+  }
+
+  // 4. GenericName / Substring match
+  for (var i = 0; i < appRows.length; i++) {
+    var entry = (appRows[i] && appRows[i].entry) ? appRows[i].entry : appRows[i]
+    if (!entry) continue
     var generic = String(entry.genericName || "").toLowerCase()
-    return generic && candidates.indexOf(generic) >= 0
-  }) || null
+    if (generic && wantCands.indexOf(generic) >= 0) return entry
+  }
+
+  return null
 }
 
 function windowAddress(handle) {
@@ -1021,15 +1032,12 @@ function buildEntries(pinnedIds, toplevels, appRows, appLibrary, hyprFor, minimi
   var list = toArray(toplevels)
   var minWs = minimizedWs || "special:minimized"
   var minOrigins = minimizedOrigins || {}
-  var gamesByDesktopId = Object.create(null)
+  var gamesByDesktopId = Object.create(null) // a Steam shortcut's desktop id -> the game its windows carry
   toArray(appRows).forEach(function(row) {
-    var entry = row && (row.entry || row)
-    var game = entry && desktopGameId(entry)
+    var entry = row && (row.entry || row), game = entry && desktopGameId(entry)
     if (game) gamesByDesktopId[stripDesktop(entry.id).toLowerCase()] = "steam_app_" + game
   })
-  function windowIdentity(id) {
-    return gamesByDesktopId[stripDesktop(id).toLowerCase()] || id
-  }
+  function windowIdentity(id) { return gamesByDesktopId[stripDesktop(id).toLowerCase()] || id }
 
   var groupedMap = {}
   var groups = toArray(appGroups)
@@ -1082,10 +1090,9 @@ function buildEntries(pinnedIds, toplevels, appRows, appLibrary, hyprFor, minimi
   function getWindowsFor(targetId) {
     var out = []
     var seenAddr = {}
-    var identity = windowIdentity(targetId)
     for (var k = 0; k < runningIds.length; k++) {
       var rid = runningIds[k]
-      if (claims(identity, rid)) {
+      if (claims(windowIdentity(targetId), rid)) {
         var wlist = winMap[rid] || []
         for (var w = 0; w < wlist.length; w++) {
           var item = wlist[w]
@@ -1116,14 +1123,7 @@ function buildEntries(pinnedIds, toplevels, appRows, appLibrary, hyprFor, minimi
   }
 
   function dockEntry(id, windows, pinned) {
-    return {
-      id: id,
-      appId: id,
-      pinned: pinned,
-      running: windows.length > 0,
-      windows: windows.length,
-      windowList: windows
-    }
+    return { id: id, appId: id, pinned: pinned, running: windows.length > 0, windows: windows.length, windowList: windows }
   }
 
   var pinnedOut = []

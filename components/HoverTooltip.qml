@@ -52,7 +52,7 @@ Item {
   }
 
   // No wait while another tooltip is still up: moving along the dock
-  // hands the popup to the next icon.
+  // cross-fades from one to the next.
   Timer {
     id: dwell
     interval: (bubble.dockRoot && bubble.dockRoot.tooltipsAlive > 0) ? 1 : bubble.tooltipDelay
