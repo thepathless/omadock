@@ -52,7 +52,10 @@ valid_id() {
 theme_complete() {
   local dir=$1 found
   [ -f "$dir/index.theme" ] || return 1
-  found=$(find "$dir" -type f \( -path '*/apps/*' -o -path '*/places/*' \
+  # -L follows a size directory shared through a symlink, as icon-index.sh
+  # does: a theme can carry another theme's artwork that way, and it is still
+  # complete (WhiteSur-dark/apps/scalable -> ../../WhiteSur/apps/scalable).
+  found=$(find -L "$dir" -type f \( -path '*/apps/*' -o -path '*/places/*' \
     -o -path '*/devices/*' -o -path '*/mimetypes/*' \) -print -quit 2>/dev/null)
   [ -n "$found" ]
 }

@@ -68,6 +68,17 @@ class ListThemes(unittest.TestCase):
         done = run(["list"], home)
         self.assertIn("WhiteSur|WhiteSur|", done.stdout)
 
+    def test_artwork_behind_a_symlinked_size_directory_still_counts(self):
+        home = Path(tempfile.mkdtemp())
+        shared = home / ".local/share/icons/Shared/apps"
+        shared.mkdir(parents=True)
+        (shared / "app.svg").write_text("<svg/>")
+        base = write_theme(home, "Linked", complete=False)
+        (base / "apps").symlink_to("../Shared/apps")
+        done = run(["list"], home)
+        self.assertEqual(done.returncode, 0, done.stderr)
+        self.assertIn("Linked|Linked|", done.stdout)
+
     def test_space_and_non_ascii_ids_are_not_offered(self):
         home = Path(tempfile.mkdtemp())
         write_theme(home, "Bad Theme")
