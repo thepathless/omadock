@@ -21,14 +21,23 @@ ROOT = Path(__file__).resolve().parents[2]
 SCRIPT = ROOT / "scripts" / "icon-theme.sh"
 
 
-def run(args, home, path=None, extra_env=None):
+def pinned_commit():
+    """The full commit the script's WhiteSur download names."""
+    match = re.search(r"^WHITESUR_COMMIT=([0-9a-f]{40})$", SCRIPT.read_text(), re.M)
+    if not match:
+        raise AssertionError("scripts/icon-theme.sh has no pinned WHITESUR_COMMIT")
+    return match.group(1)
+
+
+def run(args, home, path=None, extra_env=None, script=None):
     env = dict(os.environ)
     env["HOME"] = str(home)
     if path is not None:
         env["PATH"] = path
     if extra_env:
         env.update(extra_env)
-    return subprocess.run(["bash", str(SCRIPT)] + args, capture_output=True, text=True, env=env)
+    return subprocess.run(["bash", str(script or SCRIPT)] + args,
+                          capture_output=True, text=True, env=env)
 
 
 def write_theme(home, theme, complete=True):
@@ -193,21 +202,43 @@ class InstallTheme(unittest.TestCase):
         stub.write_text("#!/usr/bin/env bash\nprintf '%s\\n' \"$*\" >> " + str(self.log) + "\nexit 0\n")
         stub.chmod(0o755)
         self.path = str(self.bin) + ":" + os.environ.get("PATH", "/usr/bin:/bin")
-        self.clone_log = self.bin / "clone.log"
+        self.git_log = self.bin / "git-calls.log"
 
     def git(self, body):
+        # The script drives five git calls: init, remote add, fetch by commit,
+        # detached checkout and the rev-parse that verifies what landed. The
+        # stub sees which one it is through $1 (init) or $3 (-C subcommand),
+        # and $dir is the repository it was pointed at.
         stub = self.bin / "git"
         stub.write_text(
             "#!/usr/bin/env bash\n"
-            "printf '%s\\n' \"$*\" >> " + str(self.clone_log) + "\n"
-            "dest=\"${@: -1}\"\n" + body
+            "printf '%s\\n' \"$*\" >> " + str(self.git_log) + "\n"
+            "dir=\"\"\n"
+            "if [ \"${1:-}\" = -C ]; then dir=$2; fi\n" + body
         )
         stub.chmod(0o755)
 
-    def successful_clone(self, name="WhiteSur"):
+    def isolated_git(self):
+        """A stub that only records calls; nothing is fetched or checked out."""
+        self.git("if [ \"${1:-}\" = init ]; then mkdir -p \"$2\"; fi\nexit 1\n")
+
+    def successful_fetch(self, name="WhiteSur", fail_flag=None):
+        fail = ""
+        if fail_flag is not None:
+            fail = (
+                "if [ \"${3:-}\" = fetch ] && [ -f \"" + str(fail_flag) + "\" ]; then\n"
+                "  rm -f \"" + str(fail_flag) + "\"\n"
+                "  printf 'partial' > \"$dir/partial\"\n"
+                "  exit 128\n"
+                "fi\n"
+            )
         self.git(
-            "mkdir -p \"$dest\"\n"
-            "cat > \"$dest/install.sh\" <<'EOF'\n"
+            "if [ \"${1:-}\" = init ]; then mkdir -p \"$2\"; exit 0; fi\n" + fail +
+            "case \"${3:-}\" in\n"
+            "  remote) exit 0 ;;\n"
+            "  fetch)\n"
+            "    mkdir -p \"$dir\"\n"
+            "    cat > \"$dir/install.sh\" <<'EOF'\n"
             "#!/usr/bin/env bash\n"
             "while [ $# -gt 0 ]; do case \"$1\" in -d) dest=$2; shift 2;; *) shift;; esac; done\n"
             "mkdir -p \"$dest/" + name + "/apps\"\n"
@@ -215,10 +246,15 @@ class InstallTheme(unittest.TestCase):
             "printf '[Icon Theme]\\nName=" + name + "\\n' > \"$dest/" + name + "/index.theme\"\n"
             "echo \"Installing '" + name + "'...\"\n"
             "EOF\n"
+            "    exit 0 ;;\n"
+            "  checkout) exit 0 ;;\n"
+            "  rev-parse) printf '%s\\n' \"" + pinned_commit() + "\"; exit 0 ;;\n"
+            "esac\n"
+            "exit 0\n"
         )
 
-    def install(self, extra_env=None):
-        return run(["install"], self.home, self.path, extra_env)
+    def install(self, extra_env=None, script=None):
+        return run(["install"], self.home, self.path, extra_env, script)
 
     def git_config(self, path, body, extra_env=None):
         path.write_text(body)
@@ -232,7 +268,7 @@ class InstallTheme(unittest.TestCase):
         return env
 
     def local_upstream(self, slow=False):
-        """A real git repository with the pinned tag and a fake installer."""
+        """A real git repository (tagged like upstream) with a fake installer."""
         repo = self.home / "upstream"
         repo.mkdir()
         subprocess.run(["git", "init", "-q", str(repo)], check=True)
@@ -254,27 +290,51 @@ class InstallTheme(unittest.TestCase):
         return repo
 
     def slow_git(self):
-        """Real git, with the clone delayed so two runs overlap for real."""
+        """Real git, with the fetch delayed so two runs overlap for real."""
         real = shutil.which("git")
         stub = self.bin / "git"
         stub.write_text(
             "#!/usr/bin/env bash\n"
-            "printf '%s\\n' \"$*\" >> " + str(self.clone_log) + "\n"
-            "if [ \"${1:-}\" = clone ]; then sleep 0.4; fi\n"
+            "printf '%s\\n' \"$*\" >> " + str(self.git_log) + "\n"
+            "if [ \"${3:-}\" = fetch ]; then sleep 0.4; fi\n"
             "exec " + real + " \"$@\"\n"
         )
         stub.chmod(0o755)
 
-    def start_install(self, env):
+    def script_with_pin(self, sha):
+        """The real script with only its pinned constant replaced.
+
+        A local upstream cannot be made to have the production commit's SHA,
+        so the real-git tests point the same code at a commit the local
+        repository actually serves. The constant itself is asserted by
+        test_the_download_names_a_full_commit_and_no_branch_or_tag.
+        """
+        text = SCRIPT.read_text()
+        patched, count = re.subn(r"^WHITESUR_COMMIT=[0-9a-f]{40}$",
+                                 "WHITESUR_COMMIT=" + sha, text, flags=re.M)
+        self.assertEqual(count, 1, "the script's pinned constant moved")
+        path = self.bin / "icon-theme-local-pin.sh"
+        path.write_text(patched)
+        return path
+
+    def head_of(self, repo):
+        return subprocess.check_output(["git", "-C", str(repo), "rev-parse", "HEAD"],
+                                       text=True).strip()
+
+    def start_install(self, env, script=None):
         run_env = dict(os.environ, HOME=str(self.home), PATH=self.path)
         run_env.update(env)
-        return subprocess.Popen(["bash", str(SCRIPT), "install"], stdout=subprocess.PIPE,
-                                stderr=subprocess.PIPE, text=True, env=run_env)
+        return subprocess.Popen(["bash", str(script or SCRIPT), "install"],
+                                stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+                                text=True, env=run_env)
 
-    def start_slow_clone(self, body):
+    def start_slow_fetch(self, body):
         self.git(
-            "mkdir -p \"$dest\"\n"
-            "printf 'partial clone' > \"$dest/partial\"\n" + body
+            "if [ \"${1:-}\" = init ]; then mkdir -p \"$2\"; exit 0; fi\n"
+            "if [ \"${3:-}\" = fetch ]; then\n"
+            "  mkdir -p \"$dir\"\n"
+            "  printf 'partial fetch' > \"$dir/partial\"\n" + body + "fi\n"
+            "exit 0\n"
         )
         env = dict(os.environ, HOME=str(self.home), PATH=self.path)
         return subprocess.Popen(["bash", str(SCRIPT), "install"], stdout=subprocess.PIPE,
@@ -289,7 +349,7 @@ class InstallTheme(unittest.TestCase):
                 break
             time.sleep(0.05)
         out, err = proc.communicate(timeout=10)
-        self.fail("the clone never reached its partial stage: %s %s" % (out, err))
+        self.fail("the fetch never reached its partial stage: %s %s" % (out, err))
 
     def list_ids(self):
         done = run(["list"], self.home)
@@ -299,22 +359,7 @@ class InstallTheme(unittest.TestCase):
     def test_network_failure_leaves_no_theme_and_the_retry_installs(self):
         flag = self.bin / "fail-once"
         flag.write_text("1")
-        self.git(
-            "if [ -f \"" + str(flag) + "\" ]; then\n"
-            "  rm -f \"" + str(flag) + "\"\n"
-            "  mkdir -p \"$dest\"\n"
-            "  printf 'partial' > \"$dest/partial\"\n"
-            "  exit 128\n"
-            "fi\n"
-            "mkdir -p \"$dest\"\n"
-            "cat > \"$dest/install.sh\" <<'EOF'\n"
-            "#!/usr/bin/env bash\n"
-            "while [ $# -gt 0 ]; do case \"$1\" in -d) dest=$2; shift 2;; *) shift;; esac; done\n"
-            "mkdir -p \"$dest/WhiteSur/apps\"\n"
-            "printf '<svg/>' > \"$dest/WhiteSur/apps/app.svg\"\n"
-            "printf '[Icon Theme]\\nName=WhiteSur\\n' > \"$dest/WhiteSur/index.theme\"\n"
-            "EOF\n"
-        )
+        self.successful_fetch(fail_flag=flag)
         failed = self.install()
         self.assertEqual(failed.returncode, 4, failed.stderr)
         self.assertIn("check your connection", failed.stderr)
@@ -329,12 +374,12 @@ class InstallTheme(unittest.TestCase):
         self.assertEqual(len(list((self.home / ".local/share/icons").glob("WhiteSur*"))), 1)
         self.assertEqual(list((self.home / ".local/share").glob(".omadock-*")), [])
 
-    def test_a_clone_killed_mid_fetch_leaves_nothing_advertised_and_retries(self):
-        proc = self.start_slow_clone("sleep 30\n")
+    def test_a_fetch_killed_mid_download_leaves_nothing_advertised_and_retries(self):
+        proc = self.start_slow_fetch("sleep 30\n")
         stages = self.wait_for_partial_stage(proc)
         self.assertTrue(stages)
         # The whole session, as a terminal's Ctrl-C or a shell shutdown would:
-        # the clone dies, the script's trap removes the stage.
+        # the download dies, the script's trap removes the stage.
         os.killpg(os.getpgid(proc.pid), signal.SIGTERM)
         proc.communicate(timeout=10)
         self.assertNotEqual(proc.returncode, 0)
@@ -342,14 +387,14 @@ class InstallTheme(unittest.TestCase):
         self.assertFalse((self.home / ".local/share/icons/WhiteSur").exists())
         self.assertEqual(list((self.home / ".local/share").glob(".omadock-*")), [])
 
-        self.successful_clone()
+        self.successful_fetch()
         retried = self.install()
         self.assertEqual(retried.returncode, 0, retried.stderr)
         self.assertIn("WhiteSur", self.list_ids())
         self.assertEqual(list((self.home / ".local/share").glob(".omadock-*")), [])
 
     def test_a_kill_9_mid_fetch_is_never_advertised_and_does_not_block_a_retry(self):
-        proc = self.start_slow_clone("sleep 30\n")
+        proc = self.start_slow_fetch("sleep 30\n")
         self.wait_for_partial_stage(proc)
         os.killpg(os.getpgid(proc.pid), signal.SIGKILL)
         proc.communicate(timeout=10)
@@ -359,7 +404,7 @@ class InstallTheme(unittest.TestCase):
         self.assertNotIn("WhiteSur", self.list_ids())
         self.assertFalse((self.home / ".local/share/icons/WhiteSur").exists())
 
-        self.successful_clone()
+        self.successful_fetch()
         retried = self.install()
         self.assertEqual(retried.returncode, 0, retried.stderr)
         self.assertIn("WhiteSur", self.list_ids())
@@ -372,13 +417,13 @@ class InstallTheme(unittest.TestCase):
         orphan = self.home / ".local/share/.omadock-whitesur.old"
         orphan.mkdir(parents=True)
         (orphan / "partial").write_text("unknown owner")
-        self.successful_clone()
+        self.successful_fetch()
         done = self.install()
         self.assertEqual(done.returncode, 0, done.stderr)
         self.assertTrue((orphan / "partial").is_file(),
                         "a stage with no proven-dead owner must not be deleted")
 
-    def test_a_real_clone_against_an_unreachable_remote_is_one_quiet_sentence(self):
+    def test_a_real_fetch_against_an_unreachable_remote_is_one_quiet_sentence(self):
         cfg = self.git_config(
             self.bin / "gitconfig-unreachable",
             '[url "https://127.0.0.1:1/blocked/"]\n'
@@ -399,28 +444,71 @@ class InstallTheme(unittest.TestCase):
 
     def test_a_real_local_remote_installs_once_and_applies_it(self):
         repo = self.local_upstream()
+        script = self.script_with_pin(self.head_of(repo))
         cfg = self.git_config(
             self.bin / "gitconfig-local",
             '[url "file://%s"]\n\tinsteadOf = https://github.com/vinceliuice/WhiteSur-icon-theme.git\n' % repo,
         )
         cfg["OMADOCK_ICON_TIMEOUT"] = "30"
-        done = self.install(cfg)
+        done = self.install(cfg, script=script)
         self.assertEqual(done.returncode, 0, done.stderr)
         self.assertEqual(done.stdout.strip(), "WhiteSur")
         self.assertIn("WhiteSur", self.list_ids())
         self.assertIn("icon-theme WhiteSur", self.log.read_text())
         self.assertEqual(list((self.home / ".local/share").glob(".omadock-*")), [])
 
+    def test_a_remote_that_no_longer_serves_the_commit_fails_loudly(self):
+        # The pin is a promise about code that will be executed: when the
+        # remote cannot answer for it any more, the install must stop with a
+        # sentence naming the commit, never fall back to a tag or branch.
+        repo = self.local_upstream()
+        gone = "0123456789abcdef0123456789abcdef01234567"
+        script = self.script_with_pin(gone)
+        cfg = self.git_config(
+            self.bin / "gitconfig-gone",
+            '[url "file://%s"]\n\tinsteadOf = https://github.com/vinceliuice/WhiteSur-icon-theme.git\n' % repo,
+        )
+        cfg["OMADOCK_ICON_TIMEOUT"] = "30"
+        failed = self.install(cfg, script=script)
+        self.assertEqual(failed.returncode, 4, failed.stderr)
+        self.assertIn(gone, failed.stderr)
+        self.assertIn("could not download WhiteSur", failed.stderr)
+        self.assertNotIn("WhiteSur", self.list_ids())
+        self.assertEqual(list((self.home / ".local/share").glob(".omadock-*")), [])
+        self.assertFalse(self.log.exists())
+
+    def test_a_checkout_that_is_not_the_pinned_commit_is_refused(self):
+        # Fetching a commit is not proof of what got fetched: the detached
+        # checkout is read back and compared, and a mismatch stops the install
+        # before upstream's installer can run.
+        self.git(
+            "if [ \"${1:-}\" = init ]; then mkdir -p \"$2\"; exit 0; fi\n"
+            "case \"${3:-}\" in\n"
+            "  remote) exit 0 ;;\n"
+            "  fetch) mkdir -p \"$dir\"; printf '#!/bin/sh\\n' > \"$dir/install.sh\"; exit 0 ;;\n"
+            "  checkout) exit 0 ;;\n"
+            "  rev-parse) printf '%s\\n' 0123456789abcdef0123456789abcdef01234567; exit 0 ;;\n"
+            "esac\n"
+            "exit 0\n"
+        )
+        failed = self.install()
+        self.assertEqual(failed.returncode, 4, failed.stderr)
+        self.assertIn("could not download WhiteSur at the pinned commit", failed.stderr)
+        self.assertNotIn("WhiteSur", self.list_ids())
+        self.assertFalse((self.home / ".local/share/icons/WhiteSur").exists())
+        self.assertFalse(self.log.exists())
+
     def test_two_real_installs_overlap_without_a_nested_or_duplicate_theme(self):
         repo = self.local_upstream(slow=True)
+        script = self.script_with_pin(self.head_of(repo))
         self.slow_git()
         cfg = self.git_config(
             self.bin / "gitconfig-concurrent",
             '[url "file://%s"]\n\tinsteadOf = https://github.com/vinceliuice/WhiteSur-icon-theme.git\n' % repo,
         )
         cfg["OMADOCK_ICON_TIMEOUT"] = "30"
-        first = self.start_install(cfg)
-        second = self.start_install(cfg)
+        first = self.start_install(cfg, script)
+        second = self.start_install(cfg, script)
         first_out = first.communicate(timeout=30)
         second_out = second.communicate(timeout=30)
         self.assertEqual(first.returncode, 0, first_out)
@@ -433,22 +521,25 @@ class InstallTheme(unittest.TestCase):
         self.assertEqual(len(rows), 1, rows)
         self.assertTrue((icons / "WhiteSur/index.theme").is_file())
         self.assertEqual(list((self.home / ".local/share").glob(".omadock-*")), [])
-        # A serialised pair clones once: the second waits, then applies the
+        # A serialised pair fetches once: the second waits, then applies the
         # complete theme the first installed.
-        self.assertEqual(len(self.clone_log.read_text().splitlines()), 1)
+        fetches = [line for line in self.git_log.read_text().splitlines()
+                   if len(line.split()) > 2 and line.split()[2] == "fetch"]
+        self.assertEqual(len(fetches), 1, fetches)
 
     def test_apply_arriving_during_an_install_wins_after_it_finishes(self):
         write_theme(self.home, "Yaru")
         repo = self.local_upstream(slow=True)
+        script = self.script_with_pin(self.head_of(repo))
         self.slow_git()
         cfg = self.git_config(
             self.bin / "gitconfig-apply-during-install",
             '[url "file://%s"]\n\tinsteadOf = https://github.com/vinceliuice/WhiteSur-icon-theme.git\n' % repo,
         )
         cfg["OMADOCK_ICON_TIMEOUT"] = "30"
-        installing = self.start_install(cfg)
+        installing = self.start_install(cfg, script)
         # Wait until the install has its lock and a stage on disk, so apply
-        # genuinely arrives in the middle of the clone rather than before it.
+        # genuinely arrives in the middle of the fetch rather than before it.
         for _ in range(100):
             if list((self.home / ".local/share").glob(".omadock-whitesur.*")):
                 break
@@ -465,25 +556,25 @@ class InstallTheme(unittest.TestCase):
         self.assertEqual(self.log.read_text().splitlines()[-1],
                          "set org.gnome.desktop.interface icon-theme Yaru")
 
-    def test_second_install_is_idempotent_and_does_not_clone_again(self):
-        self.successful_clone()
+    def test_second_install_is_idempotent_and_does_not_fetch_again(self):
+        self.successful_fetch()
         first = self.install()
         self.assertEqual(first.returncode, 0, first.stderr)
-        clones = self.clone_log.read_text().splitlines()
-        self.assertTrue(clones)
+        calls = self.git_log.read_text().splitlines()
+        self.assertTrue(calls)
         # The picker hides the entry once installed; a direct second call must
         # still not download or duplicate anything.
         self.git("exit 99\n")
         second = self.install()
         self.assertEqual(second.returncode, 0, second.stderr)
         self.assertEqual(second.stdout.strip(), "WhiteSur")
-        self.assertEqual(self.clone_log.read_text().splitlines(), clones, "a complete install must not clone again")
+        self.assertEqual(self.git_log.read_text().splitlines(), calls, "a complete install must not fetch again")
         self.assertEqual(len(list((self.home / ".local/share/icons").glob("WhiteSur*"))), 1)
 
     def test_an_index_only_white_sur_is_replaced_by_a_complete_install(self):
         base = write_theme(self.home, "WhiteSur", complete=False)
         self.assertNotIn("WhiteSur", self.list_ids())
-        self.successful_clone()
+        self.successful_fetch()
         done = self.install()
         self.assertEqual(done.returncode, 0, done.stderr)
         self.assertTrue((base / "apps").is_dir())
@@ -507,14 +598,25 @@ class InstallTheme(unittest.TestCase):
         self.assertIn("flock is required", done.stderr)
         self.assertFalse((self.home / ".local/share/icons").exists())
 
-    def test_install_fetches_the_pinned_release_and_applies_what_it_installed(self):
-        self.successful_clone()
+    def test_the_download_names_a_full_commit_and_no_branch_or_tag(self):
+        # What is fetched here is executed a moment later, so the only name the
+        # script may ask the remote for is the full commit: a tag or branch can
+        # move. The stub answers rev-parse with the constant, so this also
+        # proves the script compares what it checked out against it.
+        self.successful_fetch()
         done = self.install()
         self.assertEqual(done.returncode, 0, done.stderr)
         self.assertEqual(done.stdout.strip(), "WhiteSur")
-        clone = self.clone_log.read_text()
-        self.assertIn("--branch 2026-09-10", clone)
-        self.assertIn("vinceliuice/WhiteSur-icon-theme", clone)
+        calls = self.git_log.read_text().splitlines()
+        fetches = [line for line in calls if len(line.split()) > 2 and line.split()[2] == "fetch"]
+        self.assertEqual(len(fetches), 1, calls)
+        self.assertRegex(pinned_commit(), r"^[0-9a-f]{40}$")
+        self.assertIn("origin " + pinned_commit(), fetches[0])
+        self.assertIn("--depth 1", fetches[0])
+        self.assertIn("vinceliuice/WhiteSur-icon-theme", " ".join(calls))
+        self.assertIn("checkout --quiet --detach", " ".join(calls))
+        self.assertNotIn("--branch", " ".join(calls))
+        self.assertNotIn("2026-09-10", " ".join(calls))
         self.assertTrue((self.home / ".local/share/icons/WhiteSur/index.theme").is_file())
         self.assertIn("icon-theme WhiteSur", self.log.read_text())
 

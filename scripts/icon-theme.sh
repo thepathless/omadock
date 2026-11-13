@@ -15,9 +15,12 @@
 # keys in those files are preserved; nothing outside $HOME is written and no
 # privilege is requested.
 #
-# `install` clones into a staging directory outside the icon roots, runs
-# upstream's installer there, verifies the resulting theme, and only then moves
-# complete theme directories into ~/.local/share/icons. A failed or interrupted
+# `install` fetches the pinned commit (never its tag) into a staging directory
+# outside the icon roots, checks out that commit detached and verifies what
+# landed, runs upstream's installer there, verifies the resulting theme, and
+# only then moves complete theme directories into ~/.local/share/icons. A
+# remote that cannot serve the commit any more is a loud failure, not a
+# different build. A failed or interrupted
 # download/install therefore leaves no half-populated theme for `list` to
 # advertise, and a retry starts from a clean stage. An already-installed
 # WhiteSur is applied without downloading again.
@@ -172,12 +175,21 @@ apply_theme() {
 }
 
 # The one theme the dock offers to fetch for you: WhiteSur, a macOS Big Sur
-# look. Pinned to the release verified in 2026-10 so the download is
-# reproducible; bump the tag when a newer release has been checked. The
-# installer runs against a staging directory under ~/.local/share, outside the
-# icon roots, so `list` never sees a partial theme.
+# look. The download is a full commit, not the tag it was published under: a
+# tag can be moved, and this script executes what it fetched, so the commit is
+# the only name for the code that cannot drift. Upstream tag for this commit:
+# 2026-09-10 (the release verified in 2026-10). The installer runs against a
+# staging directory under ~/.local/share, outside the icon roots, so `list`
+# never sees a partial theme.
+#
+# To re-pin after checking a newer release, resolve its tag and change
+# WHITESUR_COMMIT and the tag name in this comment together:
+#   git ls-remote https://github.com/vinceliuice/WhiteSur-icon-theme.git \
+#     'refs/tags/<tag>' 'refs/tags/<tag>^{}'
+# A `^{}` line is the commit when the tag is annotated; for a lightweight tag
+# the plain ref already is the commit.
 WHITESUR_REPO=https://github.com/vinceliuice/WhiteSur-icon-theme.git
-WHITESUR_TAG=2026-09-10
+WHITESUR_COMMIT=73d8040da51a9ed74e47c7366e7e9ff437601a5c
 WHITESUR_STAGE=""
 WHITESUR_BACKUP=""
 
@@ -244,6 +256,32 @@ restore_whitesur_backup() {
   done
 }
 
+# Fetch exactly $WHITESUR_COMMIT into $1, detached. Nothing is requested by
+# branch or tag: a shallow fetch of the commit itself fails when the remote no
+# longer serves it, so a moved tag or a dropped commit cannot quietly become
+# what gets executed. The checkout is verified against the constant a second
+# time, because that is the promise the next step (running upstream's
+# installer) depends on.
+fetch_whitesur() {
+  local dir=$1
+  git init --quiet "$dir" || return 1
+  git -C "$dir" remote add origin "$WHITESUR_REPO" || return 1
+  # GIT_TERMINAL_PROMPT=0 stops a private/redirected URL from waiting for
+  # credentials; `timeout` bounds a hotel-wifi connection that never answers.
+  # --foreground keeps the fetch in this script's process group, so a
+  # terminal's Ctrl-C (or a shell shutdown killing the group) reaches git too;
+  # without it timeout starts a new group, the signal misses the download and
+  # the trap waits for something nobody is watching.
+  if command -v timeout >/dev/null 2>&1; then
+    GIT_TERMINAL_PROMPT=0 timeout --foreground "${OMADOCK_ICON_TIMEOUT:-120}" \
+      git -C "$dir" fetch --quiet --depth 1 origin "$WHITESUR_COMMIT" || return 1
+  else
+    GIT_TERMINAL_PROMPT=0 git -C "$dir" fetch --quiet --depth 1 origin "$WHITESUR_COMMIT" || return 1
+  fi
+  git -C "$dir" checkout --quiet --detach FETCH_HEAD || return 1
+  [ "$(git -C "$dir" rev-parse HEAD 2>/dev/null)" = "$WHITESUR_COMMIT" ]
+}
+
 install_whitesur() {
   command -v git >/dev/null 2>&1 || { echo "icon-theme: git is not installed" >&2; return 3; }
   acquire_theme_lock || return $?
@@ -267,23 +305,13 @@ install_whitesur() {
   WHITESUR_BACKUP=""
   trap cleanup_whitesur EXIT INT TERM HUP
 
-  # GIT_TERMINAL_PROMPT=0 stops a private/redirected URL from waiting for
-  # credentials; `timeout` bounds a hotel-wifi connection that never answers.
   # Git's own stderr (a proxy URL, a resolved host, a certificate subject) is
   # noise for the settings row, so it goes to the stage's log and only one
   # honest sentence reaches stderr. The stage, log and all go with the trap.
-  if command -v timeout >/dev/null 2>&1; then
-    # --foreground keeps the clone in this script's process group, so a
-    # terminal's Ctrl-C (or a shell shutdown killing the group) reaches git too;
-    # without it timeout starts a new group, the signal misses the clone and the
-    # trap waits for a download nobody is watching.
-    GIT_TERMINAL_PROMPT=0 timeout --foreground "${OMADOCK_ICON_TIMEOUT:-120}" git clone --quiet --depth 1 --branch "$WHITESUR_TAG" "$WHITESUR_REPO" "$stage/src" >"$stage/clone.log" 2>&1
-  else
-    GIT_TERMINAL_PROMPT=0 git clone --quiet --depth 1 --branch "$WHITESUR_TAG" "$WHITESUR_REPO" "$stage/src" >"$stage/clone.log" 2>&1
-  fi
+  fetch_whitesur "$stage/src" >"$stage/clone.log" 2>&1
   rc=$?
   if [ "$rc" -ne 0 ]; then
-    echo "icon-theme: could not download WhiteSur; check your connection and try again" >&2
+    echo "icon-theme: could not download WhiteSur at the pinned commit $WHITESUR_COMMIT; check your connection and try again, or re-pin if upstream no longer serves that commit" >&2
     return 4
   fi
 
