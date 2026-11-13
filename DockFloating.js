@@ -29,6 +29,18 @@ function isFloating(workspaceId, workspaceText, defaultText) {
   return (fileValue(workspaceText, "mode") || fileValue(defaultText, "default")) === "floating"
 }
 
+// Whether the monitor is showing the scratchpad. The dock hides only on a
+// positive answer from Hyprland's own monitor state: a missing monitor, a
+// missing or malformed ipc object, or any other special workspace reads as
+// "closed", so a lost event, a failed refresh or a restarted compositor can
+// never leave the dock off screen.
+function scratchpadOpen(monitor) {
+  var ipc = monitor && monitor.lastIpcObject
+  var special = ipc && ipc.specialWorkspace
+  var name = special && typeof special.name === "string" ? special.name : ""
+  return name === "special:scratchpad" || name === "scratchpad"
+}
+
 // The `omarchy plugin` action ("enable" / "disable") that brings omarchy.dock
 // in line with the choice, given shell.json's text, or "" when nothing is to
 // change: it already matches, the choice is "both", or the text is not a

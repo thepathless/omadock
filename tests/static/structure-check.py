@@ -49,6 +49,7 @@ SHELL_CEILINGS = {
     "tests/live/settings-navigation.sh": 421,
     "tests/live/presets.sh": 380,
     "tests/live/apps-menu.sh": 363,
+    "tests/live/scratchpad.sh": 250,
     "tests/live/indicators.sh": 345,
     "tests/live/probe.sh": 328,
     "tests/live/place-restore.sh": 250,

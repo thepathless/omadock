@@ -9,6 +9,9 @@ import "../DockFloating.js" as DockFloating
 // mode of its monitor's workspace from the files the layout commands write
 // and yields while it is floating; the primary dock also switches
 // omarchy.dock on or off to match the choice, at start and when it changes.
+// One more monitor state is owned here: whether that monitor shows the
+// scratchpad, because a dock under a full-screen special workspace is in the
+// way (Dock.qml hides its layer on it).
 Item {
   id: watch
 
@@ -35,25 +38,16 @@ Item {
 
   readonly property var monitor: watch.dockRoot && watch.dockRoot.dockScreen
     ? Hyprland.monitorFor(watch.dockRoot.dockScreen) : null
-  property var scratchpadByMonitor: ({})
-  readonly property bool scratchpadOpen: {
-    if (!watch.monitor) return false
-    var name = watch.monitor.name
-    if (Object.prototype.hasOwnProperty.call(watch.scratchpadByMonitor, name)) return watch.scratchpadByMonitor[name]
-    var ipc = watch.monitor.lastIpcObject
-    return !!(ipc && ipc.specialWorkspace && ipc.specialWorkspace.name === "special:scratchpad")
-  }
-  onScratchpadOpenChanged: if (watch.dockRoot) watch.dockRoot.syncVisibility()
+  // Owned here, read by the dock layer's `visible` and by nothing else.
+  readonly property bool scratchpadOpen: DockFloating.scratchpadOpen(watch.monitor)
 
+  // The monitor model does not follow activespecial on its own, and keeping a
+  // copy of the event was a second source of truth that could outlive it:
+  // ask for fresh monitor state instead.
   Connections {
     target: Hyprland
     function onRawEvent(event) {
-      if (event.name !== "activespecial" || !watch.monitor) return
-      var fields = String(event.data || "").split(",")
-      if (fields.length !== 2 || fields[1] !== watch.monitor.name) return
-      var next = Object.assign({}, watch.scratchpadByMonitor)
-      next[watch.monitor.name] = fields[0] === "special:scratchpad" || fields[0] === "scratchpad"
-      watch.scratchpadByMonitor = next
+      if (event.name === "activespecial") Hyprland.refreshMonitors()
     }
   }
 

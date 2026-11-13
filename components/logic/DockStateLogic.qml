@@ -129,7 +129,8 @@ QtObject {
   }
 
   function syncVisibility(root) {
-    if (root.floatingWatch && (root.floatingWatch.scratchpadOpen || root.floatingWatch.yieldDock)) {
+    // Omarchy's own dock has this floating workspace (FloatingDockWatch).
+    if (root.floatingWatch && root.floatingWatch.yieldDock) {
       root.hideTimerRef.stop()
       root.revealTimerRef.stop()
       root.dockVisible = false

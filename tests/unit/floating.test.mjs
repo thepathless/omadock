@@ -46,6 +46,21 @@ test("omarchy.dock is switched only when its state differs from the choice", () 
   assert.equal(F.omarchyDockAction("both", off), "")
 })
 
+test("the scratchpad hides the dock only on a positive word from Hyprland", () => {
+  assert.equal(F.scratchpadOpen({ lastIpcObject: { specialWorkspace: { id: -99, name: "special:scratchpad" } } }), true)
+  assert.equal(F.scratchpadOpen({ lastIpcObject: { specialWorkspace: { id: -99, name: "scratchpad" } } }), true)
+  // Every unknown shape leaves the dock on screen: it must never be guessed away.
+  assert.equal(F.scratchpadOpen(null), false)
+  assert.equal(F.scratchpadOpen(undefined), false)
+  assert.equal(F.scratchpadOpen({}), false)
+  assert.equal(F.scratchpadOpen({ lastIpcObject: null }), false)
+  assert.equal(F.scratchpadOpen({ lastIpcObject: {} }), false)
+  assert.equal(F.scratchpadOpen({ lastIpcObject: { specialWorkspace: { id: 0, name: "" } } }), false)
+  assert.equal(F.scratchpadOpen({ lastIpcObject: { specialWorkspace: { name: "special:magic" } } }), false)
+  assert.equal(F.scratchpadOpen({ lastIpcObject: { specialWorkspace: { name: 7 } } }), false)
+  assert.equal(F.scratchpadOpen({ lastIpcObject: { specialWorkspace: "special:scratchpad" } }), false)
+})
+
 test("an unreadable shell.json changes nothing", () => {
   assert.equal(F.omarchyDockAction("hide-omarchy", ""), "")
   assert.equal(F.omarchyDockAction("hide-omarchy", "{ not json"), "")
