@@ -75,6 +75,8 @@ var SETTINGS_SEARCH = [
   { key: "grain", page: "motion", label: "Grain", terms: ["noise", "film", "texture"] },
   { key: "autohide", page: "placement", label: "Autohide", terms: ["hide", "reveal", "visibility", "intelligent"] },
   { key: "revealDelay", page: "placement", label: "Reveal delay", terms: ["autohide", "delay"] },
+  { key: "hideDelay", page: "placement", label: "Hide delay", terms: ["autohide", "delay", "linger"] },
+  { key: "revealArea", page: "placement", label: "Reveal from", terms: ["autohide", "edge", "corner", "hot corner"] },
   { key: "floatingDock", page: "placement", label: "Floating workspaces", terms: ["omarchy dock", "floating", "layout", "hide", "super l"] },
   { key: "minimizeMode", page: "behavior", label: "Minimize on click", terms: ["park", "click"] },
   { key: "restoreWorkspace", page: "behavior", label: "Restore on", terms: ["minimize", "park", "windows", "origin"] },
@@ -176,6 +178,8 @@ function dependency(key, r) {
   if (key === "blur") return needs(r.blurMode !== "system", "blurSystem", "Turn off Blur from system to choose explicit blur.")
   if (key === "blurSize") return needs(r.blurMode === "on", r.blurMode === "system" ? "blurSystem" : "blur", "Enable explicit Blur to set its strength; the size affects all Hyprland windows and panels.")
   if (key === "revealDelay") return needs(r.autohide, "autohide", "Choose Autohide or Intelligent visibility to set a reveal delay.")
+  if (key === "hideDelay") return needs(r.autohide, "autohide", "Choose Autohide or Intelligent visibility to set a hide delay.")
+  if (key === "revealArea") return needs(r.autohide, "autohide", "Choose Autohide or Intelligent visibility to choose where the dock reveals from.")
   if (key === "floatingDock") return needs(r.floatingWatch.available, "", "Floating workspace integration requires a compatible Omarchy shell.")
   if (["badgeStyle", "badgePosition", "badgeColor"].indexOf(key) >= 0)
     return needs(r.showNotificationBadges, "badges", "Enable Notification badges to change badge styling.")

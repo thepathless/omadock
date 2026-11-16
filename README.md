@@ -534,6 +534,8 @@ Settings persist in `~/.config/omarchy/omadock.json` and are editable live:
   "urgentSoundName": "bell",
   "folderColor": "theme",
   "revealDelay": 160,
+  "hideDelay": 550,
+  "revealArea": "dock",
   "tooltipDelay": 450,
   "pinnedFolders": [
     { "path": "~/Downloads", "name": "Downloads", "icon": "folder-download" }
@@ -615,6 +617,8 @@ Settings persist in `~/.config/omarchy/omadock.json` and are editable live:
 | `badgePosition` | `string` | `"top-right"` | Corner of the icon the badge sits on: `"top-right"`, `"top-left"`, `"bottom-right"`, `"bottom-left"`. |
 | `badgeColor` | `string` | `"accent"` | Badge colour: `"accent"`, `"urgent"` (red) or `"neutral"`. |
 | `revealDelay` | `int` | `160` | Edge dwell time in milliseconds before unhiding (0–2000ms). |
+| `hideDelay` | `int` | `550` | How long the dock stays after the pointer leaves it, in milliseconds (0–2000ms). |
+| `revealArea` | `string` | `"dock"` | Where the pointer reveals a hidden dock: `"dock"` (the strip under the dock) or `"edge"` (the whole edge, leaving 48px corners free for hot corners). While an edge-revealed dock shows, the bottom band as tall as the dock belongs to it, so the pointer can reach the card from anywhere along the edge. |
 | `tooltipDelay` | `int` | `450` | Tooltip hover dwell delay in milliseconds (0–5000ms). |
 | `wheelStepDelay` | `int` | `150` | Minimum milliseconds between accepted wheel steps while browsing an app's windows (0–1000ms). |
 | `splitSections` | `bool` | `false` | Splits pinned apps, running apps and folders into separate sections divided by the `divider*` settings. |

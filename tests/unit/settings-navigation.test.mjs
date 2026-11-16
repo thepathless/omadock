@@ -39,7 +39,7 @@ test("every conditional target explains its first prerequisite without changing 
     cornerRadius: "corners", panelSpacing: "splitSections", iconTint: "iconStyle",
     iconGrid: "iconStyle", iconHoverOriginal: "iconStyle", iconHoverReveal: "iconStyle",
     shadowStrength: "showShadow", blur: "blurSystem", blurSize: "blurSystem",
-    revealDelay: "autohide", floatingDock: "", badgeStyle: "badges", badgePosition: "badges",
+    revealDelay: "autohide", hideDelay: "autohide", revealArea: "autohide", floatingDock: "", badgeStyle: "badges", badgePosition: "badges",
     badgeColor: "badges", tooltipDelay: "tooltips", windowPreviews: "tooltips",
     perMonitorApps: "multiMonitor", labelFont: "labelMode", labelPlateHeight: "labelMode" }
   for (const [key, prerequisite] of Object.entries(pairs)) {
@@ -77,7 +77,7 @@ test("category declarations and every searchable row remain singular", () => {
   const sources = readdirSync(new URL("components/settings/", root)).filter((f) => f.endsWith(".qml"))
     .map((f) => readFileSync(new URL(`components/settings/${f}`, root), "utf8")).join("\n")
   for (const e of S.SETTINGS_SEARCH) assert.equal(sources.split(`key: "${e.key}"`).length - 1, 1, e.key)
-  assert.equal(S.SETTINGS_SEARCH.length, 88, "the existing searchable options are preserved, plus the icon theme")
+  assert.equal(S.SETTINGS_SEARCH.length, 90, "the existing searchable options are preserved, plus the icon theme, hide delay and reveal area")
   assert.ok(!readFileSync(new URL("components/settings/ChoiceRow.qml", root), "utf8").includes("focusable: false"))
   assert.ok(panel.includes("p.expanded = true"), "search opens advanced ancestors")
 })
