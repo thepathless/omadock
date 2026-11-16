@@ -90,3 +90,12 @@ test("the restated normalisers agree with DockModel", () => {
     assert.deepEqual(plain(P.reorderPinned(bad, "", null)), [])
   }
 })
+
+test("unpinning one JetBrains IDE leaves the others pinned", () => {
+  // A pin made from the window carries the class; the menu passes the
+  // Toolbox desktop id. The shared "jetbrains" prefix used to make the toggle
+  // drop every JetBrains pin at once.
+  const idea = "jetbrains-idea-5c7acef6-a7e9-47ec-8218-4d9145293083"
+  const pins = ["obsidian", "jetbrains-idea", "jetbrains-goland-4d5a0b99-2743-43ec-a55c-1d69bb3e8554", "jetbrains-rustrover"]
+  assert.deepEqual(plain(toggle(pins, idea)), ["obsidian", "jetbrains-goland-4d5a0b99-2743-43ec-a55c-1d69bb3e8554", "jetbrains-rustrover"])
+})
