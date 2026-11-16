@@ -918,16 +918,16 @@ function entryFor(appRows, appId) {
   var want = cliAppId(appId)
   if (!want || !appRows) return null
   var wantLower = want.toLowerCase()
-
-  // 1. Exact ID match
-  for (var i = 0; i < appRows.length; i++) {
-    var row = appRows[i]
-    var entry = (row && row.entry) ? row.entry : row
+  // 1. Exact ID match, else 2. the entry claiming this window class as StartupWMClass
+  for (var i = 0, claimed = null; i < appRows.length; i++) {
+    var entry = (appRows[i] && appRows[i].entry) ? appRows[i].entry : appRows[i]
     if (!entry) continue
     if (stripDesktop(entry.id) === want || stripDesktop(entry.id).toLowerCase() === wantLower) return entry
+    if (!claimed && String(entry.startupClass || "").trim().toLowerCase() === wantLower) claimed = entry
   }
+  if (claimed) return claimed
 
-  // 2. Multi-token candidate match (e.g. chrome-x.com__-Default -> X.desktop, org.localsend.localsend_app -> localsend.desktop)
+  // 3. Multi-token candidate match (e.g. chrome-x.com__-Default -> X.desktop, org.localsend.localsend_app -> localsend.desktop)
   var wantCands = getCandidates(want)
   for (var i = 0; i < appRows.length; i++) {
     var entry = (appRows[i] && appRows[i].entry) ? appRows[i].entry : appRows[i]
@@ -941,7 +941,7 @@ function entryFor(appRows, appId) {
     }
   }
 
-  // 3. Webapp Exec URL Match (if entry.exec contains candidate domain or URL)
+  // 4. Webapp Exec URL Match (if entry.exec contains candidate domain or URL)
   for (var i = 0; i < appRows.length; i++) {
     var entry = (appRows[i] && appRows[i].entry) ? appRows[i].entry : appRows[i]
     if (!entry) continue
@@ -954,7 +954,7 @@ function entryFor(appRows, appId) {
     }
   }
 
-  // 4. GenericName / Substring match
+  // 5. GenericName / Substring match
   for (var i = 0; i < appRows.length; i++) {
     var entry = (appRows[i] && appRows[i].entry) ? appRows[i].entry : appRows[i]
     if (!entry) continue
