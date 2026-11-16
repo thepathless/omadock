@@ -44,6 +44,30 @@ function stretchedBox(place, windowWidth, inset) {
   return null
 }
 
+// The strip along the screen edge that reveals a hidden dock. "dock": under
+// the card plus a margin, aligned with it. "edge": the whole edge less
+// cornerInset at each end, so hot corners keep working.
+function revealStripBox(area, windowWidth, cardWidth, stretch, align, gapsOut, margin, cornerInset) {
+  if (area === "edge") return { x: cornerInset, width: Math.max(0, windowWidth - 2 * cornerInset) }
+  if (stretch) return { x: 0, width: windowWidth }
+  var width = Math.min(windowWidth, cardWidth + margin)
+  if (align === "left") return { x: gapsOut, width: width }
+  if (align === "right") return { x: windowWidth - width - gapsOut, width: width }
+  return { x: Math.round((windowWidth - width) / 2), width: width }
+}
+
+// The strip's height: a thin line while the dock hides. Revealed from the
+// whole edge it stays as tall as the dock (dockHeight) while the dock shows,
+// so the pointer can travel from where it touched the edge to the card
+// without the dock hiding on the way. Not while the dock is held open
+// (intelligent autohide with nothing overlapping it): nothing would hide it,
+// and the band would take clicks from windows beside the dock.
+function revealStripHeight(area, active, shown, held, lineHeight, dockHeight) {
+  if (!active) return 0
+  if (!shown) return lineHeight
+  return area === "edge" && !held ? dockHeight : 0
+}
+
 // Rounds to whole device pixels when a scale is given (label plates keep
 // their edges on the grid); whole logical pixels otherwise.
 function snap(v, dpr) {

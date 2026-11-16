@@ -919,6 +919,8 @@ Item {
   property var notifService: null
   property var _lastProcessedNotifTimestamp: 0
   property int revealDelay: 160
+  property int hideDelay: 550
+  property string revealArea: "dock"    // "dock" | "edge" (DockLayout.revealStripBox)
   property int tooltipDelay: 450
   // Least time between two wheel steps on the dock.
   property int wheelStepDelay: 150
@@ -932,7 +934,7 @@ Item {
 
   Timer {
     id: hideTimer
-    interval: 550
+    interval: root.hideDelay
     onTriggered: root.dockVisible = false
   }
 
@@ -2207,20 +2209,15 @@ Item {
     Item {
       id: revealStrip
       anchors.bottom: parent.bottom
-      x: {
-        if (dockCardComp && dockCardComp.stretch) return 0
-        var cardW = (dockCardComp && dockCardComp.dockCard.width > 0) ? dockCardComp.dockCard.width : Style.space(320)
-        var targetW = Math.min(parent.width, cardW + Style.space(96))
-        if (root.placement.align === "left") return Style.gapsOut
-        if (root.placement.align === "right") return parent.width - targetW - Style.gapsOut
-        return Math.round((parent.width - targetW) / 2)
-      }
-      width: {
-        if (dockCardComp && dockCardComp.stretch) return parent.width
-        var cardW = (dockCardComp && dockCardComp.dockCard.width > 0) ? dockCardComp.dockCard.width : Style.space(320)
-        return Math.min(parent.width, cardW + Style.space(96))
-      }
-      height: (root.autohide && !root.dockVisible && !root.floatingWatch.yieldDock) ? root.revealHeight : 0
+      readonly property var box: DockLayout.revealStripBox(root.revealArea, parent.width,
+        (dockCardComp && dockCardComp.dockCard.width > 0) ? dockCardComp.dockCard.width : Style.space(320),
+        !!(dockCardComp && dockCardComp.stretch), root.placement.align, Style.gapsOut, Style.space(96),
+        Math.max(48, Style.space(48)))
+      x: box.x
+      width: box.width
+      // The card's handlers sit above the band an "edge" reveal keeps.
+      height: DockLayout.revealStripHeight(root.revealArea, root.autohide && !root.floatingWatch.yieldDock,
+        root.dockVisible, root.intelligentAutohide && !root.windowsOverlapDock, root.revealHeight, root.edgeGap + (dockCardComp ? dockCardComp.dockCard.height : 0))
       visible: height > 0
 
       HoverHandler {

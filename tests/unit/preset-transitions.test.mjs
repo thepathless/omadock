@@ -184,3 +184,20 @@ test("shipped active detection fails closed without required setup state; old sa
   const mine = { id: "preset_3", name: "Old saved", look: DockModel.pickLook({}) }
   assert.equal(DockPresets.activeId([mine], mine.look, DockModel.lookIncludes), mine.id)
 })
+
+test("hide delay and reveal area load clamped, default to today's dock and round-trip", () => {
+  const fresh = root()
+  assert.equal(fresh.hideDelay, 550)
+  assert.equal(fresh.revealArea, "dock")
+  const set = root({ hideDelay: 150.4, revealArea: "edge" })
+  assert.equal(set.hideDelay, 150)
+  assert.equal(set.revealArea, "edge")
+  const saved = plain(ctx.buildConfig(set, {}))
+  assert.equal(saved.hideDelay, 150)
+  assert.equal(saved.revealArea, "edge")
+  const odd = root({ hideDelay: 99999, revealArea: "everywhere" })
+  assert.equal(odd.hideDelay, 2000)
+  assert.equal(odd.revealArea, "dock")
+  assert.equal(root({ hideDelay: -5 }).hideDelay, 0)
+  assert.equal(root({ hideDelay: "fast" }).hideDelay, 550)
+})

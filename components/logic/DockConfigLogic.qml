@@ -214,6 +214,10 @@ QtObject {
     root.revealDelay = parsed && typeof parsed.revealDelay === "number"
       ? Math.max(0, Math.min(2000, Math.round(parsed.revealDelay)))
       : 160
+    root.hideDelay = parsed && typeof parsed.hideDelay === "number"
+      ? Math.max(0, Math.min(2000, Math.round(parsed.hideDelay)))
+      : 550
+    root.revealArea = (parsed && parsed.revealArea === "edge") ? "edge" : "dock"
     root.tooltipDelay = parsed && typeof parsed.tooltipDelay === "number"
       ? Math.max(0, Math.min(5000, Math.round(parsed.tooltipDelay)))
       : 450
@@ -327,6 +331,8 @@ QtObject {
     conf.urgentSound = root.urgentSound
     conf.urgentSoundName = root.urgentSoundName
     conf.revealDelay = root.revealDelay
+    conf.hideDelay = root.hideDelay
+    conf.revealArea = root.revealArea
     conf.tooltipDelay = root.tooltipDelay
     conf.wheelStepDelay = root.wheelStepDelay
     conf.pinnedFolders = DockModel.boundPinnedFolders(root.pinnedFolders)

@@ -139,3 +139,27 @@ test("rowOffset and spreadGap land on whole device pixels when given a scale", (
   assert.ok(whole(L.spreadGap(1000, 300.4, 200, 2.67, 1.5), 1.5))
   assert.equal(L.rowOffset("center", 1000, 401), 300)
 })
+
+test("the reveal strip sits under the dock by default and spans the edge less its corners on request", () => {
+  // window 1000, card 400, margin 96, gaps 10, corner inset 48
+  assert.deepEqual(plain(L.revealStripBox("dock", 1000, 400, false, "center", 10, 96, 48)), { x: 252, width: 496 })
+  assert.deepEqual(plain(L.revealStripBox("dock", 1000, 400, false, "left", 10, 96, 48)), { x: 10, width: 496 })
+  assert.deepEqual(plain(L.revealStripBox("dock", 1000, 400, false, "right", 10, 96, 48)), { x: 494, width: 496 })
+  assert.deepEqual(plain(L.revealStripBox("dock", 1000, 400, true, "center", 10, 96, 48)), { x: 0, width: 1000 })
+  assert.deepEqual(plain(L.revealStripBox("dock", 300, 400, false, "center", 10, 96, 48)), { x: 0, width: 300 })
+  for (const align of ["center", "left", "right"])
+    assert.deepEqual(plain(L.revealStripBox("edge", 1000, 400, false, align, 10, 96, 48)), { x: 48, width: 904 })
+  assert.deepEqual(plain(L.revealStripBox("edge", 80, 400, false, "center", 10, 96, 48)), { x: 48, width: 0 })
+})
+
+test("the reveal strip keeps the dock's height while shown only for an edge reveal the dock can hide from", () => {
+  assert.equal(L.revealStripHeight("dock", false, false, false, 6, 70), 0)
+  assert.equal(L.revealStripHeight("edge", false, true, false, 6, 70), 0)
+  assert.equal(L.revealStripHeight("dock", true, false, false, 6, 70), 6)
+  assert.equal(L.revealStripHeight("edge", true, false, false, 6, 70), 6)
+  assert.equal(L.revealStripHeight("edge", true, false, true, 6, 70), 6)
+  assert.equal(L.revealStripHeight("dock", true, true, false, 6, 70), 0)
+  assert.equal(L.revealStripHeight("edge", true, true, false, 6, 70), 70)
+  // Held open by intelligent autohide: no band to take clicks beside the dock.
+  assert.equal(L.revealStripHeight("edge", true, true, true, 6, 70), 0)
+})

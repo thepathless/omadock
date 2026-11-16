@@ -84,6 +84,28 @@ Column {
       value: root ? root.revealDelay : 160
       onCommitted: function(v) { root.setOption("revealDelay", Math.round(v)) }
     }
+    SliderRow {
+      key: "hideDelay"
+      label: "Hide delay"
+      hint: "How long the dock stays after the pointer leaves it."
+      minimum: 0
+      maximum: 1000
+      step: 10
+      suffix: " ms"
+      value: root ? root.hideDelay : 550
+      onCommitted: function(v) { root.setOption("hideDelay", Math.round(v)) }
+    }
+    ChoiceRow {
+      key: "revealArea"
+      label: "Reveal from"
+      hint: "Whole edge reveals the dock anywhere along the screen edge, leaving the corners to hot corners."
+      options: [
+        { value: "dock", label: "Under the dock" },
+        { value: "edge", label: "Whole edge" }
+      ]
+      value: root ? root.revealArea : "dock"
+      onPicked: function(v) { root.setOption("revealArea", v) }
+    }
     ChoiceRow {
       key: "floatingDock"
       label: "Floating workspaces"
