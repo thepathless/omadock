@@ -16,7 +16,7 @@ var IGNORED_TOKENS = {
   "tool": true, "tools": true, "utility": true, "utilities": true, "viewer": true, "player": true,
   "manager": true, "editor": true, "helper": true, "agent": true, "stable": true, "beta": true,
   "video": true, "audio": true, "chat": true, "files": true, "file": true, "media": true,
-  "dev": true, "nightly": true, "canary": true, "release": true, "community": true
+  "dev": true, "nightly": true, "canary": true, "release": true, "community": true, "jetbrains": true
 };
 
 function stripDesktop(id) {
@@ -919,12 +919,12 @@ function entryFor(appRows, appId) {
   if (!want || !appRows) return null
   var wantLower = want.toLowerCase()
 
-  // 1. Exact ID match
+  // 1. Exact ID, or the StartupWMClass the entry declares (Toolbox ids carry a uuid)
   for (var i = 0; i < appRows.length; i++) {
     var row = appRows[i]
     var entry = (row && row.entry) ? row.entry : row
     if (!entry) continue
-    if (stripDesktop(entry.id) === want || stripDesktop(entry.id).toLowerCase() === wantLower) return entry
+    if (stripDesktop(entry.id).toLowerCase() === wantLower || String(entry.startupClass || "").toLowerCase() === wantLower) return entry
   }
 
   // 2. Multi-token candidate match (e.g. chrome-x.com__-Default -> X.desktop, org.localsend.localsend_app -> localsend.desktop)

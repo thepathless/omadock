@@ -162,6 +162,43 @@ test("entryFor ignores the directories of an absolute Icon= path (issue #66)", (
   assert.equal(M.entryFor([drive, photo], id).name, "Drive")
 })
 
+// JetBrains Toolbox installs: ids carry a per-install uuid, the window class is
+// the StartupWMClass, and every IDE shares the "jetbrains" prefix.
+const toolboxIdes = [
+  { id: "jetbrains-idea-5c7acef6-a7e9-47ec-8218-4d9145293083", name: "IntelliJ IDEA", icon: "jetbrains-idea-5c7acef6-a7e9-47ec-8218-4d9145293083", startupClass: "jetbrains-idea" },
+  { id: "jetbrains-goland-4d5a0b99-2743-43ec-a55c-1d69bb3e8554", name: "GoLand", icon: "jetbrains-goland-4d5a0b99-2743-43ec-a55c-1d69bb3e8554", startupClass: "jetbrains-goland" },
+  { id: "jetbrains-rustrover-f644acce-031d-4a55-a03b-a88b97a9a51e", name: "RustRover", icon: "jetbrains-rustrover-f644acce-031d-4a55-a03b-a88b97a9a51e", startupClass: "jetbrains-rustrover" },
+]
+
+test("entryFor resolves each JetBrains window class to its own IDE, whatever the row order", () => {
+  for (const rows of [toolboxIdes, [...toolboxIdes].reverse()]) {
+    assert.equal(M.entryFor(rows, "jetbrains-idea").name, "IntelliJ IDEA")
+    assert.equal(M.entryFor(rows, "jetbrains-goland").name, "GoLand")
+    assert.equal(M.entryFor(rows, "jetbrains-rustrover").name, "RustRover")
+  }
+})
+
+test("entryFor matches a window class through StartupWMClass", () => {
+  // The decoy shares the "thing" token and comes first, so only the declared
+  // class can pick the right row.
+  const rows = [{ id: "thing-other", name: "Decoy", icon: "a" }, { id: "com.example.App42", name: "Thing", icon: "x", startupClass: "Thing-Main" }]
+  assert.equal(M.entryFor(rows, "thing-main").name, "Thing")
+})
+
+test("a pinned JetBrains IDE claims only its own windows", () => {
+  const [idea, goland, rustrover] = toolboxIdes.map((e) => e.id)
+  assert.equal(M.isAppMatch(idea, "jetbrains-idea"), true)
+  assert.equal(M.isAppMatch(goland, "jetbrains-goland"), true)
+  assert.equal(M.isAppMatch(idea, "jetbrains-goland"), false)
+  assert.equal(M.isAppMatch(goland, "jetbrains-rustrover"), false)
+  assert.equal(M.isAppMatch(rustrover, "jetbrains-idea"), false)
+
+  const lib = { iconSource: (n) => "file:///" + n, entryName: (e) => e.name }
+  const out = plain(M.buildEntries([idea, goland], [{ appId: "jetbrains-goland", title: "GoLand" }], toolboxIdes, lib, () => ({ address: "0x1" })))
+  assert.deepEqual(out.pinned.map((e) => [e.name, e.running]), [["IntelliJ IDEA", false], ["GoLand", true]])
+  assert.equal(out.pinned[1].icon, "file:///" + toolboxIdes[1].icon)
+})
+
 test("lookIncludes compares only the preset's keys", () => {
   assert.equal(M.lookIncludes({ grain: true, iconSize: 48 }, { grain: true }), true)
   assert.equal(M.lookIncludes({ grain: false }, { grain: true }), false)
