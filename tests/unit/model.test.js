@@ -342,3 +342,22 @@ test('a Steam shortcut pin owns only the windows for its game ID', () => {
   assert.deepEqual(plain(result.running.map(item => [item.appId, item.name])),
     [['steam_app_2357570', 'Overwatch'], ['steam', 'Steam']])
 })
+
+test('a running app that is not pinned resolves through its entry StartupWMClass', () => {
+  const prusa = { id: 'com.prusa3d.PrusaSlicer', name: 'PrusaSlicer', icon: 'PrusaSlicer', startupClass: 'prusa-slicer' }
+  const art = { entryName: e => e.name, iconSource: n => `file:///icons/${n}.svg` }
+  const result = model.buildEntries([], [{ appId: 'prusa-slicer', title: 'Untitled' }], [prusa], art,
+    () => ({ address: 'abc', workspace: { name: '1' } }), '', {}, [], {}, {})
+  assert.deepEqual(plain(result.running.map(e => [e.appId, e.name, e.icon])),
+    [['prusa-slicer', 'PrusaSlicer', 'file:///icons/PrusaSlicer.svg']])
+})
+
+test('StartupWMClass lookup keeps exact desktop ids first and needs the whole class', () => {
+  const alias = { id: 'AlloyWorkbench', name: 'Alloy Workbench', startupClass: 'cad-window' }
+  const exact = { id: 'cad-window', name: 'CAD Window' }
+  assert.equal(model.entryFor([alias, exact], 'cad-window'), exact)
+  assert.equal(model.entryFor([alias], 'CAD-Window'), alias)
+  assert.equal(model.entryFor([{ entry: alias }], 'cad-window'), alias)
+  assert.equal(model.entryFor([alias], 'cad-window-helper'), null)
+  assert.equal(model.entryFor([{ id: 'AlloyWorkbench', startupClass: '' }], ''), null)
+})
