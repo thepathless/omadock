@@ -22,10 +22,19 @@ def touch(path, data="<svg/>"):
     path.write_text(data)
 
 
-def index(home, system, chain):
+def index(home, system, chain, *, no_cache=False, env_extra=None):
     env = dict(os.environ)
     env["HOME"] = str(home)
     env["XDG_DATA_DIRS"] = str(system)
+    # Keep the on-disk cache inside the probe home so unit runs never touch
+    # the developer's real ~/.cache/omadock.
+    env["XDG_CACHE_HOME"] = str(home / ".cache")
+    if no_cache:
+        env["OMADOCK_ICON_INDEX_NO_CACHE"] = "1"
+    else:
+        env.pop("OMADOCK_ICON_INDEX_NO_CACHE", None)
+    if env_extra:
+        env.update(env_extra)
     done = subprocess.run(["bash", str(SCRIPT)] + chain, capture_output=True, text=True, env=env)
     assert done.returncode == 0, done.stderr
     out = {}
@@ -36,6 +45,13 @@ def index(home, system, chain):
         path = Path(line)
         out.setdefault(path.stem, path)
     return out
+
+
+def cache_path(home, chain):
+    key = "_".join(chain) if chain else "fallback"
+    # Must match scripts/icon-index.sh: tr -c 'A-Za-z0-9._-' '_'
+    safe = "".join(c if c.isalnum() or c in "._-" else "_" for c in key)
+    return home / ".cache" / "omadock" / f"icon-index-{safe}.cache"
 
 
 class IconIndex(unittest.TestCase):
@@ -106,6 +122,30 @@ class IconIndex(unittest.TestCase):
     def test_no_chain_still_indexes_the_desktop(self):
         got = self.active("folder", ())
         self.assertIn("folder", got)
+
+    def test_second_run_reuses_cache_with_same_paths(self):
+        chain = ("Active", "Inherited")
+        first = index(self.home, self.system, list(chain))
+        cached = cache_path(self.home, chain)
+        self.assertTrue(cached.is_file(), "first scan should publish a cache file")
+        second = index(self.home, self.system, list(chain))
+        self.assertEqual(first, second)
+        self.assertEqual(second["folder"], self.home / ".local/share/icons/Active/places/scalable/folder.svg")
+
+    def test_newer_theme_directory_invalidates_cache(self):
+        chain = ("Active", "Inherited")
+        index(self.home, self.system, list(chain))
+        cached = cache_path(self.home, chain)
+        older = cached.read_text()
+        # Land a new name after the cache was written; bump the theme dir
+        # mtime so the script treats the cache as stale.
+        import time
+        time.sleep(0.01)
+        touch(self.home / ".local/share/icons/Active/apps/scalable/brand-new.svg")
+        os.utime(self.home / ".local/share/icons/Active", None)
+        got = index(self.home, self.system, list(chain))
+        self.assertIn("brand-new", got)
+        self.assertNotEqual(older, cached.read_text())
 
 
 if __name__ == "__main__":

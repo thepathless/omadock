@@ -255,8 +255,9 @@ import "../DockIconTheme.js" as DockIconTheme
       launchProc.running = true
     }
 
-    // One-shot scans only: started on load, on app-list changes and on theme
-    // changes. Nothing polls, so the dock stays at 0% CPU when idle.
+    // One-shot scans only: started on load and on theme changes. App-list
+    // updates only re-filter desktop entries — they do not rebuild the icon
+    // index. Nothing polls, so the dock stays at 0% CPU when idle.
     Process {
       id: iconIndexScan
       // One collected read, parsed once: a callback per line cost ~23 600
@@ -298,18 +299,13 @@ import "../DockIconTheme.js" as DockIconTheme
     // file is absent (a probe home, a host without Omarchy's staged theme).
     Component.onCompleted: { localAppLibrary.probeTheme(); localAppLibrary.refreshThemes() }
 
-    // Coalesces bursts of app-list changes (one package install touches many
-    // entries) into a single rescan.
-    Timer {
-      id: iconIndexDebounce
-      interval: 750
-      onTriggered: localAppLibrary.refreshIcons()
-    }
-
+    // Desktop entry updates only need the filtered app list refreshed. The
+    // icon index is theme artwork, not .desktop metadata — rebuilding it on
+    // every ApplicationsChanged (launches, package hooks, etc.) was the CPU
+    // spike in issue #95.
     Connections {
       target: (rootRef.appLibrary === localAppLibrary && typeof DesktopEntries !== "undefined") ? DesktopEntries : null
       function onApplicationsChanged() {
-        iconIndexDebounce.restart()
         localAppLibrary.appsChanged()
       }
     }

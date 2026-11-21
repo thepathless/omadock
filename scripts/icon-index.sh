@@ -17,6 +17,11 @@
 # `mimetypes` and `mimes` are both indexed: WhiteSur keeps its file-type art
 # under mimes/, while most themes use mimetypes/.
 #
+# Results are cached under $XDG_CACHE_HOME/omadock/ (default ~/.cache/omadock)
+# keyed by the theme chain. A hit is served when the cache file is newer than
+# every theme/fallback directory the scan would walk — no find/awk on the
+# hot path. Set OMADOCK_ICON_INDEX_NO_CACHE=1 to force a rebuild.
+#
 # Prints one path per line, in no particular order: the caller's parser keeps
 # the first occurrence of each name.
 
@@ -34,44 +39,86 @@ IFS=":"; for d in ${XDG_DATA_DIRS:-/usr/local/share:/usr/share}; do
   groups+=("99:$d/icons")
 done; unset IFS
 
-{
+cache_dir="${XDG_CACHE_HOME:-$HOME/.cache}/omadock"
+# Theme chain becomes the file key; empty argv still gets a stable name.
+theme_key=$(printf '%s' "${*:-fallback}" | tr -c 'A-Za-z0-9._-' '_')
+cache_file="$cache_dir/icon-index-${theme_key}.cache"
+
+cache_is_fresh() {
+  local cache="$1" entry base
+  [ -f "$cache" ] || return 1
   for entry in "${groups[@]}"; do
-    group=${entry%%:*}
     base=${entry#*:}
-    [ -d "$base" ] || continue
-    for ext in svg png; do
-      find "$base" \( -path "*/apps/*" -o -path "*/devices/*" -o -path "*/places/*" \
-        -o -path "*/mimetypes/*" -o -path "*/mimes/*" \) -name "*.$ext" 2>/dev/null \
-        | while IFS= read -r file; do printf "%s\t%s\n" "$group" "$file"; done
-    done
+    [ -e "$base" ] || continue
+    if [ "$base" -nt "$cache" ]; then return 1; fi
   done
-  for ext in svg png; do
-    find /usr/share/pixmaps -maxdepth 1 -name "*.$ext" 2>/dev/null \
-      | while IFS= read -r file; do printf "99\t%s\n" "$file"; done
-  done
-} | awk -F"\t" '
+  if [ -e /usr/share/pixmaps ] && [ /usr/share/pixmaps -nt "$cache" ]; then
+    return 1
+  fi
+  return 0
+}
+
+if [ "${OMADOCK_ICON_INDEX_NO_CACHE:-0}" != "1" ] && cache_is_fresh "$cache_file"; then
+  cat -- "$cache_file"
+  exit 0
+fi
+
+build_index() {
   {
-    g = $1 + 0; p = $2
-    n = p; sub(/.*\//, "", n); sub(/\.[^.]*$/, "", n)
-    if (n == "") next
-    rank = 0
-    m = split(p, parts, "/")
-    for (i = 1; i <= m; i++) {
-      tok = parts[i]
-      if (tok == "scalable") rank = 100000
-      else if (tok == "symbolic") { if (rank < 1) rank = 1 }
-      else if (tok ~ /^[0-9]+x[0-9]+/) {
-        s = tok; sub(/x.*/, "", s); s = s + 0
-        if (tok ~ /@[0-9]+x/) s = s * 2
-        if (s > rank) rank = s
-      } else if (tok ~ /^[0-9]+$/) {
-        s = tok + 0
-        if (s > rank) rank = s
+    for entry in "${groups[@]}"; do
+      group=${entry%%:*}
+      base=${entry#*:}
+      [ -d "$base" ] || continue
+      for ext in svg png; do
+        find "$base" \( -path "*/apps/*" -o -path "*/devices/*" -o -path "*/places/*" \
+          -o -path "*/mimetypes/*" -o -path "*/mimes/*" \) -name "*.$ext" 2>/dev/null \
+          | while IFS= read -r file; do printf "%s\t%s\n" "$group" "$file"; done
+      done
+    done
+    for ext in svg png; do
+      find /usr/share/pixmaps -maxdepth 1 -name "*.$ext" 2>/dev/null \
+        | while IFS= read -r file; do printf "99\t%s\n" "$file"; done
+    done
+  } | awk -F"\t" '
+    {
+      g = $1 + 0; p = $2
+      n = p; sub(/.*\//, "", n); sub(/\.[^.]*$/, "", n)
+      if (n == "") next
+      rank = 0
+      m = split(p, parts, "/")
+      for (i = 1; i <= m; i++) {
+        tok = parts[i]
+        if (tok == "scalable") rank = 100000
+        else if (tok == "symbolic") { if (rank < 1) rank = 1 }
+        else if (tok ~ /^[0-9]+x[0-9]+/) {
+          s = tok; sub(/x.*/, "", s); s = s + 0
+          if (tok ~ /@[0-9]+x/) s = s * 2
+          if (s > rank) rank = s
+        } else if (tok ~ /^[0-9]+$/) {
+          s = tok + 0
+          if (s > rank) rank = s
+        }
+      }
+      if (p ~ /\.svg$/) rank = rank + 0.5
+      if (!(n in bestGroup) || g < bestGroup[n] || (g == bestGroup[n] && rank > bestRank[n])) {
+        bestGroup[n] = g; bestRank[n] = rank; path[n] = p
       }
     }
-    if (p ~ /\.svg$/) rank = rank + 0.5
-    if (!(n in bestGroup) || g < bestGroup[n] || (g == bestGroup[n] && rank > bestRank[n])) {
-      bestGroup[n] = g; bestRank[n] = rank; path[n] = p
-    }
-  }
-  END { for (n in path) print path[n] }'
+    END { for (n in path) print path[n] }'
+}
+
+# Stage through a temp file so a crashed scan never leaves a half-written
+# cache that later runs would treat as fresh.
+mkdir -p -- "$cache_dir"
+tmp_cache=$(mktemp --tmpdir="$cache_dir" "icon-index-${theme_key}.XXXXXX")
+# shellcheck disable=SC2064
+trap 'rm -f -- "$tmp_cache"' EXIT
+build_index >"$tmp_cache"
+# Publish atomically, then print (callers still get stdout either way).
+if [ "${OMADOCK_ICON_INDEX_NO_CACHE:-0}" != "1" ]; then
+  mv -f -- "$tmp_cache" "$cache_file"
+  trap - EXIT
+  cat -- "$cache_file"
+else
+  cat -- "$tmp_cache"
+fi
